@@ -1,11 +1,14 @@
 import type { Metadata } from 'next';
 
+import { LEGAL_LAST_UPDATED } from '../legal-meta';
+
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description: 'The terms that govern your use of PickupVB.',
+  alternates: { canonical: '/legal/terms' },
 };
 
-const LAST_UPDATED = 'May 18, 2026';
+const LAST_UPDATED = LEGAL_LAST_UPDATED.terms;
 const COMPANY = 'Zachary Lockhart Consulting, LLC';
 const BRAND = 'PickupVB';
 const CONTACT_EMAIL = 'support@pickupvb.com';
@@ -239,9 +242,9 @@ export default function TermsPage() {
 
       <h2>11. Third-party services</h2>
       <p>
-        The Service integrates with third-party services such as Stripe, Supabase, Vercel, Resend,
-        Sentry, and Cloudflare Turnstile. Your use of those services is governed by their own terms
-        and privacy policies. {BRAND} is not responsible for third-party services.
+        The Service integrates with third-party services such as Stripe, Supabase, Vercel, PostHog,
+        Resend, Sentry, and Cloudflare Turnstile. Your use of those services is governed by their
+        own terms and privacy policies. {BRAND} is not responsible for third-party services.
       </p>
 
       <h2>12. Disclaimers</h2>

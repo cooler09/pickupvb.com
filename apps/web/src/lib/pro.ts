@@ -22,6 +22,19 @@ export const PRO_PLATFORM_FEE_BPS = 250;
 export const FREE_PAID_EVENT_CAP_30D = 1;
 
 /**
+ * One-time à-la-carte unlock prices, in cents, for the two host add-ons a Free
+ * host can buy per event (Pro includes both). Single source of truth: the
+ * charge amount in the slot-checkout actions
+ * ([sponsor-actions.ts] / [badge-actions.ts]) AND the dollar figure shown on the
+ * pricing + Pro pages derive from these — so a price change is a one-constant
+ * edit, the same discipline ADR 0014 applies to the platform-fee rate.
+ * Per ADR 0014's "rate changes need an ADR amendment" rule, changing either
+ * value should be recorded as an amendment. (monetization audit M-3.)
+ */
+export const SPONSOR_SLOT_UNLOCK_CENTS = 300;
+export const BADGE_SLOT_UNLOCK_CENTS = 500;
+
+/**
  * Per-request memoized. Event detail (and several other pages) call this
  * from multiple side-load branches in the same render; `React.cache`
  * dedupes the underlying `is_pro_host(uuid)` lookup. See performance

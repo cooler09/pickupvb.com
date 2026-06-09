@@ -29,7 +29,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 const CARD_COLUMNS =
-  'id, handle, display_name, home_city, avatar_url, primary_position, secondary_position, tertiary_position';
+  'id, handle, display_name, home_city, avatar_url, primary_position, secondary_position, tertiary_position, discoverable';
 
 type CardRow = {
   id: string;
@@ -40,6 +40,7 @@ type CardRow = {
   primary_position: string | null;
   secondary_position: string | null;
   tertiary_position: string | null;
+  discoverable: boolean | null;
 };
 
 function toCard(row: CardRow): ProfileCard {
@@ -52,6 +53,9 @@ function toCard(row: CardRow): ProfileCard {
     positions: [row.primary_position, row.secondary_position, row.tertiary_position].filter(
       (p): p is string => Boolean(p),
     ),
+    // Null (column unset) defaults to discoverable — only an explicit `false`
+    // de-indexes the public page / drops the handle from the sitemap.
+    discoverable: row.discoverable ?? true,
   };
 }
 

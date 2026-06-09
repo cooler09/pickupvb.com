@@ -4,6 +4,7 @@ import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { isPro } from '@/lib/pro';
+import { csvCell } from '@/lib/csv';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,10 +101,4 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       'content-disposition': `attachment; filename="event-${id}-attendees.csv"`,
     },
   });
-}
-
-function csvCell(s: string): string {
-  if (s == null) return '';
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
 }

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { LEGAL_LAST_UPDATED } from '../legal-meta';
+
 export const metadata: Metadata = {
   title: 'Accessibility',
   description:
@@ -7,7 +9,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/legal/accessibility' },
 };
 
-const LAST_UPDATED = 'June 3, 2026';
+const LAST_UPDATED = LEGAL_LAST_UPDATED.accessibility;
 const BRAND = 'PickupVB';
 const CONTACT_EMAIL = 'support@pickupvb.com';
 

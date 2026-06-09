@@ -129,7 +129,11 @@ export function AvatarCropDialog({ imageSrc, cropShape = 'round', onConfirm, onC
               />
             </label>
 
-            {error && <p className="text-destructive text-xs">{error}</p>}
+            {error && (
+              <p role="alert" className="text-md-error text-xs">
+                {error}
+              </p>
+            )}
 
             <div className="flex flex-wrap justify-end gap-2 pt-1">
               <button

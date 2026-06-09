@@ -10,7 +10,17 @@ import EditEventForm from './edit-event-form';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { SponsorPanel } from './sponsor-panel';
 import { EventBadgesPanel } from './event-badges-panel';
+import { EventWaiverPanel } from './event-waiver-panel';
 import { HeroImagePanel } from '@/components/hero-image-panel';
+import Link from 'next/link';
+import type { Route } from 'next';
+import { SubmitButton } from '@/components/submit-button';
+import { Alert } from '@/components/alert';
+import { primaryButtonClass } from '@/components/primary-button';
+import { setEventAcceptsPasses } from './pass-eligibility-actions';
+import { setEventPayoutGroup } from './payout-actions';
+import { isClubGroup } from '@/lib/club';
+import { getGroupStripeAccount } from '@/lib/group-stripe-account';
 
 function pickQuery(
   searchParams: Record<string, string | string[] | undefined> | undefined,
@@ -61,21 +71,31 @@ export default async function EditEventPage(props: {
   const pricingLocked = await isPricingLocked(id);
   const viewerHasProBenefits = await hasProBenefits(user.id);
 
-  const [{ data: sponsorRow }, { data: heroRow }, { data: badgeRows }, { data: badgeAccessRow }] =
-    await Promise.all([
-      admin
-        .from('event_sponsors')
-        .select('name, blurb, link_url, logo_url, discount_code, access_kind, paid_at')
-        .eq('event_id', id)
-        .maybeSingle(),
-      admin.from('events').select('hero_image_url').eq('id', id).maybeSingle(),
-      admin
-        .from('event_badges')
-        .select('id, label, description, icon_url, grant_rule')
-        .eq('event_id', id)
-        .order('sort_order', { ascending: true }),
-      admin.from('event_badge_access').select('paid_at').eq('event_id', id).maybeSingle(),
-    ]);
+  const [
+    { data: sponsorRow },
+    { data: sponsorAccessRow },
+    { data: heroRow },
+    { data: badgeRows },
+    { data: badgeAccessRow },
+  ] = await Promise.all([
+    admin
+      .from('event_sponsors')
+      .select('name, blurb, link_url, logo_url, discount_code')
+      .eq('event_id', id)
+      .maybeSingle(),
+    admin.from('event_sponsor_access').select('paid_at').eq('event_id', id).maybeSingle(),
+    admin
+      .from('events')
+      .select('hero_image_url, accepts_pass_credits, host_group_id, payout_group_id')
+      .eq('id', id)
+      .maybeSingle(),
+    admin
+      .from('event_badges')
+      .select('id, label, description, icon_url, grant_rule')
+      .eq('event_id', id)
+      .order('sort_order', { ascending: true }),
+    admin.from('event_badge_access').select('paid_at').eq('event_id', id).maybeSingle(),
+  ]);
   const badgeAccessPaid = (badgeAccessRow as { paid_at: string | null } | null)?.paid_at != null;
 
   const sponsor = sponsorRow
@@ -87,8 +107,10 @@ export default async function EditEventPage(props: {
         discountCode: sponsorRow.discount_code,
       }
     : null;
+  // Entitlement now lives in its own table, decoupled from the content row
+  // (monetization audit SP-1/SP-2).
   const sponsorEntitledByPayment =
-    sponsorRow?.access_kind === 'ala_carte' && sponsorRow?.paid_at !== null;
+    (sponsorAccessRow as { paid_at: string | null } | null)?.paid_at != null;
   const sponsorFlash = pickQuery(searchParams, 'sponsor');
   const sponsorMsg = pickQuery(searchParams, 'sponsor_msg');
 
@@ -111,6 +133,42 @@ export default async function EditEventPage(props: {
   }));
   const badgeFlash = pickQuery(searchParams, 'badge');
   const badgeMsg = pickQuery(searchParams, 'badge_msg');
+
+  const acceptsPassCredits =
+    (heroRow as { accepts_pass_credits?: boolean } | null)?.accepts_pass_credits ?? false;
+  const passFlash = pickQuery(searchParams, 'pass');
+  const passMsg = pickQuery(searchParams, 'pass_msg');
+
+  // ── Group payout (Club) opt-in (ADR 0038) ──
+  const eventRow = heroRow as {
+    host_group_id?: string | null;
+    payout_group_id?: string | null;
+  } | null;
+  const hostGroupId = eventRow?.host_group_id ?? null;
+  const payoutGroupId = eventRow?.payout_group_id ?? null;
+  // For a group-hosted event, resolve the group (slug + name) and whether it's a
+  // ready Club (active subscription + charges-enabled payout account).
+  let hostGroup: { slug: string; name: string; clubReady: boolean } | null = null;
+  if (hostGroupId) {
+    const { data: gRow } = await admin
+      .from('groups')
+      .select('slug, name')
+      .eq('id', hostGroupId)
+      .maybeSingle();
+    const g = gRow as { slug: string; name: string } | null;
+    if (g) {
+      const [club, acct] = await Promise.all([
+        isClubGroup(hostGroupId),
+        getGroupStripeAccount(hostGroupId),
+      ]);
+      hostGroup = { slug: g.slug, name: g.name, clubReady: club && Boolean(acct) };
+    }
+  }
+  const payoutFlash = pickQuery(searchParams, 'payout');
+  const payoutMsg = pickQuery(searchParams, 'payout_msg');
+
+  const waiverFlash = pickQuery(searchParams, 'waiver');
+  const waiverMsg = pickQuery(searchParams, 'waiver_msg');
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
@@ -202,6 +260,123 @@ export default async function EditEventPage(props: {
           {...(badgeFlash ? { badgeFlash } : {})}
           {...(badgeMsg ? { badgeMsg } : {})}
         />
+
+        <EventWaiverPanel
+          eventId={id}
+          returnPath={`/events/${id}`}
+          {...(waiverFlash ? { flashCode: waiverFlash } : {})}
+          {...(waiverMsg ? { flashMsg: waiverMsg } : {})}
+        />
+
+        {event.type === 'open_play' && viewerHasProBenefits && (
+          <section className="border-border-base bg-md-surface-container rounded-shape-sm space-y-3 border p-5">
+            <div>
+              <h3 className="text-fg font-semibold">Season passes</h3>
+              <p className="text-muted text-sm">
+                Let buyers of your{' '}
+                <Link
+                  href={'/profile/billing/passes' as Route}
+                  className="text-primary hover:underline"
+                >
+                  pass credits
+                </Link>{' '}
+                redeem one to sign up for this event — no per-session charge.
+              </p>
+            </div>
+            {passFlash === 'eligibility_saved' && <Alert variant="success">Saved.</Alert>}
+            {passFlash === 'pro' && (
+              <Alert variant="warning" title="Pro required">
+                Passes are a Pro feature.
+              </Alert>
+            )}
+            {passFlash === 'error' && (
+              <Alert variant="error" title="Couldn’t save">
+                {passMsg || 'Please try again.'}
+              </Alert>
+            )}
+            <form
+              action={setEventAcceptsPasses.bind(null, id, `/events/${id}`)}
+              className="flex flex-wrap items-center gap-3"
+            >
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="accepts"
+                  defaultChecked={acceptsPassCredits}
+                  className="h-4 w-4"
+                />
+                Accept pass credits for this event
+              </label>
+              <SubmitButton className={primaryButtonClass('sm')} pendingChildren="Saving…">
+                Save
+              </SubmitButton>
+            </form>
+          </section>
+        )}
+
+        {hostGroup && (
+          <section className="border-border-base bg-md-surface-container rounded-shape-sm space-y-3 border p-5">
+            <div>
+              <h3 className="text-fg font-semibold">Club payouts</h3>
+              <p className="text-muted text-sm">
+                Route this event&apos;s ticket, team &amp; tip payouts to your club&apos;s shared
+                Stripe account instead of your personal one.
+              </p>
+            </div>
+            {payoutFlash === 'saved' && <Alert variant="success">Saved.</Alert>}
+            {payoutFlash === 'locked' && (
+              <Alert variant="warning" title="Locked">
+                {payoutMsg || 'Payout routing is locked once a registration is paid.'}
+              </Alert>
+            )}
+            {(payoutFlash === 'needs_club' ||
+              payoutFlash === 'group_not_ready' ||
+              payoutFlash === 'no_group' ||
+              payoutFlash === 'unauthorized' ||
+              payoutFlash === 'error') && (
+              <Alert variant="error" title="Couldn’t save">
+                {payoutMsg || 'Could not update payout routing.'}
+              </Alert>
+            )}
+            {hostGroup.clubReady ? (
+              pricingLocked ? (
+                <p className="text-muted text-sm">
+                  {payoutGroupId ? `Paying out to ${hostGroup.name}.` : 'Paying out to you.'}{' '}
+                  Routing is locked because a registration has been paid.
+                </p>
+              ) : (
+                <form
+                  action={setEventPayoutGroup.bind(null, id, `/events/${id}`)}
+                  className="flex flex-wrap items-center gap-3"
+                >
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name="route"
+                      defaultChecked={payoutGroupId != null}
+                      className="h-4 w-4"
+                    />
+                    Pay out to {hostGroup.name}
+                  </label>
+                  <SubmitButton className={primaryButtonClass('sm')} pendingChildren="Saving…">
+                    Save
+                  </SubmitButton>
+                </form>
+              )
+            ) : (
+              <p className="text-muted text-sm">
+                Your club needs an active{' '}
+                <Link
+                  href={`/groups/${hostGroup.slug}/billing` as Route}
+                  className="text-primary hover:underline"
+                >
+                  Club subscription + payout account
+                </Link>{' '}
+                before events can route payouts to it.
+              </p>
+            )}
+          </section>
+        )}
       </div>
     </section>
   );

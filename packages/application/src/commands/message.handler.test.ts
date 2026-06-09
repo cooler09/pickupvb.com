@@ -83,6 +83,18 @@ describe('SendMessageHandler', () => {
     expect(out.id).toBe(repo.added[0]?.id);
   });
 
+  it('returns the moderated body so the caller previews the stored text, not the raw input', async () => {
+    const repo = new FakeMessageRepo();
+    const out = await new SendMessageHandler(repo).execute(
+      new SendMessageCommand(CID, SENDER, 'this is fuck', false, [], 'team'),
+    );
+    // Room policy masks Tier-A profanity; the returned body must be the stored
+    // (masked) one — the chat notification preview reads it.
+    expect(out.body).not.toContain('fuck');
+    expect(out.body).toContain('*');
+    expect(out.body).toBe(repo.added[0]?.body);
+  });
+
   it('rejects an anonymous sender before persisting', async () => {
     const repo = new FakeMessageRepo();
     await expect(

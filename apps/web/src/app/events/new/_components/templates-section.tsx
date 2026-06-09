@@ -83,7 +83,9 @@ export default function TemplatesSection({
         <span className="text-md-success text-sm">✓ Template saved</span>
       )}
       {templateStatus === 'error' && (
-        <span className="text-destructive text-sm">Could not save template</span>
+        <span role="alert" className="text-md-error text-sm">
+          Could not save template
+        </span>
       )}
 
       <FormModal
@@ -143,7 +145,7 @@ export default function TemplatesSection({
                           await deleteEventTemplate(pickedTemplate);
                         });
                       }}
-                      className="text-muted hover:text-destructive focus-visible:ring-primary rounded text-sm focus:outline-none focus-visible:ring-2 disabled:opacity-60"
+                      className="text-muted hover:text-md-error focus-visible:ring-primary rounded text-sm focus:outline-none focus-visible:ring-2 disabled:opacity-60"
                     >
                       {isDeletingTemplate ? 'Removing…' : 'Remove'}
                     </button>
@@ -187,7 +189,9 @@ export default function TemplatesSection({
                 </button>
               </div>
               {templateNameError && (
-                <p className="text-destructive mt-1 text-xs">{templateNameError}</p>
+                <p role="alert" className="text-md-error mt-1 text-xs">
+                  {templateNameError}
+                </p>
               )}
             </div>
           </div>

@@ -22,9 +22,7 @@ import { requireSession } from '@/lib/server-auth';
 import { buildOrigin } from '@/lib/server-redirects';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { eventCacheTag } from '@/lib/cache-tags';
-
-/** One-time price to unlock collectible badges for a single event (free tier). */
-const BADGE_SLOT_UNLOCK_CENTS = 500;
+import { BADGE_SLOT_UNLOCK_CENTS } from '@/lib/pro';
 
 /** Has this event's à-la-carte badge unlock been paid? Reads the access row on
  * the admin client (the table has no client RLS policies — webhook-written).
@@ -192,32 +190,38 @@ export async function startBadgeSlotCheckoutFromForm(
 
   let session: Stripe.Checkout.Session;
   try {
-    session = await getStripe().checkout.sessions.create({
-      mode: 'payment',
-      ...(user.email ? { customer_email: user.email } : {}),
-      allow_promotion_codes: true,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: 'usd',
-            unit_amount: BADGE_SLOT_UNLOCK_CENTS,
-            product_data: {
-              name: 'Collectible badges unlock',
-              description: 'One-time unlock of collectible badges for this event',
+    session = await getStripe().checkout.sessions.create(
+      {
+        mode: 'payment',
+        ...(user.email ? { customer_email: user.email } : {}),
+        allow_promotion_codes: true,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: 'usd',
+              unit_amount: BADGE_SLOT_UNLOCK_CENTS,
+              product_data: {
+                name: 'Collectible badges unlock',
+                description: 'One-time unlock of collectible badges for this event',
+              },
             },
           },
+        ],
+        metadata: {
+          kind: 'badge_slot',
+          event_id: eventId,
+          user_id: user.id,
+          ...(hostId ? { host_id: hostId } : {}),
         },
-      ],
-      metadata: {
-        kind: 'badge_slot',
-        event_id: eventId,
-        user_id: user.id,
-        ...(hostId ? { host_id: hostId } : {}),
+        success_url: `${origin}/events/${eventId}/edit?badge=checkout_success`,
+        cancel_url: `${origin}/events/${eventId}/edit?badge=checkout_cancel`,
       },
-      success_url: `${origin}/events/${eventId}/edit?badge=checkout_success`,
-      cancel_url: `${origin}/events/${eventId}/edit?badge=checkout_cancel`,
-    });
+      // The badge unlock has no per-attempt draft (it's a flat one-event unlock),
+      // so a stable key dedupes the SDK's own network retries to one session.
+      // (TPI-5 parity for the slot flows.)
+      { idempotencyKey: `badge:${eventId}:${user.id}` },
+    );
   } catch (err) {
     flashTo(eventId, 'error', err instanceof Error ? err.message : 'Could not start checkout.');
   }

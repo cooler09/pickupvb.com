@@ -1,11 +1,14 @@
 import type { Metadata } from 'next';
 
+import { LEGAL_LAST_UPDATED } from '../legal-meta';
+
 export const metadata: Metadata = {
   title: 'Refund Policy',
   description: 'How refunds work for paid events and Pro Host subscriptions on PickupVB.',
+  alternates: { canonical: '/legal/refunds' },
 };
 
-const LAST_UPDATED = 'May 18, 2026';
+const LAST_UPDATED = LEGAL_LAST_UPDATED.refunds;
 const COMPANY = 'Zachary Lockhart Consulting, LLC';
 const BRAND = 'PickupVB';
 const CONTACT_EMAIL = 'support@pickupvb.com';

@@ -5,12 +5,8 @@ import type Stripe from 'stripe';
 import type { Route } from 'next';
 import { isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
-import {
-  getEventPricing,
-  attendeeChargeBreakdownAsync,
-  platformFeeCentsFor,
-} from '@/lib/event-pricing';
-import { getHostStripeAccount } from '@/lib/host-stripe-account';
+import { getEventPricing, attendeeChargeBreakdownAsync } from '@/lib/event-pricing';
+import { getEventPayoutAccount } from '@/lib/event-payout';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { field } from '@/lib/form-data';
@@ -52,8 +48,12 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
     // Free event — caller should have used joinEvent. Just bounce them.
     backWithError(eventId, 'not_paid_event');
   }
+  // Off-platform events collect outside Stripe (docs/payments.md). No code path
+  // reaches here for one today, but guard in depth so a tampered call can't open
+  // an on-platform charge the host never opted into.
+  if (pricing.paymentsOffPlatform) backWithError(eventId, 'off_platform');
 
-  const hostAccountId = await getHostStripeAccount(pricing.hostId);
+  const hostAccountId = await getEventPayoutAccount(eventId, pricing.hostId);
   if (!hostAccountId) {
     backWithError(eventId, 'host_not_ready');
   }
@@ -138,7 +138,9 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   try {
     session = await createDestinationCheckoutSession({
       destinationAccountId: hostAccountId!,
-      applicationFeeAmount: await platformFeeCentsFor(pricing.hostId, pricing.priceCents),
+      // Reuse the fee already computed in `breakdown` (the platform's cut,
+      // independent of the absorb toggle) instead of recomputing it here.
+      applicationFeeAmount: breakdown.applicationFeeCents,
       customerEmail: user.email ?? null,
       lineItems: [
         {

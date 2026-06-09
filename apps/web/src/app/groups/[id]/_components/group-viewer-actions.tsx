@@ -120,6 +120,9 @@ export function GroupViewerActions({
           <Link href={`/groups/${groupSlug}/edit` as Route} className={neutralButtonClass('sm')}>
             Edit
           </Link>
+          <Link href={`/groups/${groupSlug}/billing` as Route} className={neutralButtonClass('sm')}>
+            Club &amp; payouts
+          </Link>
         </>
       )}
     </>

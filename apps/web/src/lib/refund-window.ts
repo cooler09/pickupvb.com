@@ -12,27 +12,27 @@ import { getAdminSupabase } from './supabase-admin';
  * safe side and refuse the refund.
  */
 export async function assertWithinRefundWindow(
-    eventId: string,
+  eventId: string,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
-    const admin = getAdminSupabase();
-    const { data } = await admin
-        .from('events')
-        .select('starts_at, refund_window_hours')
-        .eq('id', eventId)
-        .maybeSingle();
-    type Row = { starts_at: string; refund_window_hours: number };
-    const ev = data as unknown as Row | null;
-    if (!ev) {
-        return { ok: false, reason: 'Event not found.' };
-    }
-    const startsAt = new Date(ev.starts_at).getTime();
-    const windowMs = (ev.refund_window_hours ?? 0) * 60 * 60 * 1000;
-    const cutoff = startsAt - windowMs;
-    if (Date.now() > cutoff) {
-        return {
-            ok: false,
-            reason: 'Refund window has closed. Contact the host to cancel.',
-        };
-    }
-    return { ok: true };
+  const admin = getAdminSupabase();
+  const { data } = await admin
+    .from('events')
+    .select('starts_at, refund_window_hours')
+    .eq('id', eventId)
+    .maybeSingle();
+  type Row = { starts_at: string; refund_window_hours: number };
+  const ev = data as unknown as Row | null;
+  if (!ev) {
+    return { ok: false, reason: 'Event not found.' };
+  }
+  const startsAt = new Date(ev.starts_at).getTime();
+  const windowMs = (ev.refund_window_hours ?? 0) * 60 * 60 * 1000;
+  const cutoff = startsAt - windowMs;
+  if (Date.now() > cutoff) {
+    return {
+      ok: false,
+      reason: 'Refund window has closed. Contact the host to cancel.',
+    };
+  }
+  return { ok: true };
 }

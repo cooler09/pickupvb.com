@@ -72,6 +72,14 @@ export interface ProfileCard {
    * directory sorts by it and the card shows it when present.
    */
   distanceKm?: number | null;
+  /**
+   * Whether the player opted into discovery (`profiles.discoverable`).
+   * Directory/picker reads are already filtered to `true`; by-id / by-handle
+   * lookups are not, so this lets a caller honor the opt-out — e.g. the public
+   * profile page's `robots: noindex` tag and the sitemap's exclusion of
+   * non-discoverable handles. Defaults to `true` when unset.
+   */
+  discoverable: boolean;
 }
 
 export interface ProfileSearchQuery {

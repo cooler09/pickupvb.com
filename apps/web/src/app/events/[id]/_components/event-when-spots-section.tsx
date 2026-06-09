@@ -10,6 +10,7 @@ export function EventWhenSpotsSection({
   timeZone,
   spotsRemaining,
   attendeeCount,
+  offPlatform,
 }: {
   type: string;
   startsAt: Date;
@@ -17,6 +18,13 @@ export function EventWhenSpotsSection({
   timeZone: string | null;
   spotsRemaining: number | null;
   attendeeCount: number;
+  /**
+   * True when registration (and/or payment) is handled off PickupVB — i.e.
+   * `registrationMode === 'external'` or `paymentsOffPlatform`. The on-platform
+   * attendee count is then empty/partial, so the live "N open · M signed up"
+   * split would mislead; show the listed capacity as a plain total instead.
+   */
+  offPlatform: boolean;
 }) {
   return (
     <section className="border-border-base rounded-shape-sm overflow-hidden border sm:grid sm:grid-cols-2">
@@ -50,6 +58,11 @@ export function EventWhenSpotsSection({
         <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Spots</h2>
         {spotsRemaining === null ? (
           <p className="text-fg mt-1 font-medium">Unlimited</p>
+        ) : offPlatform ? (
+          // `spotsRemaining + attendeeCount` is the configured capacity (the
+          // on-platform count nets out), shown as a plain total so we don't
+          // imply live availability the platform can't actually track here.
+          <p className="text-fg mt-1 font-medium">{spotsRemaining + attendeeCount} spots</p>
         ) : (
           <p className="text-fg mt-1 font-medium">
             {spotsRemaining} open · <span className="text-muted">{attendeeCount} signed up</span>

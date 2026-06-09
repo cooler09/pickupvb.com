@@ -24,6 +24,7 @@ export type NotificationKind =
   | 'payment.refunded'
   | 'host.payout.paid'
   | 'host.stripe.action_required'
+  | 'host.payment.disputed'
   | 'social.follow.new'
   | 'event.free_agent.picked_up'
   | 'badge.earned'
@@ -60,6 +61,9 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
   'payment.refunded': 'transactional',
   'host.payout.paid': 'host_payouts',
   'host.stripe.action_required': 'transactional',
+  // A chargeback has a hard Stripe response deadline — transactional so it can
+  // never be silently disabled away.
+  'host.payment.disputed': 'transactional',
   'social.follow.new': 'social',
   'event.free_agent.picked_up': 'group_activity',
   'badge.earned': 'social',
@@ -93,6 +97,7 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   'payment.refunded': ['email', 'in_app'],
   'host.payout.paid': ['email', 'in_app'],
   'host.stripe.action_required': ['email', 'in_app'],
+  'host.payment.disputed': ['email', 'in_app'],
   'social.follow.new': ['in_app'],
   'event.free_agent.picked_up': ['email', 'push', 'in_app'],
   'badge.earned': ['in_app'],
@@ -128,17 +133,21 @@ export type NotificationPayloadMap = {
     eventTitle: string;
     startsAt: string; // ISO
     location: string;
+    /** IANA zone of the event (e.g. 'America/New_York'); times render in it. */
+    timeZone?: string;
   };
   'event.waitlist.promoted': {
     eventId: string;
     eventTitle: string;
     startsAt: string;
+    timeZone?: string;
   };
   'event.cancelled': {
     eventId: string;
     eventTitle: string;
     startsAt: string;
     reason: string | null;
+    timeZone?: string;
   };
   'event.updated': {
     eventId: string;
@@ -150,12 +159,14 @@ export type NotificationPayloadMap = {
     eventTitle: string;
     startsAt: string;
     location: string;
+    timeZone?: string;
   };
   'event.reminder.2h': {
     eventId: string;
     eventTitle: string;
     startsAt: string;
     location: string;
+    timeZone?: string;
   };
   'league.match.reminder': {
     eventId: string;
@@ -166,6 +177,8 @@ export type NotificationPayloadMap = {
     scheduledAt: string;
     /** Court label, when the host set one. */
     courtLabel: string | null;
+    /** IANA zone of the event (e.g. 'America/New_York'); kickoff renders in it. */
+    timeZone?: string;
   };
   'payment.refunded': {
     eventId: string;
@@ -178,6 +191,12 @@ export type NotificationPayloadMap = {
   };
   'host.stripe.action_required': {
     message: string;
+  };
+  'host.payment.disputed': {
+    eventId: string;
+    eventTitle: string;
+    /** Disputed amount in cents (Stripe `dispute.amount`). */
+    amountCents: number;
   };
   'social.follow.new': {
     followerId: string;

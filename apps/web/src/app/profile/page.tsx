@@ -32,6 +32,7 @@ export default async function ProfilePage(props: {
     userId,
     userEmail,
     profile,
+    hasPublicHandle,
     displayInitials,
     positions,
     viewerIsPro,
@@ -67,6 +68,7 @@ export default async function ProfilePage(props: {
         positions={positions}
         viewerIsAdmin={viewerIsAdmin}
         viewerIsPro={viewerIsPro}
+        hasPublicHandle={hasPublicHandle}
       />
 
       {/* Achievement badges (gamification Phase 1) — owner sees locked teasers. */}
@@ -137,7 +139,9 @@ export default async function ProfilePage(props: {
             userId={userId}
             currentUrl={profile.avatar_url}
             initials={displayInitials}
-            returnPath={`/players/${profile.handle}`}
+            // Revalidate the public card when one exists; otherwise just the hub
+            // (no vanity handle yet → `/players/<uuid>` would 404). PRV-3.
+            returnPath={hasPublicHandle ? `/players/${profile.handle}` : '/profile'}
           />
         </div>
       </details>

@@ -1,30 +1,32 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { blockUser, unblockUser } from '@/app/_actions/chat-actions';
 
 /**
- * Block / unblock toggle for a DM counterpart (ADR 0028, Phase 3). Optimistic
- * with rollback. Blocking takes effect via `is_blocked_pair` in RLS — once
- * blocked, neither party can send (the composer surfaces the rejection), so the
- * toggle is the single control; no extra disable wiring on the view.
+ * Block / unblock toggle for a DM counterpart (ADR 0028, Phase 3). Controlled:
+ * the parent ({@link DmThread}) owns `blocked` so the same state also drives the
+ * composer banner (audit M-9). Optimistic with rollback — `onChange` flips
+ * immediately and reverts if the server call fails. Blocking takes effect via
+ * `is_blocked_pair` in RLS.
  */
 export function BlockControl({
   otherUserId,
-  initiallyBlocked,
+  blocked,
+  onChange,
 }: {
   otherUserId: string;
-  initiallyBlocked: boolean;
+  blocked: boolean;
+  onChange: (next: boolean) => void;
 }) {
-  const [blocked, setBlocked] = useState(initiallyBlocked);
   const [pending, startTransition] = useTransition();
 
   function toggle() {
     startTransition(async () => {
       const next = !blocked;
-      setBlocked(next);
+      onChange(next); // optimistic
       const res = next ? await blockUser(otherUserId) : await unblockUser(otherUserId);
-      if (!res.ok) setBlocked(!next); // revert on failure
+      if (!res.ok) onChange(!next); // revert on failure
     });
   }
 
@@ -33,7 +35,8 @@ export function BlockControl({
       type="button"
       onClick={toggle}
       disabled={pending}
-      className="text-muted hover:text-md-error shrink-0 text-xs disabled:opacity-50"
+      aria-pressed={blocked}
+      className="text-muted hover:text-md-error -my-1 shrink-0 rounded px-2 py-1.5 text-xs disabled:opacity-50"
     >
       {blocked ? 'Unblock' : 'Block'}
     </button>

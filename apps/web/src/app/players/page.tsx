@@ -1,11 +1,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Route } from 'next';
-import type { ProfileCard } from '@pickupvb/domain';
 import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { Pagination } from '@/components/pagination';
 import { POSITION_LABEL } from '@/lib/enum-labels';
+import { playerName, playerInitials } from '@/lib/player-name';
 import { fieldInputClass } from '@/components/field-styles';
 import { primaryButtonClass } from '@/components/primary-button';
 import { EmptyState } from '@/components/empty-state';
@@ -35,16 +35,6 @@ export const metadata = {
 };
 
 const PAGE_SIZE = 24;
-
-function nameOf(p: ProfileCard): string {
-  return p.displayName || 'Player';
-}
-
-function initialsOf(p: ProfileCard): string {
-  const parts = (p.displayName ?? '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  return (p.displayName ?? '?').slice(0, 2).toUpperCase();
-}
 
 export default async function PlayersIndexPage(props: {
   searchParams: Promise<{
@@ -152,7 +142,7 @@ export default async function PlayersIndexPage(props: {
                     aria-hidden="true"
                     className="bg-primary/15 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
                   >
-                    {initialsOf(p)}
+                    {playerInitials(p.displayName)}
                   </span>
                 )}
                 {/* Stretched link: the name covers the whole tile so the avatar,
@@ -163,7 +153,7 @@ export default async function PlayersIndexPage(props: {
                     href={`/players/${p.handle}`}
                     className="hover:text-primary block truncate text-sm font-semibold after:absolute after:inset-0 focus-visible:outline-none"
                   >
-                    {nameOf(p)}
+                    {playerName(p.displayName)}
                   </Link>
                   {(p.homeCity || p.distanceKm != null) && (
                     <p className="text-muted truncate text-xs">

@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next/types';
 import { notFound } from 'next/navigation';
@@ -17,8 +18,10 @@ import { EventStructuredData } from './_components/event-structured-data';
 import { EventFlashBanners } from './_components/event-flash-banners';
 import { EventLocationSection } from './_components/event-location-section';
 import { EventSignupArea } from './_components/event-signup-area';
+import { PassPanel } from './_components/pass-panel';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
+import { EventWaiverSection } from './_components/event-waiver-section';
 import { EventBadgesEarnSection } from './_components/event-badges-earn-section';
 import { EventMediaLink } from './_components/event-media-link';
 import { OffPlatformUpsell } from './_components/off-platform-upsell';
@@ -27,6 +30,7 @@ import { EventSubpageLink } from './_components/event-subpage-link';
 import { EventManageBanner } from './_components/event-manage-banner';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 import { HeroImage } from '@/components/hero-image';
+import { RoomChatPanel } from '@/components/room-chat-panel';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
@@ -148,6 +152,10 @@ export default async function EventDetailPage(props: {
     cta,
   } = vm;
 
+  // Waiver flash (O-9) — extracted so the conditional-spread narrows it to a
+  // string (exactOptionalPropertyTypes).
+  const waiverFlash = pickQuery(searchParams, 'waiver');
+
   // Registered count per division (roster teams + ad-hoc / walk-in entries),
   // mirroring the public roster grouping, so the divisions comparison list can
   // show "registered / cap" for team divisions.
@@ -160,6 +168,21 @@ export default async function EventDetailPage(props: {
   for (const r of adHocAllRegistrations) {
     teamCountByDivision.set(r.divisionId, (teamCountByDivision.get(r.divisionId) ?? 0) + 1);
   }
+
+  // Roster for live-message author resolution in the event room chat (host +
+  // co-hosts + attendees, deduped). Best-effort — the initial message page
+  // already carries server-resolved names; this only labels live broadcast rows.
+  const chatParticipants = [
+    ...new Map(
+      [
+        ...(event.primaryHostUser
+          ? [{ id: event.primaryHostUser.id, name: event.primaryHostUser.displayName }]
+          : []),
+        ...event.coHostUsers.map((u) => ({ id: u.id, name: u.displayName })),
+        ...attendeesForList.map((a) => ({ id: a.user_id, name: a.profiles.display_name })),
+      ].map((p) => [p.id, p] as const),
+    ).values(),
+  ];
 
   return (
     <article className="mx-auto max-w-3xl space-y-8">
@@ -221,6 +244,7 @@ export default async function EventDetailPage(props: {
         timeZone={event.timeZone}
         spotsRemaining={event.spotsRemaining}
         attendeeCount={event.attendeeCount}
+        offPlatform={event.paymentsOffPlatform || isExternal}
       />
 
       <EventMetaSection
@@ -238,7 +262,11 @@ export default async function EventDetailPage(props: {
         timeZone={event.timeZone}
       />
 
-      <DivisionsSection divisions={event.divisions} teamCounts={teamCountByDivision} />
+      <DivisionsSection
+        divisions={event.divisions}
+        teamCounts={teamCountByDivision}
+        offPlatform={event.paymentsOffPlatform || isExternal}
+      />
 
       <EventSignupArea
         event={event}
@@ -266,6 +294,14 @@ export default async function EventDetailPage(props: {
         team={pickQuery(searchParams, 'team')}
         fa={pickQuery(searchParams, 'fa')}
       />
+
+      {/* PassPanel + EventWaiverSection are async server components that do their
+          own (gated) reads. Suspense-wrap them so they stream off the critical
+          path instead of blocking the page as a third wave after loadEventDetail
+          (perf audit P3 #23). */}
+      <Suspense fallback={null}>
+        <PassPanel eventId={event.id} />
+      </Suspense>
 
       {event.description && (
         <section>
@@ -328,7 +364,14 @@ export default async function EventDetailPage(props: {
         )}
       />
 
-      {event.type === 'tournament' && !event.paymentsOffPlatform && (
+      <RoomChatPanel
+        kind="event"
+        contextId={event.id}
+        label="Event chat"
+        participants={chatParticipants}
+      />
+
+      {event.type === 'tournament' && !event.paymentsOffPlatform && !isExternal && (
         <TeamsRegisteredSection
           teams={event.teams}
           adHocRegistrations={adHocAllRegistrations}
@@ -353,6 +396,13 @@ export default async function EventDetailPage(props: {
       />
 
       <EventBadgesEarnSection badges={eventBadges.filter((b) => b.grantRule === 'on_attend')} />
+
+      <Suspense fallback={null}>
+        <EventWaiverSection
+          eventId={event.id}
+          {...(waiverFlash ? { flashCode: waiverFlash } : {})}
+        />
+      </Suspense>
 
       <EventSponsorSection sponsor={sponsor} />
 

@@ -12,13 +12,13 @@ import type Stripe from 'stripe';
 vi.mock('@/lib/handlers', () => ({
   repositories: {
     eventPaymentRepo: {
-      deletePendingAttendeesByPaymentIntent: vi.fn(async () => {}),
-      markPendingTipsFailedByPaymentIntent: vi.fn(async () => {}),
-      markTipsRefundedByPaymentIntent: vi.fn(async () => {}),
+      markTipsRefundedByPaymentIntent: vi.fn(async () => null),
       findRefundableAttendeeByPaymentIntent: vi.fn(async () => null),
       deleteAttendee: vi.fn(async () => {}),
       recordPaymentAudit: vi.fn(async () => {}),
       findEventTitle: vi.fn(async () => 'Beach Bash'),
+      findEventHostId: vi.fn(async () => 'host1'),
+      findTipContextByPaymentIntent: vi.fn(async () => null),
     },
   },
 }));
@@ -38,7 +38,7 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { handleChargeRefunded, handlePaymentFailed } from './charge';
+import { handleChargeDisputed, handleChargeRefunded, handlePaymentFailed } from './charge';
 import { repositories } from '@/lib/handlers';
 import { notify } from '@/lib/notify';
 import {
@@ -64,10 +64,66 @@ beforeEach(() => {
 });
 
 describe('handlePaymentFailed', () => {
-  it('drops pending attendees and fails pending tips for the PI', async () => {
-    await handlePaymentFailed({ id: 'pi_9' } as unknown as Stripe.PaymentIntent);
-    expect(repo.deletePendingAttendeesByPaymentIntent).toHaveBeenCalledWith('pi_9');
-    expect(repo.markPendingTipsFailedByPaymentIntent).toHaveBeenCalledWith('pi_9');
+  it('is a safe no-op — must not release a still-retryable reservation (SI-1)', async () => {
+    // The session is still `open` when this fires; releasing the pending row
+    // would lose the seat a later checkout.session.completed flips to paid.
+    // Cleanup is owned by checkout.session.expired + the cancel route, so the
+    // handler must touch no repo write. Asserting "no DB writes" pins that.
+    await expect(
+      handlePaymentFailed({ id: 'pi_9' } as unknown as Stripe.PaymentIntent),
+    ).resolves.toBeUndefined();
+    expect(repo.deleteAttendee).not.toHaveBeenCalled();
+    expect(repo.markTipsRefundedByPaymentIntent).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleChargeDisputed', () => {
+  const tipCtx = repo.findTipContextByPaymentIntent as ReturnType<typeof vi.fn>;
+
+  function disputeOf(extra: Record<string, unknown> = {}): Stripe.Dispute {
+    return {
+      id: 'dp_1',
+      payment_intent: 'pi_1',
+      amount: 3000,
+      ...extra,
+    } as unknown as Stripe.Dispute;
+  }
+
+  it('notifies the host of a disputed ticket charge without touching the seat (SI-3)', async () => {
+    findAtt.mockResolvedValueOnce({
+      participantId: 'p1',
+      userId: 'u1',
+      amountPaidCents: 3000,
+      eventId: 'e1',
+    });
+    await handleChargeDisputed(disputeOf());
+    expect(notifyMock).toHaveBeenCalledWith(
+      'host.payment.disputed',
+      'host1',
+      { eventId: 'e1', eventTitle: 'Beach Bash', amountCents: 3000 },
+      { idempotencyKey: 'dispute:dp_1' },
+    );
+    // A dispute can still be won — the seat must not be auto-freed.
+    expect(repo.deleteAttendee).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the tip surface when no attendee matches the PI', async () => {
+    findAtt.mockResolvedValueOnce(null);
+    tipCtx.mockResolvedValueOnce({ eventId: 'e2', hostId: 'host2' });
+    await handleChargeDisputed(disputeOf({ id: 'dp_2' }));
+    expect(notifyMock).toHaveBeenCalledWith(
+      'host.payment.disputed',
+      'host2',
+      expect.objectContaining({ eventId: 'e2', amountCents: 3000 }),
+      { idempotencyKey: 'dispute:dp_2' },
+    );
+  });
+
+  it('no-ops when the PI matches neither a ticket nor a tip', async () => {
+    findAtt.mockResolvedValueOnce(null);
+    tipCtx.mockResolvedValueOnce(null);
+    await handleChargeDisputed(disputeOf({ payment_intent: 'pi_x' }));
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 });
 
@@ -88,6 +144,24 @@ describe('handleChargeRefunded', () => {
     expect(notifyMock).not.toHaveBeenCalled();
   });
 
+  it('audits a refunded tip so it nets out on receipts/earnings (R-1)', async () => {
+    findAtt.mockResolvedValueOnce(null);
+    (repo.markTipsRefundedByPaymentIntent as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      eventId: 'e1',
+      userId: 'u1',
+      amountCents: 500,
+    });
+    await handleChargeRefunded(chargeOf({ amount_refunded: 500 }));
+    expect(repo.recordPaymentAudit).toHaveBeenCalledWith({
+      eventId: 'e1',
+      userId: 'u1',
+      action: 'refunded',
+      amountCents: 500,
+      paymentIntentId: 'pi_1',
+      category: 'tip',
+    });
+  });
+
   it('deletes the attendee, audits the refund, and notifies (amount_refunded wins)', async () => {
     findAtt.mockResolvedValueOnce({
       participantId: 'p1',
@@ -103,6 +177,7 @@ describe('handleChargeRefunded', () => {
       action: 'refunded',
       amountCents: 1500, // charge.amount_refunded preferred over amountPaidCents
       paymentIntentId: 'pi_1',
+      category: 'ticket',
     });
     expect(notifyMock).toHaveBeenCalledWith(
       'payment.refunded',

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@pickupvb/supabase/server';
 import { analytics } from '@/lib/handlers';
+import { recordReferralAttribution, REFERRAL_COOKIE } from '@/lib/referrals';
 
 /**
  * Cookie stamped by `apps/web/src/proxy.ts` when a visitor arrives via a
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
 
   const cookieStore = await cookies();
   let clearAttrCookie = false;
+  let clearRefCookie = false;
 
   if (code) {
     const supabase = createSupabaseServerClient(cookieStore);
@@ -116,6 +118,16 @@ export async function GET(request: NextRequest) {
             // best-effort
           }
         }
+
+        // Referral first-touch attribution (ADR 0039): if the visitor arrived
+        // via `/r/<referrerId>`, record the referral. Best-effort + only for
+        // this genuinely-new-account block, so established hosts who click a ref
+        // link aren't attributed. recordReferralAttribution self-guards.
+        const refCode = cookieStore.get(REFERRAL_COOKIE)?.value;
+        if (refCode) {
+          clearRefCookie = true;
+          await recordReferralAttribution(user.id, refCode);
+        }
       }
     }
   }
@@ -130,6 +142,9 @@ export async function GET(request: NextRequest) {
       path: '/',
       maxAge: 0,
     });
+  }
+  if (clearRefCookie) {
+    response.cookies.set({ name: REFERRAL_COOKIE, value: '', path: '/', maxAge: 0 });
   }
   return response;
 }

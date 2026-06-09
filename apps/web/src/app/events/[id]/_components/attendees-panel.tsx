@@ -30,7 +30,10 @@ export function AttendeesPanel({
   // Off-platform events may have signups happening outside the platform
   // (cash at the door, host's own form, etc.). The on-platform roster is
   // partial at best, so suppress it to avoid presenting a misleading list.
-  if (event.paymentsOffPlatform) return null;
+  // The same goes — more strongly — for external-registration events, where
+  // every signup happens on the host's site and the on-platform roster is
+  // empty by definition.
+  if (event.paymentsOffPlatform || event.registrationMode === 'external') return null;
   // Open-play with unlimited capacity has no upper bound on roster size, so
   // page the rendered list; hosts who want the whole roster use the CSV export.
   const pageAttendees = attendees.slice((page - 1) * ATTENDEES_PER_PAGE, page * ATTENDEES_PER_PAGE);

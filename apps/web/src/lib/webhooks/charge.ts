@@ -16,16 +16,25 @@ import {
 } from './team-payment-mediators';
 
 /**
- * Same cleanup as expired — bare payment_intent.payment_failed events fire
- * when the customer's card declines mid-checkout. We don't always get a
- * matching session here (Stripe sends both), but cleanup is idempotent.
+ * `payment_intent.payment_failed` — a card declined mid-checkout.
+ *
+ * Deliberately a no-op. It is **not safe** to release the buyer's pending
+ * reservation here: this event fires while the Checkout Session is still
+ * `open`, so the buyer can retry with another card and complete on that same
+ * session. Deleting the pending row now would lose the seat the subsequent
+ * `checkout.session.completed` expects to flip to `paid` — the buyer would be
+ * charged but hold nothing. Pending reservations are released only where the
+ * session is actually terminal: `checkout.session.expired` (the 30-minute TTL,
+ * see CHECKOUT_EXPIRES_SECS) and the explicit cancel route.
+ *
+ * This previously called `deletePendingAttendeesByPaymentIntent` /
+ * `markPendingTipsFailedByPaymentIntent`, but a pending row only ever stores its
+ * `checkout_session_id` (the PI is written at completion), so those matched zero
+ * rows. They were removed rather than "fixed" into the unsafe eager release
+ * above. See docs/audits/stripe-integration.md SI-1.
  */
-export async function handlePaymentFailed(pi: Stripe.PaymentIntent): Promise<void> {
-  // Drop pending attendee reservations attached to this PI (the payment
-  // cascades). Tips: mark failed rather than delete so the host can see
-  // attempted tips.
-  await repositories.eventPaymentRepo.deletePendingAttendeesByPaymentIntent(pi.id);
-  await repositories.eventPaymentRepo.markPendingTipsFailedByPaymentIntent(pi.id);
+export async function handlePaymentFailed(_pi: Stripe.PaymentIntent): Promise<void> {
+  // Intentionally empty — see the doc comment above.
 }
 
 /**
@@ -41,10 +50,22 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<void>
   if (!piId) return;
 
   // Refund could be on a tip or an attendee charge. Try tip first (cheap).
-  await repositories.eventPaymentRepo.markTipsRefundedByPaymentIntent(
+  const tipRefund = await repositories.eventPaymentRepo.markTipsRefundedByPaymentIntent(
     piId,
     new Date().toISOString(),
   );
+  if (tipRefund) {
+    // Matching `refunded` ledger row so the tip nets out on receipts/earnings
+    // (receipts-tax R-1). null return above (no paid tip / retry) skips this.
+    await repositories.eventPaymentRepo.recordPaymentAudit({
+      eventId: tipRefund.eventId,
+      userId: tipRefund.userId,
+      action: 'refunded',
+      amountCents: charge.amount_refunded ?? tipRefund.amountCents,
+      paymentIntentId: piId,
+      category: 'tip',
+    });
+  }
 
   const att = await repositories.eventPaymentRepo.findRefundableAttendeeByPaymentIntent(piId);
   if (att) {
@@ -57,6 +78,7 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<void>
       action: 'refunded',
       amountCents: charge.amount_refunded ?? amountPaid,
       paymentIntentId: piId,
+      category: 'ticket',
     });
 
     // Notify the attendee. Best-effort; failures don't fail the webhook.
@@ -94,4 +116,53 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<void>
   // at markPaid; refund flips it to Refunded which is the terminal state.
   await refundTeamRegistrationIfAny(piId, charge.amount_refunded ?? null);
   await refundRosterTeamPaymentIfAny(piId, charge.amount_refunded ?? null);
+}
+
+/**
+ * `charge.dispute.created` — a buyer filed a chargeback. Stripe withholds the
+ * funds and emails the Connect host directly, but we also surface it in-app +
+ * email so the host sees it inside PickupVB and knows to respond before the
+ * Stripe deadline.
+ *
+ * We deliberately do **not** auto-free the seat or flip payment state: a dispute
+ * can still be won (funds returned), and removing the buyer is the host's call —
+ * they're now notified and can refund/remove from the roster if they concede.
+ * Covers the ticket + tip surfaces; team-payment disputes still receive Stripe's
+ * own email (host-notify for them is a documented follow-up). See
+ * docs/audits/stripe-integration.md SI-3.
+ */
+export async function handleChargeDisputed(dispute: Stripe.Dispute): Promise<void> {
+  const piId =
+    typeof dispute.payment_intent === 'string'
+      ? dispute.payment_intent
+      : (dispute.payment_intent?.id ?? null);
+  if (!piId) return;
+
+  // Resolve the event + payout host this disputed charge belongs to.
+  let eventId: string | null = null;
+  let hostId: string | null = null;
+  const att = await repositories.eventPaymentRepo.findRefundableAttendeeByPaymentIntent(piId);
+  if (att) {
+    eventId = att.eventId;
+    hostId = await repositories.eventPaymentRepo.findEventHostId(att.eventId);
+  } else {
+    const tip = await repositories.eventPaymentRepo.findTipContextByPaymentIntent(piId);
+    if (tip) {
+      eventId = tip.eventId;
+      hostId = tip.hostId;
+    }
+  }
+  if (!eventId || !hostId) return;
+
+  const eventTitle = (await repositories.eventPaymentRepo.findEventTitle(eventId)) ?? 'your event';
+  try {
+    await notify(
+      'host.payment.disputed',
+      hostId,
+      { eventId, eventTitle, amountCents: dispute.amount ?? 0 },
+      { idempotencyKey: `dispute:${dispute.id}` },
+    );
+  } catch {
+    // best-effort — a notify failure must never reject the webhook.
+  }
 }

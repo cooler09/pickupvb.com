@@ -86,7 +86,7 @@ export function SocialLinks({ handles, className }: Props) {
             href={externalLinkHref(it.href)}
             target="_blank"
             rel="noopener noreferrer me"
-            aria-label={it.label}
+            aria-label={`${it.label} (opens in new tab)`}
             title={it.label}
             className="text-fg/70 hover:text-primary border-border-base hover:border-primary/40 inline-flex h-8 w-8 items-center justify-center rounded-full border"
           >

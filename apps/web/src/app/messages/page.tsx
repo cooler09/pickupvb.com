@@ -5,6 +5,9 @@ import type { InboxItem } from '@pickupvb/domain';
 import { getCurrentUser } from '@/lib/server-auth';
 import { getChatHandlers } from '@/lib/handlers';
 import { EmptyState } from '@/components/empty-state';
+import { Pagination } from '@/components/pagination';
+
+const PER_PAGE = 20;
 
 export const metadata = {
   title: 'Messages — PickupVB',
@@ -35,19 +38,40 @@ function inboxHref(item: InboxItem): Route | null {
   }
 }
 
+/** Default display zone for server-rendered times — this is a Virginia Beach
+ * community, so ET is the right default (mirrors the notifications templates
+ * `DEFAULT_TIME_ZONE`). Without it `toLocaleDateString` formats in the Node
+ * runtime's zone (UTC on Vercel), pushing a late-evening message to the next
+ * day's date in the inbox. */
+const DEFAULT_TIME_ZONE = 'America/New_York';
+
 /** Server-rendered absolute timestamp (pure — depends only on the ISO string,
  * so no `Date.now()` in render). The thread view renders live local times. */
 function stamp(iso: string | null): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: DEFAULT_TIME_ZONE,
+  });
 }
 
-export default async function MessagesPage() {
+export default async function MessagesPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { user } = await getCurrentUser();
   if (!user) redirect('/login?next=/messages');
 
+  const rawSearchParams = await props.searchParams;
+  const searchParams: Record<string, string | undefined> = Object.fromEntries(
+    Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
+  );
+  const page = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
+
   const { listInbox } = await getChatHandlers();
   const items = await listInbox.execute();
+  // Slice for display; counts/empty-state read the full set (pattern #12).
+  const pageItems = items.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4">
@@ -65,7 +89,7 @@ export default async function MessagesPage() {
         />
       ) : (
         <ul className="space-y-2">
-          {items.map((item) => {
+          {pageItems.map((item) => {
             const href = inboxHref(item);
             const title = item.title ?? KIND_LABEL[item.kind];
             const preview =
@@ -115,6 +139,14 @@ export default async function MessagesPage() {
           })}
         </ul>
       )}
+
+      <Pagination
+        basePath="/messages"
+        page={page}
+        pageSize={PER_PAGE}
+        total={items.length}
+        searchParams={searchParams}
+      />
     </div>
   );
 }

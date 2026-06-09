@@ -1,9 +1,13 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import type { Route } from 'next';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 import { isAnonymousUser } from '@/lib/server-auth';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { hasProBenefits } from '@/lib/admin';
+import { hostPaidEventCount30d, FREE_PAID_EVENT_CAP_30D } from '@/lib/pro';
+import { Alert } from '@/components/alert';
 import NewEventForm from './new-event-form';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +58,13 @@ export default async function NewEventPage(props: {
 
   const viewerHasProBenefits = await hasProBenefits(user.id);
 
+  // Proactive upgrade nudge (monetization O-4): a free host who has already used
+  // their rolling-30d paid-event allowance sees the wall *before* filling out a
+  // paid event, not just on submit. Free events are always unlimited, so this is
+  // only about the paid path. Skip the count query for Pro hosts.
+  const atPaidEventCap =
+    !viewerHasProBenefits && (await hostPaidEventCount30d(user.id)) >= FREE_PAID_EVENT_CAP_30D;
+
   const { data: templateRows } = await supabase
     .from('host_event_templates')
     .select('id, name, payload')
@@ -86,6 +97,16 @@ export default async function NewEventPage(props: {
           Set up your pickup session, tournament, or league. You can edit any of this later.
         </p>
       </header>
+      {atPaidEventCap && (
+        <Alert variant="info" title="You've used your free paid event">
+          Free hosts get {FREE_PAID_EVENT_CAP_30D} paid event per 30 days — you&apos;re at the cap.
+          Your next paid event needs Pro;{' '}
+          <Link href={'/profile/billing/pro' as Route} className="font-medium underline">
+            upgrade for unlimited paid events →
+          </Link>{' '}
+          Free events are always unlimited.
+        </Alert>
+      )}
       <NewEventForm
         // Remount when the applied template changes so `useFormState`
         // re-seeds its initialState from the new `templateValues`. React's

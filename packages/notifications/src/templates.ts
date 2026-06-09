@@ -33,6 +33,16 @@ export type RenderedInApp = {
 
 const APP_URL = process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://pickupvb.com';
 
+/**
+ * Fallback zone when a notification carries no event-specific `timeZone`.
+ * Without an explicit `timeZone`, `toLocaleString` formats in the runtime's
+ * zone — **UTC on Vercel** — so every "Tomorrow at …" / "Starting soon …" line
+ * rendered an hours-off wall-clock for everyone. PickupVB is an East-Coast
+ * (Virginia Beach) community, so ET is the right default; per-event zones are
+ * threaded through as the optional `tz` arg (notifications audit P2 #8).
+ */
+const DEFAULT_TIME_ZONE = 'America/New_York';
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -42,7 +52,7 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function formatStart(iso: string): string {
+function formatStart(iso: string, tz?: string | null): string {
   try {
     return new Date(iso).toLocaleString('en-US', {
       weekday: 'short',
@@ -50,18 +60,20 @@ function formatStart(iso: string): string {
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
+      timeZone: tz || DEFAULT_TIME_ZONE,
     });
   } catch {
     return iso;
   }
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, tz?: string | null): string {
   try {
     return new Date(iso).toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
       year: 'numeric',
+      timeZone: tz || DEFAULT_TIME_ZONE,
     });
   } catch {
     return iso;
@@ -99,10 +111,10 @@ type EmailRenderer<K extends NotificationKind> = (p: NotificationPayloadMap[K]) 
 const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
   'event.signup.confirmed': (p) => ({
     subject: `You're in! ${p.eventTitle}`,
-    text: `You're signed up for ${p.eventTitle} on ${formatStart(p.startsAt)} at ${p.location}. ${APP_URL}/events/${p.eventId}`,
+    text: `You're signed up for ${p.eventTitle} on ${formatStart(p.startsAt, p.timeZone)} at ${p.location}. ${APP_URL}/events/${p.eventId}`,
     html: layout(
       `<h2 style="margin:0 0 12px">You're in! ${escapeHtml(p.eventTitle)}</h2>
-             <p>${escapeHtml(formatStart(p.startsAt))}<br>${escapeHtml(p.location)}</p>
+             <p>${escapeHtml(formatStart(p.startsAt, p.timeZone))}<br>${escapeHtml(p.location)}</p>
              <p>Add it to your calendar and we'll send a reminder before it starts.</p>`,
       `${APP_URL}/events/${p.eventId}`,
       'View event',
@@ -110,20 +122,20 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
   }),
   'event.waitlist.promoted': (p) => ({
     subject: `A spot opened up — ${p.eventTitle}`,
-    text: `A spot opened up for ${p.eventTitle} on ${formatStart(p.startsAt)}. You're now confirmed. ${APP_URL}/events/${p.eventId}`,
+    text: `A spot opened up for ${p.eventTitle} on ${formatStart(p.startsAt, p.timeZone)}. You're now confirmed. ${APP_URL}/events/${p.eventId}`,
     html: layout(
       `<h2 style="margin:0 0 12px">You're off the waitlist!</h2>
-             <p>A spot opened up for <strong>${escapeHtml(p.eventTitle)}</strong> on ${escapeHtml(formatStart(p.startsAt))}. You're now confirmed.</p>`,
+             <p>A spot opened up for <strong>${escapeHtml(p.eventTitle)}</strong> on ${escapeHtml(formatStart(p.startsAt, p.timeZone))}. You're now confirmed.</p>`,
       `${APP_URL}/events/${p.eventId}`,
       'View event',
     ),
   }),
   'event.cancelled': (p) => ({
     subject: `Cancelled: ${p.eventTitle}`,
-    text: `${p.eventTitle} on ${formatStart(p.startsAt)} has been cancelled.${p.reason ? ` Reason: ${p.reason}` : ''}`,
+    text: `${p.eventTitle} on ${formatStart(p.startsAt, p.timeZone)} has been cancelled.${p.reason ? ` Reason: ${p.reason}` : ''}`,
     html: layout(
       `<h2 style="margin:0 0 12px">Event cancelled</h2>
-             <p><strong>${escapeHtml(p.eventTitle)}</strong> on ${escapeHtml(formatStart(p.startsAt))} has been cancelled.</p>
+             <p><strong>${escapeHtml(p.eventTitle)}</strong> on ${escapeHtml(formatStart(p.startsAt, p.timeZone))} has been cancelled.</p>
              ${p.reason ? `<p>Reason: ${escapeHtml(p.reason)}</p>` : ''}
              <p>Any paid signups will be refunded automatically.</p>`,
       `${APP_URL}/events/${p.eventId}`,
@@ -142,11 +154,11 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
   }),
   'event.reminder.24h': (p) => ({
     subject: `Tomorrow: ${p.eventTitle}`,
-    text: `Reminder: ${p.eventTitle} is tomorrow at ${formatStart(p.startsAt)} — ${p.location}. ${APP_URL}/events/${p.eventId}`,
+    text: `Reminder: ${p.eventTitle} is tomorrow at ${formatStart(p.startsAt, p.timeZone)} — ${p.location}. ${APP_URL}/events/${p.eventId}`,
     html: layout(
       `<h2 style="margin:0 0 12px">See you tomorrow</h2>
              <p><strong>${escapeHtml(p.eventTitle)}</strong><br>
-             ${escapeHtml(formatStart(p.startsAt))}<br>
+             ${escapeHtml(formatStart(p.startsAt, p.timeZone))}<br>
              ${escapeHtml(p.location)}</p>`,
       `${APP_URL}/events/${p.eventId}`,
       'View event',
@@ -154,22 +166,22 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
   }),
   'league.match.reminder': (p) => ({
     subject: `Match tomorrow vs ${p.opponentName}`,
-    text: `Reminder: your ${p.eventTitle} match vs ${p.opponentName} is at ${formatStart(p.scheduledAt)}${p.courtLabel ? ` on ${p.courtLabel}` : ''}. ${APP_URL}/events/${p.eventId}/schedule`,
+    text: `Reminder: your ${p.eventTitle} match vs ${p.opponentName} is at ${formatStart(p.scheduledAt, p.timeZone)}${p.courtLabel ? ` on ${p.courtLabel}` : ''}. ${APP_URL}/events/${p.eventId}/schedule`,
     html: layout(
       `<h2 style="margin:0 0 12px">Match tomorrow</h2>
              <p><strong>vs ${escapeHtml(p.opponentName)}</strong> · ${escapeHtml(p.eventTitle)}<br>
-             ${escapeHtml(formatStart(p.scheduledAt))}${p.courtLabel ? `<br>${escapeHtml(p.courtLabel)}` : ''}</p>`,
+             ${escapeHtml(formatStart(p.scheduledAt, p.timeZone))}${p.courtLabel ? `<br>${escapeHtml(p.courtLabel)}` : ''}</p>`,
       `${APP_URL}/events/${p.eventId}/schedule`,
       'View schedule',
     ),
   }),
   'event.reminder.2h': (p) => ({
     subject: `Starting soon: ${p.eventTitle}`,
-    text: `${p.eventTitle} starts at ${formatStart(p.startsAt)} — ${p.location}.`,
+    text: `${p.eventTitle} starts at ${formatStart(p.startsAt, p.timeZone)} — ${p.location}.`,
     html: layout(
       `<h2 style="margin:0 0 12px">Starting soon</h2>
              <p><strong>${escapeHtml(p.eventTitle)}</strong><br>
-             ${escapeHtml(formatStart(p.startsAt))}<br>
+             ${escapeHtml(formatStart(p.startsAt, p.timeZone))}<br>
              ${escapeHtml(p.location)}</p>`,
       `${APP_URL}/events/${p.eventId}`,
       'Get directions',
@@ -201,6 +213,17 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
     html: layout(
       `<h2 style="margin:0 0 12px">Stripe needs your attention</h2>
              <p>${escapeHtml(p.message)}</p>`,
+      `${APP_URL}/profile/billing`,
+      'Open Stripe',
+    ),
+  }),
+  'host.payment.disputed': (p) => ({
+    subject: `Payment disputed: ${formatUsd(p.amountCents)} for ${p.eventTitle}`,
+    text: `A buyer disputed a ${formatUsd(p.amountCents)} charge for ${p.eventTitle}. Stripe has placed the funds on hold — respond with evidence in your Stripe dashboard before the deadline or the dispute is lost by default. Open ${APP_URL}/profile/billing`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">A payment was disputed</h2>
+             <p>A buyer disputed a <strong>${escapeHtml(formatUsd(p.amountCents))}</strong> charge for ${escapeHtml(p.eventTitle)}. Stripe has placed those funds on hold while the dispute is reviewed.</p>
+             <p>Respond with evidence in your Stripe dashboard before the deadline shown there — an unanswered dispute is lost by default.</p>`,
       `${APP_URL}/profile/billing`,
       'Open Stripe',
     ),
@@ -342,25 +365,25 @@ type SmsRenderer<K extends NotificationKind> = (p: NotificationPayloadMap[K]) =>
 
 const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   'event.signup.confirmed': (p) => ({
-    body: `PickupVB: You're in for ${p.eventTitle} ${formatStart(p.startsAt)}. ${APP_URL}/events/${p.eventId}`,
+    body: `PickupVB: You're in for ${p.eventTitle} ${formatStart(p.startsAt, p.timeZone)}. ${APP_URL}/events/${p.eventId}`,
   }),
   'event.waitlist.promoted': (p) => ({
-    body: `PickupVB: A spot opened for ${p.eventTitle} (${formatStart(p.startsAt)}). You're confirmed. ${APP_URL}/events/${p.eventId}`,
+    body: `PickupVB: A spot opened for ${p.eventTitle} (${formatStart(p.startsAt, p.timeZone)}). You're confirmed. ${APP_URL}/events/${p.eventId}`,
   }),
   'event.cancelled': (p) => ({
-    body: `PickupVB: ${p.eventTitle} (${formatStart(p.startsAt)}) was cancelled.${p.reason ? ` ${p.reason}` : ''}`,
+    body: `PickupVB: ${p.eventTitle} (${formatStart(p.startsAt, p.timeZone)}) was cancelled.${p.reason ? ` ${p.reason}` : ''}`,
   }),
   'event.updated': (p) => ({
     body: `PickupVB: ${p.eventTitle} updated — ${p.changeSummary}. ${APP_URL}/events/${p.eventId}`,
   }),
   'event.reminder.24h': (p) => ({
-    body: `PickupVB: ${p.eventTitle} tomorrow at ${formatStart(p.startsAt)}, ${p.location}. ${APP_URL}/events/${p.eventId}`,
+    body: `PickupVB: ${p.eventTitle} tomorrow at ${formatStart(p.startsAt, p.timeZone)}, ${p.location}. ${APP_URL}/events/${p.eventId}`,
   }),
   'league.match.reminder': (p) => ({
-    body: `PickupVB: match vs ${p.opponentName} (${p.eventTitle}) at ${formatStart(p.scheduledAt)}${p.courtLabel ? `, ${p.courtLabel}` : ''}. ${APP_URL}/events/${p.eventId}/schedule`,
+    body: `PickupVB: match vs ${p.opponentName} (${p.eventTitle}) at ${formatStart(p.scheduledAt, p.timeZone)}${p.courtLabel ? `, ${p.courtLabel}` : ''}. ${APP_URL}/events/${p.eventId}/schedule`,
   }),
   'event.reminder.2h': (p) => ({
-    body: `PickupVB: ${p.eventTitle} starts at ${formatStart(p.startsAt)} — ${p.location}.`,
+    body: `PickupVB: ${p.eventTitle} starts at ${formatStart(p.startsAt, p.timeZone)} — ${p.location}.`,
   }),
   'payment.refunded': (p) => ({
     body: `PickupVB: Refunded ${formatUsd(p.amountCents)} for ${p.eventTitle}.`,
@@ -370,6 +393,9 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   }),
   'host.stripe.action_required': (p) => ({
     body: `PickupVB: Stripe needs attention — ${p.message} — ${APP_URL}/profile/billing`,
+  }),
+  'host.payment.disputed': (p) => ({
+    body: `PickupVB: a ${formatUsd(p.amountCents)} charge for ${p.eventTitle} was disputed — respond in Stripe: ${APP_URL}/profile/billing`,
   }),
   'social.follow.new': (p) => ({
     body: `PickupVB: ${p.followerName} started following you.`,
@@ -413,12 +439,12 @@ type InAppRenderer<K extends NotificationKind> = (p: NotificationPayloadMap[K]) 
 const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
   'event.signup.confirmed': (p) => ({
     title: `You're in: ${p.eventTitle}`,
-    body: `${formatStart(p.startsAt)} · ${p.location}`,
+    body: `${formatStart(p.startsAt, p.timeZone)} · ${p.location}`,
     href: `/events/${p.eventId}`,
   }),
   'event.waitlist.promoted': (p) => ({
     title: `Off the waitlist: ${p.eventTitle}`,
-    body: formatStart(p.startsAt),
+    body: formatStart(p.startsAt, p.timeZone),
     href: `/events/${p.eventId}`,
   }),
   'event.cancelled': (p) => ({
@@ -433,17 +459,17 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
   }),
   'event.reminder.24h': (p) => ({
     title: `Tomorrow: ${p.eventTitle}`,
-    body: `${formatStart(p.startsAt)} · ${p.location}`,
+    body: `${formatStart(p.startsAt, p.timeZone)} · ${p.location}`,
     href: `/events/${p.eventId}`,
   }),
   'league.match.reminder': (p) => ({
     title: `Match vs ${p.opponentName}`,
-    body: `${formatStart(p.scheduledAt)}${p.courtLabel ? ` · ${p.courtLabel}` : ''}`,
+    body: `${formatStart(p.scheduledAt, p.timeZone)}${p.courtLabel ? ` · ${p.courtLabel}` : ''}`,
     href: `/events/${p.eventId}/schedule`,
   }),
   'event.reminder.2h': (p) => ({
     title: `Starting soon: ${p.eventTitle}`,
-    body: `${formatStart(p.startsAt)} · ${p.location}`,
+    body: `${formatStart(p.startsAt, p.timeZone)} · ${p.location}`,
     href: `/events/${p.eventId}`,
   }),
   'payment.refunded': (p) => ({
@@ -459,6 +485,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
   'host.stripe.action_required': (p) => ({
     title: `Stripe needs attention`,
     body: p.message,
+    href: `/profile/billing`,
+  }),
+  'host.payment.disputed': (p) => ({
+    title: `Payment disputed: ${formatUsd(p.amountCents)}`,
+    body: p.eventTitle,
     href: `/profile/billing`,
   }),
   'social.follow.new': (p) => ({

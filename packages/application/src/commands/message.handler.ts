@@ -61,7 +61,7 @@ export class SendMessageHandler {
     isAnonymous,
     attachments,
     conversationKind,
-  }: SendMessageCommand): Promise<{ id: string }> {
+  }: SendMessageCommand): Promise<{ id: string; body: string }> {
     const message = Message.compose({
       id: MessageId(randomUUID()),
       conversationId: ConversationId(conversationId),
@@ -73,7 +73,9 @@ export class SendMessageHandler {
       policy: conversationKind === 'dm' ? 'block-extreme' : 'mask',
     });
     await this.repo.add(message);
-    return { id: message.id };
+    // Return the *moderated* body (rooms mask Tier-A profanity) so the caller's
+    // notification preview shows the stored text, not the raw input.
+    return { id: message.id, body: message.body };
   }
 }
 

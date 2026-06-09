@@ -1,9 +1,11 @@
 import type {
   EventPaymentRepository,
   PaidBadgeSlot,
+  PaidSponsorAccess,
   PaidSponsorSlot,
   PaymentAuditEntry,
   RefundableAttendee,
+  TipRefundContext,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 
@@ -55,6 +57,7 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
       action: entry.action,
       amount_cents: entry.amountCents,
       payment_intent_id: entry.paymentIntentId,
+      category: entry.category,
     });
   }
 
@@ -82,15 +85,25 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
         link_url: slot.linkUrl,
         logo_url: slot.logoUrl,
         discount_code: slot.discountCode,
-        access_kind: 'ala_carte',
-        purchased_by_user_id: slot.purchasedByUserId,
-        stripe_checkout_session_id: slot.checkoutSessionId,
-        stripe_payment_intent_id: slot.paymentIntentId,
-        paid_at: slot.paidAt,
       },
       { onConflict: 'event_id' },
     );
-    if (error) throw new Error(`mark sponsor slot paid failed: ${error.message}`);
+    if (error) throw new Error(`upsert sponsor content failed: ${error.message}`);
+  }
+
+  async unlockSponsorSlot(unlock: PaidSponsorAccess): Promise<void> {
+    const { error } = await this.client.from('event_sponsor_access').upsert(
+      {
+        event_id: unlock.eventId,
+        access_kind: 'ala_carte',
+        purchased_by_user_id: unlock.purchasedByUserId,
+        stripe_checkout_session_id: unlock.checkoutSessionId,
+        stripe_payment_intent_id: unlock.paymentIntentId,
+        paid_at: unlock.paidAt,
+      },
+      { onConflict: 'event_id' },
+    );
+    if (error) throw new Error(`unlock sponsor slot failed: ${error.message}`);
   }
 
   async unlockBadgeSlot(slot: PaidBadgeSlot): Promise<void> {
@@ -136,43 +149,40 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
     await this.client.from('event_tips').delete().eq('id', tipId).eq('status', 'pending');
   }
 
-  // --- payment_intent.payment_failed -----------------------------------------
-
-  async deletePendingAttendeesByPaymentIntent(paymentIntentId: string): Promise<void> {
-    const { data: pendingPay } = await this.client
-      .from('event_participant_payments')
-      .select('participant_id')
-      .eq('payment_intent_id', paymentIntentId)
-      .eq('payment_status', 'pending');
-    const pids = ((pendingPay as { participant_id: string }[] | null) ?? []).map(
-      (r) => r.participant_id,
-    );
-    if (pids.length > 0) {
-      await this.client.from('event_participants').delete().in('id', pids);
-    }
-  }
-
-  async markPendingTipsFailedByPaymentIntent(paymentIntentId: string): Promise<void> {
-    await this.client
-      .from('event_tips')
-      .update({ status: 'failed' })
-      .eq('stripe_payment_intent_id', paymentIntentId)
-      .eq('status', 'pending');
-  }
+  // `payment_intent.payment_failed` is a no-op (see `handlePaymentFailed`), so
+  // there is no adapter method for it — pending cleanup is owned by the
+  // checkout.session.expired methods above + the cancel route.
 
   // --- charge.refunded -------------------------------------------------------
 
   async markTipsRefundedByPaymentIntent(
     paymentIntentId: string,
     refundedAt: string,
-  ): Promise<void> {
-    await this.client
+  ): Promise<TipRefundContext | null> {
+    // Guard on `status = 'paid'` so a webhook retry is a no-op (returns null,
+    // so no duplicate `refunded` ledger row). `.select()` hands back the
+    // refunded tip's audit context for the caller to record (receipts-tax R-1).
+    const { data } = await this.client
       .from('event_tips')
       .update({
         status: 'refunded',
         refunded_at: refundedAt,
       })
-      .eq('stripe_payment_intent_id', paymentIntentId);
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .eq('status', 'paid')
+      .select('event_id, tipper_user_id, amount_cents')
+      .maybeSingle();
+    const row = data as {
+      event_id: string;
+      tipper_user_id: string | null;
+      amount_cents: number;
+    } | null;
+    if (!row) return null;
+    return {
+      eventId: row.event_id,
+      userId: row.tipper_user_id,
+      amountCents: row.amount_cents,
+    };
   }
 
   async findRefundableAttendeeByPaymentIntent(
@@ -215,5 +225,19 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
       .eq('id', eventId)
       .maybeSingle();
     return (evRow as { title: string } | null)?.title ?? null;
+  }
+
+  // --- charge.dispute.created ------------------------------------------------
+
+  async findTipContextByPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<{ eventId: string; hostId: string } | null> {
+    const { data } = await this.client
+      .from('event_tips')
+      .select('event_id, host_id')
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+    const row = data as { event_id: string; host_id: string } | null;
+    return row ? { eventId: row.event_id, hostId: row.host_id } : null;
   }
 }

@@ -167,6 +167,26 @@ const config = [
           message:
             'Every <th> needs an explicit scope ("col" for a column header, "row" for a row header) so screen readers associate data cells with their headers. Regression guard for the original accessibility P1 — see docs/audits/accessibility.md 2026-06-02 A1.',
         },
+        // Dead `*-destructive` token ratchet (docs/audits/accessibility.md
+        // 2026-06-08 C1). `destructive` is NOT a defined color role — only
+        // `--color-md-error` is — so `text-destructive` / `hover:text-destructive`
+        // emit no CSS under Tailwind v4 and silently no-op. That left several
+        // upload / template error messages rendering with no error color (and no
+        // `role="alert"`). Forbid any `*-destructive` utility so the pre-M3
+        // leftover can't re-enter; use the defined `text-md-error` /
+        // `hover:text-md-error` role token instead (AGENTS.md §17). Matches a
+        // hyphen-prefixed `-destructive` utility, not the FormModal/confirm
+        // `destructive` prop (a JSX identifier, not a class string).
+        {
+          selector: 'Literal[value=/(?:^|[\\s:])[a-z-]+-destructive(?![\\w-])/]',
+          message:
+            '`*-destructive` is an undefined token (it emits no CSS — a silent no-op). Use the defined M3 error role: `text-md-error` / `hover:text-md-error` / `bg-md-error-container`. See docs/audits/accessibility.md 2026-06-08 C1.',
+        },
+        {
+          selector: 'TemplateElement[value.cooked=/(?:^|[\\s:])[a-z-]+-destructive(?![\\w-])/]',
+          message:
+            '`*-destructive` is an undefined token (it emits no CSS — a silent no-op). Use the defined M3 error role: `text-md-error` / `hover:text-md-error` / `bg-md-error-container`. See docs/audits/accessibility.md 2026-06-08 C1.',
+        },
       ],
     },
   },

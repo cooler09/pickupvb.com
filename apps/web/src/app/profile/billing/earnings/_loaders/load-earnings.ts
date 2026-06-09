@@ -2,15 +2,18 @@ import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
 import { isPro, PRO_PLATFORM_FEE_BPS } from '@/lib/pro';
 import { PLATFORM_FEE_BPS } from '@/lib/stripe';
+import { groupAuditRowsByPaymentIntent, estimatePlatformFeeCents } from '@/lib/receipts';
 
 export const EVENTS_PER_PAGE = 20;
 
 type AuditRow = {
   id: string;
   event_id: string;
-  action: 'paid' | 'refunded' | 'failed';
+  user_id: string | null;
+  action: 'paid' | 'refunded';
   amount_cents: number;
   payment_intent_id: string | null;
+  off_platform: boolean;
   occurred_at: string;
   events: { title: string; starts_at: string } | null;
 };
@@ -84,59 +87,44 @@ export async function loadEarnings(page: number): Promise<EarningsModel> {
   const feeBps = pro ? PRO_PLATFORM_FEE_BPS : PLATFORM_FEE_BPS;
   const feeRate = feeBps / 10_000;
 
+  // Scope to events THIS user hosts. The `_select_host` and `_select_own` RLS
+  // policies compose with OR, so without this filter a host who also bought a
+  // ticket on someone else's event would see that buyer row counted as their
+  // own earnings (receipts-tax audit R-2). Filter the embedded `events`
+  // resource by host_id; RLS still applies as defense-in-depth.
   const { data: rawRows } = await supabase
     .from('event_payment_audit')
     .select(
-      'id, event_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at)',
+      'id, event_id, user_id, action, amount_cents, payment_intent_id, off_platform, occurred_at, events:events!inner(title, starts_at)',
     )
-    .neq('action', 'failed')
+    .eq('events.host_id', user.id)
+    .in('category', ['ticket', 'tip', 'team'])
     .order('occurred_at', { ascending: false });
 
   const rows = (rawRows as unknown as AuditRow[] | null) ?? [];
 
-  type Txn = {
-    paymentIntentId: string;
-    eventId: string;
-    eventTitle: string;
-    eventStartsAt: string;
-    paidCents: number;
-    refundedCents: number;
-    paidAt: string;
-  };
-  const byPi = new Map<string, Txn>();
-  for (const r of rows) {
-    if (!r.events) continue;
-    const key = r.payment_intent_id ?? `audit:${r.id}`;
-    const existing = byPi.get(key);
-    if (existing) {
-      if (r.action === 'paid') {
-        existing.paidCents += r.amount_cents;
-        if (r.occurred_at < existing.paidAt) existing.paidAt = r.occurred_at;
-      } else {
-        existing.refundedCents += r.amount_cents;
-      }
-    } else {
-      byPi.set(key, {
-        paymentIntentId: r.payment_intent_id ?? `audit:${r.id}`,
-        eventId: r.event_id,
-        eventTitle: r.events.title,
-        eventStartsAt: r.events.starts_at,
-        paidCents: r.action === 'paid' ? r.amount_cents : 0,
-        refundedCents: r.action === 'refunded' ? r.amount_cents : 0,
-        paidAt: r.occurred_at,
-      });
-    }
-  }
-  const transactions = Array.from(byPi.values()).sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
+  const transactions = groupAuditRowsByPaymentIntent(rows, (r) =>
+    r.events
+      ? { eventId: r.event_id, eventTitle: r.events.title, eventStartsAt: r.events.starts_at }
+      : null,
+  ).sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
 
   const currentYear = new Date().getFullYear();
   const ytd = transactions.filter((t) => new Date(t.paidAt).getFullYear() === currentYear);
 
-  function totals(txns: Txn[]): Totals {
+  function totals(
+    txns: ReadonlyArray<{ paidCents: number; refundedCents: number; offPlatform: boolean }>,
+  ): Totals {
     const gross = txns.reduce((s, t) => s + t.paidCents, 0);
     const refunded = txns.reduce((s, t) => s + t.refundedCents, 0);
     const net = gross - refunded;
-    const platformFee = Math.round(net * feeRate);
+    // The platform fee applies only to on-platform (Stripe) sales; cash the host
+    // collected directly carries no PickupVB fee, so estPayout keeps 100% of it
+    // (receipts-tax R-5).
+    const onPlatformNet = txns
+      .filter((t) => !t.offPlatform)
+      .reduce((s, t) => s + (t.paidCents - t.refundedCents), 0);
+    const platformFee = estimatePlatformFeeCents(onPlatformNet, feeRate);
     const estPayout = net - platformFee;
     return { gross, refunded, net, platformFee, estPayout };
   }

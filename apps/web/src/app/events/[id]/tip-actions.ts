@@ -6,7 +6,7 @@ import type { Route } from 'next';
 import { isStripeConfigured } from '@/lib/stripe';
 import { tipPlatformFeeCents } from '@/lib/event-pricing';
 import { getServerSupabase } from '@/lib/supabase';
-import { getHostStripeAccount } from '@/lib/host-stripe-account';
+import { getEventPayoutAccount } from '@/lib/event-payout';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { verifyTurnstileToken } from '@/lib/turnstile';
@@ -75,7 +75,7 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
   if (!event) backWithError(eventId, 'error', 'Event not found.');
   if (event.host_id === user.id) backWithError(eventId, 'error', "You can't tip your own event.");
 
-  const hostAccountId = await getHostStripeAccount(event.host_id);
+  const hostAccountId = await getEventPayoutAccount(eventId, event.host_id);
   if (!hostAccountId) backWithError(eventId, 'error', 'Host has not finished payment setup.');
 
   // Look up tipper display name for the public list.

@@ -6,7 +6,11 @@ import { getAdminSupabase } from '@/lib/supabase-admin';
 import { log } from '@/lib/log';
 import { handleAccountUpdated, handlePayoutPaid } from '@/lib/webhooks/connect';
 import { handleCheckoutCompleted, handleCheckoutExpired } from '@/lib/webhooks/checkout';
-import { handleChargeRefunded, handlePaymentFailed } from '@/lib/webhooks/charge';
+import {
+  handleChargeDisputed,
+  handleChargeRefunded,
+  handlePaymentFailed,
+} from '@/lib/webhooks/charge';
 import { handleSubscriptionChange } from '@/lib/webhooks/subscription';
 import { decideWebhookProcessing } from '@/lib/webhooks/idempotency';
 
@@ -150,6 +154,9 @@ async function dispatch(event: Stripe.Event): Promise<void> {
       return;
     case 'charge.refunded':
       await handleChargeRefunded(event.data.object as Stripe.Charge);
+      return;
+    case 'charge.dispute.created':
+      await handleChargeDisputed(event.data.object as Stripe.Dispute);
       return;
     case 'payout.paid':
       await handlePayoutPaid(event.data.object as Stripe.Payout, event.account ?? null);

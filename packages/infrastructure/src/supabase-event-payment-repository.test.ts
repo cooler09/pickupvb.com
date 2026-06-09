@@ -143,6 +143,7 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
       action: 'paid',
       amountCents: 2500,
       paymentIntentId: 'pi_1',
+      category: 'ticket',
     });
     expect(mock.ops).toEqual([
       {
@@ -154,6 +155,7 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
           action: 'paid',
           amount_cents: 2500,
           payment_intent_id: 'pi_1',
+          category: 'ticket',
         },
         filters: [],
       },
@@ -177,7 +179,7 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
     ).rejects.toThrow('mark tip paid failed: nope');
   });
 
-  it('upsertSponsorSlot upserts on event_id with access_kind ala_carte', async () => {
+  it('upsertSponsorSlot upserts ONLY the sponsor content on event_id (entitlement decoupled — SP-1)', async () => {
     const mock = makeClient();
     await repo(mock).upsertSponsorSlot({
       eventId: 'e1',
@@ -186,10 +188,6 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
       linkUrl: 'https://acme.test',
       logoUrl: null,
       discountCode: 'ACME10',
-      purchasedByUserId: 'u1',
-      checkoutSessionId: 'cs_1',
-      paymentIntentId: 'pi_1',
-      paidAt: 'now',
     });
     expect(mock.ops[0]).toMatchObject({
       table: 'event_sponsors',
@@ -201,6 +199,30 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
         link_url: 'https://acme.test',
         logo_url: null,
         discount_code: 'ACME10',
+      },
+      opts: { onConflict: 'event_id' },
+    });
+    // The content write must NOT carry entitlement columns — those moved to
+    // `event_sponsor_access`. This guards against re-coupling (the bug that let
+    // `removeSponsor` destroy a paid unlock).
+    expect(mock.ops[0]?.payload).not.toHaveProperty('access_kind');
+    expect(mock.ops[0]?.payload).not.toHaveProperty('paid_at');
+  });
+
+  it('unlockSponsorSlot records the entitlement in event_sponsor_access on event_id', async () => {
+    const mock = makeClient();
+    await repo(mock).unlockSponsorSlot({
+      eventId: 'e1',
+      purchasedByUserId: 'u1',
+      checkoutSessionId: 'cs_1',
+      paymentIntentId: 'pi_1',
+      paidAt: 'now',
+    });
+    expect(mock.ops[0]).toMatchObject({
+      table: 'event_sponsor_access',
+      op: 'upsert',
+      payload: {
+        event_id: 'e1',
         access_kind: 'ala_carte',
         purchased_by_user_id: 'u1',
         stripe_checkout_session_id: 'cs_1',
@@ -273,68 +295,38 @@ describe('SupabaseEventPaymentRepository — checkout.session.expired', () => {
   });
 });
 
-describe('SupabaseEventPaymentRepository — payment_intent.payment_failed', () => {
-  it('deletePendingAttendeesByPaymentIntent batch-deletes the pending participants', async () => {
-    const mock = makeClient();
-    mock.data['event_participant_payments'] = [
-      { participant_id: 'p_1' },
-      { participant_id: 'p_2' },
-    ];
-    await repo(mock).deletePendingAttendeesByPaymentIntent('pi_1');
-    expect(mock.ops).toEqual([
-      {
-        table: 'event_participant_payments',
-        op: 'select',
-        select: 'participant_id',
-        filters: [
-          ['eq', 'payment_intent_id', 'pi_1'],
-          ['eq', 'payment_status', 'pending'],
-        ],
-      },
-      {
-        table: 'event_participants',
-        op: 'delete',
-        filters: [['in', 'id', ['p_1', 'p_2']]],
-      },
-    ]);
-  });
-
-  it('deletePendingAttendeesByPaymentIntent skips the delete when none are pending', async () => {
-    const mock = makeClient();
-    mock.data['event_participant_payments'] = [];
-    await repo(mock).deletePendingAttendeesByPaymentIntent('pi_1');
-    expect(mock.ops).toHaveLength(1);
-  });
-
-  it('markPendingTipsFailedByPaymentIntent flips pending tips to failed', async () => {
-    const mock = makeClient();
-    await repo(mock).markPendingTipsFailedByPaymentIntent('pi_1');
-    expect(mock.ops).toEqual([
-      {
-        table: 'event_tips',
-        op: 'update',
-        payload: { status: 'failed' },
-        filters: [
-          ['eq', 'stripe_payment_intent_id', 'pi_1'],
-          ['eq', 'status', 'pending'],
-        ],
-      },
-    ]);
-  });
-});
-
 describe('SupabaseEventPaymentRepository — charge.refunded', () => {
-  it('markTipsRefundedByPaymentIntent flips tips on the PI to refunded with the passed timestamp', async () => {
+  it('markTipsRefundedByPaymentIntent flips a paid tip to refunded and returns its audit context', async () => {
     const mock = makeClient();
-    await repo(mock).markTipsRefundedByPaymentIntent('pi_1', '2026-06-02T00:00:00.000Z');
+    mock.data['event_tips'] = {
+      event_id: 'e_1',
+      tipper_user_id: 'u_1',
+      amount_cents: 500,
+    };
+    const ctx = await repo(mock).markTipsRefundedByPaymentIntent(
+      'pi_1',
+      '2026-06-02T00:00:00.000Z',
+    );
+    expect(ctx).toEqual({ eventId: 'e_1', userId: 'u_1', amountCents: 500 });
     expect(mock.ops).toEqual([
       {
         table: 'event_tips',
         op: 'update',
         payload: { status: 'refunded', refunded_at: '2026-06-02T00:00:00.000Z' },
-        filters: [['eq', 'stripe_payment_intent_id', 'pi_1']],
+        select: 'event_id, tipper_user_id, amount_cents',
+        filters: [
+          ['eq', 'stripe_payment_intent_id', 'pi_1'],
+          ['eq', 'status', 'paid'],
+        ],
       },
     ]);
+  });
+
+  it('markTipsRefundedByPaymentIntent returns null when no paid tip matches (idempotent retry)', async () => {
+    const mock = makeClient();
+    expect(
+      await repo(mock).markTipsRefundedByPaymentIntent('pi_1', '2026-06-02T00:00:00.000Z'),
+    ).toBeNull();
   });
 
   it('findRefundableAttendeeByPaymentIntent maps the joined attendee row', async () => {

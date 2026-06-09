@@ -39,6 +39,9 @@ status to `Superseded by NNNN`.
 | [0033](0033-host-managed-account-less-team-entries.md) | Host-managed, account-less team entries across roster/league divisions               | Accepted                                                             |
 | [0034](0034-league-play-on-entry-id.md)                | League play keys on `event_team_entries.id` (completes ADR 0033)                     | Accepted                                                             |
 | [0035](0035-onboarding-checklists.md)                  | Onboarding checklists (player + host) — computed, no per-step badge                  | Accepted                                                             |
+| [0037](0037-season-passes.md)                          | Season passes — Pro-host prepaid multi-session credit packs (monetization O-1)       | Accepted                                                             |
+| [0038](0038-group-payouts-club-tier.md)                | Group payouts + Club tier — pooled payouts for clubs (monetization O-2)              | Accepted                                                             |
+| [0039](0039-referrals-pro-grants.md)                   | Host referrals + comped Pro grants (monetization O-3)                                | Accepted                                                             |
 
 ## Template
 

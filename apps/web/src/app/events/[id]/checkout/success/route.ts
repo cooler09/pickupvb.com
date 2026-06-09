@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { revalidatePath, updateTag } from 'next/cache';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { getAdminSupabase } from '@/lib/supabase-admin';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { log } from '@/lib/log';
 
 /**
@@ -50,6 +52,21 @@ export async function GET(
           })
           .eq('checkout_session_id', session.id)
           .neq('payment_status', 'paid');
+
+        // When this redirect beats the webhook, the reconcile above is the only
+        // write — so it must also evict the event-detail cache the webhook would
+        // (eventCacheTag), or the buyer lands on a stale "payment pending" page
+        // until the 60s TTL (and forever in local dev without `stripe listen`).
+        // Guarded so a revalidation hiccup can't break the redirect.
+        try {
+          updateTag(eventCacheTag(eventId));
+          revalidatePath(`/events/${eventId}`);
+        } catch (revalErr) {
+          log.warn('[checkout/success] revalidate failed', {
+            eventId,
+            err: String(revalErr),
+          });
+        }
       }
     }
   } catch (err) {

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase';
+import { csvCell } from '@/lib/csv';
+import { groupAuditRowsByPaymentIntent } from '@/lib/receipts';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,9 +41,11 @@ export async function GET(
   type AuditRow = {
     id: string;
     event_id: string;
-    action: 'paid' | 'refunded' | 'failed';
+    user_id: string | null;
+    action: 'paid' | 'refunded';
     amount_cents: number;
     payment_intent_id: string | null;
+    off_platform: boolean;
     occurred_at: string;
     events: {
       title: string;
@@ -55,10 +59,9 @@ export async function GET(
   const { data: rawRows } = await supabase
     .from('event_payment_audit')
     .select(
-      'id, event_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at, location_city, location_region, host_id)',
+      'id, event_id, user_id, action, amount_cents, payment_intent_id, off_platform, occurred_at, events:events!inner(title, starts_at, location_city, location_region, host_id)',
     )
     .eq('user_id', user.id)
-    .neq('action', 'failed')
     .gte('occurred_at', start)
     .lt('occurred_at', end)
     .order('occurred_at', { ascending: true });
@@ -80,44 +83,17 @@ export async function GET(
     }
   }
 
-  type Txn = {
-    paymentIntentId: string;
-    eventTitle: string;
-    eventStartsAt: string;
-    eventCity: string;
-    eventRegion: string;
-    hostName: string;
-    paidCents: number;
-    refundedCents: number;
-    paidAt: string;
-  };
-  const byPi = new Map<string, Txn>();
-  for (const r of rows) {
-    if (!r.events) continue;
-    const key = r.payment_intent_id ?? `audit:${r.id}`;
-    const existing = byPi.get(key);
-    if (existing) {
-      if (r.action === 'paid') {
-        existing.paidCents += r.amount_cents;
-        if (r.occurred_at < existing.paidAt) existing.paidAt = r.occurred_at;
-      } else {
-        existing.refundedCents += r.amount_cents;
-      }
-    } else {
-      byPi.set(key, {
-        paymentIntentId: r.payment_intent_id ?? `audit:${r.id}`,
-        eventTitle: r.events.title,
-        eventStartsAt: r.events.starts_at,
-        eventCity: r.events.location_city ?? '',
-        eventRegion: r.events.location_region ?? '',
-        hostName: r.events.host_id ? (hostNameById.get(r.events.host_id) ?? '') : '',
-        paidCents: r.action === 'paid' ? r.amount_cents : 0,
-        refundedCents: r.action === 'refunded' ? r.amount_cents : 0,
-        paidAt: r.occurred_at,
-      });
-    }
-  }
-  const transactions = Array.from(byPi.values()).sort((a, b) => (a.paidAt < b.paidAt ? -1 : 1));
+  const transactions = groupAuditRowsByPaymentIntent(rows, (r) =>
+    r.events
+      ? {
+          eventTitle: r.events.title,
+          eventStartsAt: r.events.starts_at,
+          eventCity: r.events.location_city ?? '',
+          eventRegion: r.events.location_region ?? '',
+          hostName: r.events.host_id ? (hostNameById.get(r.events.host_id) ?? '') : '',
+        }
+      : null,
+  ).sort((a, b) => (a.paidAt < b.paidAt ? -1 : 1));
 
   const usd = (c: number): string => (c / 100).toFixed(2);
   const header = [
@@ -145,7 +121,8 @@ export async function GET(
         usd(t.paidCents),
         usd(t.refundedCents),
         usd(t.paidCents - t.refundedCents),
-        csvCell(t.paymentIntentId),
+        // Off-platform (cash) rows have no Stripe payment intent.
+        csvCell(t.offPlatform ? 'off-platform' : t.paymentIntentId),
       ].join(','),
     ),
   ];
@@ -177,10 +154,4 @@ export async function GET(
       'cache-control': 'private, no-store',
     },
   });
-}
-
-function csvCell(s: string): string {
-  if (s == null) return '';
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
 }

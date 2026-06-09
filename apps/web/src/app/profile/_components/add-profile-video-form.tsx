@@ -56,7 +56,7 @@ export function AddProfileVideoForm() {
       {(state.error || state.ok) && (
         <div ref={errorRef} tabIndex={-1} className="outline-none">
           {state.error && (
-            <p className="text-sm text-red-500" role="alert">
+            <p className="text-md-error text-sm" role="alert">
               {state.error}
             </p>
           )}

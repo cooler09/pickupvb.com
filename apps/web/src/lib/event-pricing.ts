@@ -12,6 +12,14 @@ export type EventPricing = {
   priceCents: number;
   hostAbsorbsFee: boolean;
   passProcessingFeeToBuyer: boolean;
+  /**
+   * When true the host collects outside Stripe (Venmo/cash/club account) — the
+   * app never charges anyone. Threaded here so `attendeeChargeBreakdownAsync`
+   * can short-circuit to face value instead of computing a platform fee the UI
+   * has to hide, and so `startTicketCheckout` can refuse the on-platform path.
+   * See docs/payments.md § Off-platform.
+   */
+  paymentsOffPlatform: boolean;
   refundWindowHours: number;
   hostId: string;
   // Step 5a: child rows (`event_attendees`) are keyed by division_id only.
@@ -35,7 +43,9 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
   const [eventRes, divRes] = await Promise.all([
     supabase
       .from('events')
-      .select('host_id, host_absorbs_fee, pass_processing_fee_to_buyer, refund_window_hours')
+      .select(
+        'host_id, host_absorbs_fee, pass_processing_fee_to_buyer, refund_window_hours, payments_off_platform',
+      )
       .eq('id', eventId)
       .maybeSingle(),
     supabase
@@ -52,6 +62,7 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
     host_absorbs_fee: boolean;
     pass_processing_fee_to_buyer: boolean;
     refund_window_hours: number;
+    payments_off_platform: boolean | null;
   };
   type DivRow = { id: string; price_cents: number | null };
   const e = eventRes.data as unknown as EventRow;
@@ -63,6 +74,7 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
     divisionId: d.id,
     hostAbsorbsFee: e.host_absorbs_fee ?? false,
     passProcessingFeeToBuyer: e.pass_processing_fee_to_buyer ?? false,
+    paymentsOffPlatform: e.payments_off_platform ?? false,
     refundWindowHours: e.refund_window_hours ?? 24,
   };
 }
@@ -145,7 +157,27 @@ export async function attendeeChargeBreakdownAsync(p: EventPricing): Promise<{
   platformFeeCents: number;
   processingFeeCents: number;
   totalCents: number;
+  /**
+   * The platform's cut to send as Stripe `application_fee_amount`. Unlike
+   * `platformFeeCents` (the buyer-facing line item, 0 when the host absorbs the
+   * fee), this is the cut the platform always takes — absorb only moves it
+   * between a buyer line and the host's payout. 0 for off-platform events.
+   * Surfaced so the ticket checkout doesn't recompute the fee a second time.
+   */
+  applicationFeeCents: number;
 }> {
+  // Off-platform: Stripe is never involved for this event (docs/payments.md), so
+  // don't compute a platform-fee number the UI would only have to hide — show
+  // face value and take no application fee.
+  if (p.paymentsOffPlatform) {
+    return {
+      ticketCents: p.priceCents,
+      platformFeeCents: 0,
+      processingFeeCents: 0,
+      totalCents: p.priceCents,
+      applicationFeeCents: 0,
+    };
+  }
   const fee = await platformFeeCentsFor(p.hostId, p.priceCents);
   if (p.hostAbsorbsFee) {
     return {
@@ -153,6 +185,7 @@ export async function attendeeChargeBreakdownAsync(p: EventPricing): Promise<{
       platformFeeCents: 0,
       processingFeeCents: 0,
       totalCents: p.priceCents,
+      applicationFeeCents: fee,
     };
   }
   const subtotal = p.priceCents + fee;
@@ -166,5 +199,6 @@ export async function attendeeChargeBreakdownAsync(p: EventPricing): Promise<{
     platformFeeCents: fee,
     processingFeeCents: processing,
     totalCents: subtotal + processing,
+    applicationFeeCents: fee,
   };
 }

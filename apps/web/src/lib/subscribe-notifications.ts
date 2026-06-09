@@ -52,7 +52,12 @@ export function subscribeToNotifications(
     const supabase = createSupabaseBrowserClient();
     void (async () => {
       // Private channels carry the user's JWT so the `realtime.messages` SELECT
-      // policy can authorize the topic.
+      // policy can authorize the topic. Set only the INITIAL token here:
+      // supabase-js's auth listener forwards every later TOKEN_REFRESHED to
+      // `realtime.setAuth` (re-authorizing joined channels, so a long-lived tab
+      // keeps receiving across refresh), but it ignores INITIAL_SESSION — so the
+      // first token must be set explicitly. Don't add a manual refresh handler
+      // (it would duplicate the client's built-in one).
       const {
         data: { session },
       } = await supabase.auth.getSession();

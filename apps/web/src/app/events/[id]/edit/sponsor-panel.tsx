@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { primaryButtonClass } from '@/components/primary-button';
+import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
+import { SPONSOR_SLOT_UNLOCK_CENTS } from '@/lib/pro';
 import { SponsorLogoUpload } from './sponsor-logo-upload';
 import {
   removeSponsor,
@@ -11,6 +12,9 @@ import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
 } from '@/components/field-styles';
+
+/** Single source of truth for the à-la-carte price (mirrors pricing/Pro pages). */
+const SPONSOR_SLOT_PRICE_USD = SPONSOR_SLOT_UNLOCK_CENTS / 100;
 
 type Sponsor = {
   name: string;
@@ -44,9 +48,10 @@ export function SponsorPanel({
   return (
     <section className="border-border-base rounded-shape-sm space-y-4 border p-4">
       <header className="space-y-1">
-        <h2 className="text-fg text-lg font-semibold">Sponsor slot (Pro)</h2>
+        <h2 className="text-fg text-lg font-semibold">Sponsor slot</h2>
         <p className="text-muted text-sm">
-          Add one host-owned sponsor block to the event page. Keep copy short and local.
+          Add one host-owned sponsor block to the event page — included with Pro, or a one-time $
+          {SPONSOR_SLOT_PRICE_USD} unlock per event. Keep copy short and local.
         </p>
       </header>
 
@@ -102,7 +107,8 @@ export function SponsorPanel({
 
       {!canUseSponsors && (
         <Alert variant="info" title="Unlock sponsor slot">
-          Upgrade to Pro for included sponsor slots, or pay a one-time $3 unlock for this event.
+          Upgrade to Pro for included sponsor slots, or pay a one-time ${SPONSOR_SLOT_PRICE_USD}{' '}
+          unlock for this event.
         </Alert>
       )}
 
@@ -169,16 +175,15 @@ export function SponsorPanel({
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button type="submit" disabled={false} className={primaryButtonClass('md')}>
-            {canUseSponsors ? 'Save sponsor' : 'Unlock sponsor slot ($3)'}
+          <button type="submit" className={primaryButtonClass('md')}>
+            {canUseSponsors ? 'Save sponsor' : `Unlock sponsor slot ($${SPONSOR_SLOT_PRICE_USD})`}
           </button>
 
-          {sponsor && canUseSponsors && (
-            <button
-              type="submit"
-              formAction={removeAction}
-              className="border-border-base text-fg rounded-md border px-4 py-2 text-sm font-semibold"
-            >
+          {/* Removal isn't entitlement-gated (SP-2): any event manager can delete
+              their own sponsor even after a Pro lapse. This panel only renders on
+              the manager-gated edit page, so `sponsor` alone is a safe condition. */}
+          {sponsor && (
+            <button type="submit" formAction={removeAction} className={neutralButtonClass('md')}>
               Remove sponsor
             </button>
           )}

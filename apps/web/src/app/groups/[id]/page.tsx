@@ -4,6 +4,7 @@ import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { HostedEventsList } from '@/components/hosted-events-list';
 import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
 import { Pagination } from '@/components/pagination';
+import { RoomChatPanel } from '@/components/room-chat-panel';
 import { GroupHeader } from './_components/group-header';
 import { GroupViewerActions, GroupManageMembersLink } from './_components/group-viewer-actions';
 import { MembersSection, type GroupMember } from './_components/members-section';
@@ -155,6 +156,16 @@ export default async function GroupProfilePage(props: {
         manageSlot={<GroupManageMembersLink groupSlug={group.slug} managerIds={managerIds} />}
         page={mpage}
         searchParams={searchParams}
+      />
+
+      <RoomChatPanel
+        kind="group"
+        contextId={group.id}
+        label="Group chat"
+        participants={members.map((m) => ({
+          id: m.userId,
+          name: m.profile?.displayName ?? 'Member',
+        }))}
       />
 
       {past.length > 0 && (

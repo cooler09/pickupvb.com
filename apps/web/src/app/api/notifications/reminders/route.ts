@@ -41,7 +41,7 @@ function makeReminderPort(admin: ReturnType<typeof createSupabaseAdminClient>): 
     async findWindowEvents(windowStart, windowEnd) {
       const { data } = await admin
         .from('events')
-        .select('id, title, starts_at, location_city, location_region')
+        .select('id, title, starts_at, location_city, location_region, time_zone')
         .gte('starts_at', windowStart.toISOString())
         .lte('starts_at', windowEnd.toISOString())
         .neq('status', 'cancelled')

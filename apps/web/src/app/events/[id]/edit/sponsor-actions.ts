@@ -1,5 +1,6 @@
 'use server';
 
+import { createHash } from 'node:crypto';
 import { revalidatePath, updateTag } from 'next/cache';
 import { eventCacheTag } from '@/lib/cache-tags';
 import { redirect } from 'next/navigation';
@@ -11,16 +12,11 @@ import { handlers, analytics } from '@/lib/handlers';
 import { field, fieldOrNull } from '@/lib/form-data';
 import { hasProBenefits } from '@/lib/admin';
 import { getServerSupabase } from '@/lib/supabase';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 import { requireSession } from '@/lib/server-auth';
 import { buildOrigin } from '@/lib/server-redirects';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
-
-const SPONSOR_SLOT_UNLOCK_CENTS = 300;
-
-type SponsorRow = {
-  access_kind: 'pro' | 'ala_carte';
-  paid_at: string | null;
-};
+import { SPONSOR_SLOT_UNLOCK_CENTS } from '@/lib/pro';
 
 type SponsorDraft = {
   name: string;
@@ -72,14 +68,36 @@ async function assertCanManage(eventId: string, userId: string): Promise<void> {
   }
 }
 
-async function loadSponsorRow(eventId: string): Promise<SponsorRow | null> {
-  const sb = await getServerSupabase();
-  const { data } = await sb
-    .from('event_sponsors')
-    .select('access_kind, paid_at')
+/**
+ * Authorize the caller as an event manager, or flash-redirect. Maps the typed
+ * domain errors to flash codes and **re-throws anything unexpected** (monetization
+ * audit SP-8): a DB failure in the manage check must surface as a real 500 + log,
+ * not masquerade as "unauthorized". Shared by all three sponsor actions.
+ */
+async function guardManage(eventId: string, userId: string): Promise<void> {
+  try {
+    await assertCanManage(eventId, userId);
+  } catch (err) {
+    if (err instanceof NotFoundError) flashTo(eventId, 'notfound');
+    if (err instanceof UnauthorizedError) flashTo(eventId, 'unauthorized');
+    throw err;
+  }
+}
+
+/**
+ * Has this event's à-la-carte sponsor unlock been paid? Reads the entitlement
+ * row on the admin client — `event_sponsor_access` has no client RLS policies
+ * (webhook-written, AGENTS pitfall #8). Decoupled from the sponsor content so a
+ * removed sponsor keeps its paid unlock (monetization audit SP-1). Mirrors
+ * `badgeSlotPaid` in badge-actions.ts.
+ */
+async function sponsorSlotPaid(eventId: string): Promise<boolean> {
+  const { data } = await getAdminSupabase()
+    .from('event_sponsor_access')
+    .select('paid_at')
     .eq('event_id', eventId)
     .maybeSingle();
-  return (data as SponsorRow | null) ?? null;
+  return (data as { paid_at: string | null } | null)?.paid_at != null;
 }
 
 async function loadEventHostId(eventId: string): Promise<string | null> {
@@ -88,24 +106,13 @@ async function loadEventHostId(eventId: string): Promise<string | null> {
   return (data as { host_id: string } | null)?.host_id ?? null;
 }
 
-function hasAlaCarteAccess(row: SponsorRow | null): boolean {
-  return !!row && row.access_kind === 'ala_carte' && row.paid_at !== null;
-}
-
 export async function upsertSponsorFromForm(
   eventId: string,
   returnPath: string,
   formData: FormData,
 ): Promise<never> {
   const { user } = await requireSession(`/events/${eventId}/edit`);
-
-  try {
-    await assertCanManage(eventId, user.id);
-  } catch (err) {
-    if (err instanceof NotFoundError) flashTo(eventId, 'notfound');
-    if (err instanceof UnauthorizedError) flashTo(eventId, 'unauthorized');
-    flashTo(eventId, 'unauthorized');
-  }
+  await guardManage(eventId, user.id);
 
   let draft: SponsorDraft;
   try {
@@ -114,8 +121,8 @@ export async function upsertSponsorFromForm(
     flashTo(eventId, 'invalid', err instanceof Error ? err.message : 'Invalid sponsor details.');
   }
 
-  const [pro, sponsorRow] = await Promise.all([hasProBenefits(user.id), loadSponsorRow(eventId)]);
-  if (!pro && !hasAlaCarteAccess(sponsorRow)) flashTo(eventId, 'pro');
+  const [pro, paid] = await Promise.all([hasProBenefits(user.id), sponsorSlotPaid(eventId)]);
+  if (!pro && !paid) flashTo(eventId, 'pro');
 
   const sb = await getServerSupabase();
   const { error } = await sb.from('event_sponsors').upsert(
@@ -126,7 +133,6 @@ export async function upsertSponsorFromForm(
       link_url: draft.linkUrl,
       logo_url: draft.logoUrl,
       discount_code: draft.discountCode,
-      ...(pro ? { access_kind: 'pro' as const } : {}),
     },
     { onConflict: 'event_id' },
   );
@@ -148,18 +154,11 @@ export async function startSponsorSlotCheckoutFromForm(
   formData: FormData,
 ): Promise<void> {
   const { user } = await requireSession(`/events/${eventId}/edit`);
+  await guardManage(eventId, user.id);
 
-  try {
-    await assertCanManage(eventId, user.id);
-  } catch (err) {
-    if (err instanceof NotFoundError) flashTo(eventId, 'notfound');
-    if (err instanceof UnauthorizedError) flashTo(eventId, 'unauthorized');
-    flashTo(eventId, 'unauthorized');
-  }
-
-  const [pro, sponsorRow] = await Promise.all([hasProBenefits(user.id), loadSponsorRow(eventId)]);
+  const [pro, paid] = await Promise.all([hasProBenefits(user.id), sponsorSlotPaid(eventId)]);
   // Entitled users should use the direct save path — no one-off checkout.
-  if (pro || hasAlaCarteAccess(sponsorRow)) {
+  if (pro || paid) {
     await upsertSponsorFromForm(eventId, returnPath, formData);
   }
 
@@ -177,39 +176,48 @@ export async function startSponsorSlotCheckoutFromForm(
   const origin = await buildOrigin();
   const hostId = await loadEventHostId(eventId);
 
+  // Idempotency key folds the draft in: a re-submit of the SAME sponsor details
+  // (e.g. the SDK's own network retry) maps to one Checkout Session, but editing
+  // any field produces a new key — Stripe would otherwise reject a reused key
+  // with a changed body. (TPI-5 parity for the slot flows.)
+  const draftHash = createHash('sha256').update(JSON.stringify(draft)).digest('hex').slice(0, 16);
+
   let session: Stripe.Checkout.Session;
   try {
-    session = await getStripe().checkout.sessions.create({
-      mode: 'payment',
-      ...(user.email ? { customer_email: user.email } : {}),
-      allow_promotion_codes: true,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: 'usd',
-            unit_amount: SPONSOR_SLOT_UNLOCK_CENTS,
-            product_data: {
-              name: 'Event sponsor slot unlock',
-              description: 'One-time unlock for this event',
+    session = await getStripe().checkout.sessions.create(
+      {
+        mode: 'payment',
+        ...(user.email ? { customer_email: user.email } : {}),
+        allow_promotion_codes: true,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: 'usd',
+              unit_amount: SPONSOR_SLOT_UNLOCK_CENTS,
+              product_data: {
+                name: 'Event sponsor slot unlock',
+                description: 'One-time unlock for this event',
+              },
             },
           },
+        ],
+        metadata: {
+          kind: 'sponsor_slot',
+          event_id: eventId,
+          user_id: user.id,
+          ...(hostId ? { host_id: hostId } : {}),
+          sponsor_name: draft.name,
+          sponsor_blurb: draft.blurb ?? '',
+          sponsor_link_url: draft.linkUrl ?? '',
+          sponsor_logo_url: draft.logoUrl ?? '',
+          sponsor_discount_code: draft.discountCode ?? '',
         },
-      ],
-      metadata: {
-        kind: 'sponsor_slot',
-        event_id: eventId,
-        user_id: user.id,
-        ...(hostId ? { host_id: hostId } : {}),
-        sponsor_name: draft.name,
-        sponsor_blurb: draft.blurb ?? '',
-        sponsor_link_url: draft.linkUrl ?? '',
-        sponsor_logo_url: draft.logoUrl ?? '',
-        sponsor_discount_code: draft.discountCode ?? '',
+        success_url: `${origin}/events/${eventId}/edit?sponsor=checkout_success`,
+        cancel_url: `${origin}/events/${eventId}/edit?sponsor=checkout_cancel`,
       },
-      success_url: `${origin}/events/${eventId}/edit?sponsor=checkout_success`,
-      cancel_url: `${origin}/events/${eventId}/edit?sponsor=checkout_cancel`,
-    });
+      { idempotencyKey: `sponsor:${eventId}:${user.id}:${draftHash}` },
+    );
   } catch (err) {
     flashTo(
       eventId,
@@ -238,18 +246,13 @@ export async function startSponsorSlotCheckoutFromForm(
 
 export async function removeSponsor(eventId: string, returnPath: string): Promise<never> {
   const { user } = await requireSession(`/events/${eventId}/edit`);
+  await guardManage(eventId, user.id);
 
-  try {
-    await assertCanManage(eventId, user.id);
-  } catch (err) {
-    if (err instanceof NotFoundError) flashTo(eventId, 'notfound');
-    if (err instanceof UnauthorizedError) flashTo(eventId, 'unauthorized');
-    flashTo(eventId, 'unauthorized');
-  }
-
-  const [pro, sponsorRow] = await Promise.all([hasProBenefits(user.id), loadSponsorRow(eventId)]);
-  if (!pro && !hasAlaCarteAccess(sponsorRow)) flashTo(eventId, 'pro');
-
+  // Removal is NOT entitlement-gated (monetization audit SP-2): a host must be
+  // able to delete their own sponsor regardless of current Pro / à-la-carte
+  // status (e.g. after a Pro lapse). `assertCanManage` above is the only gate.
+  // Only the content row is deleted — the `event_sponsor_access` entitlement
+  // survives, so re-adding a sponsor later is free (SP-1).
   const sb = await getServerSupabase();
   const { error } = await sb.from('event_sponsors').delete().eq('event_id', eventId);
   if (error) flashTo(eventId, 'error', error.message);

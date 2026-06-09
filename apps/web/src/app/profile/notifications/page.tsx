@@ -8,6 +8,7 @@ import { updateNotificationPreferences } from './actions';
 import { PushSubscribeButton } from '@/components/push-subscribe-button';
 import { PushTestButton } from '@/components/push-test-button';
 import { SubmitButton } from '@/components/submit-button';
+import { categoryRows, CHANNEL_LABEL, overrideFieldName } from './categories';
 
 export const metadata = {
   title: 'Notifications — PickupVB',
@@ -26,6 +27,8 @@ export default async function NotificationsPrefsPage() {
   const inAppEnabled = settings?.inAppEnabled ?? true;
   const emailEnabled = settings?.emailEnabled ?? true;
   const pushEnabled = settings?.pushEnabled ?? false;
+  const overrides = settings?.channelOverrides ?? {};
+  const rows = categoryRows();
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4">
@@ -68,6 +71,38 @@ export default async function NotificationsPrefsPage() {
             />
             <PushTestButton />
           </div>
+        </section>
+
+        <section className="border-border-base bg-md-surface-container rounded-shape-sm space-y-3 border p-5">
+          <div>
+            <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">
+              Fine-tune by type
+            </h2>
+            <p className="text-muted mt-1 text-xs">
+              Mute specific kinds of notification on a channel. A channel still has to be on above
+              for anything to send — these only narrow it.
+            </p>
+          </div>
+
+          {rows.map((row) => (
+            <div key={row.category} className="border-border-base/50 rounded-md border p-3">
+              <p className="text-sm font-medium">{row.label}</p>
+              <p className="text-muted text-xs">{row.description}</p>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                {row.channels.map((channel) => (
+                  <label key={channel} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name={overrideFieldName(row.category, channel)}
+                      defaultChecked={overrides[row.category]?.[channel] !== false}
+                      className="accent-primary h-4 w-4"
+                    />
+                    {CHANNEL_LABEL[channel]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
         </section>
 
         <SubmitButton className={primaryButtonClass('md')} pendingChildren="Saving…">

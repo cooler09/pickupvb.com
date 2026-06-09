@@ -33,7 +33,7 @@ import type { BracketScope } from './labels';
 type PlayerRow = { id: number; name: string; email: string };
 
 const INPUT_CLASS =
-  'border-border-base bg-bg text-fg focus:border-primary focus:ring-primary block min-w-0 flex-1 rounded border px-2 py-1 text-sm shadow-sm focus:ring-1 focus:outline-none';
+  'border-border-base bg-bg text-fg focus:border-primary focus-visible:ring-primary block min-w-0 flex-1 rounded border px-2 py-1 text-sm shadow-sm focus-visible:ring-2 focus-visible:outline-none';
 
 export function WalkInTeamForm(props: {
   /** Event or standalone (ADR 0025) bracket scope. */
@@ -193,7 +193,7 @@ export function WalkInTeamForm(props: {
             rows={8}
             autoFocus
             placeholder={'Spikers\nBlock Party\nNet Gains\n…'}
-            className="border-border-base bg-bg text-fg focus:border-primary focus:ring-primary mt-1 block w-full rounded border px-2 py-1 text-sm shadow-sm focus:ring-1 focus:outline-none"
+            className="border-border-base bg-bg text-fg focus:border-primary focus-visible:ring-primary mt-1 block w-full rounded border px-2 py-1 text-sm shadow-sm focus-visible:ring-2 focus-visible:outline-none"
           />
         </label>
       ) : (
@@ -209,7 +209,7 @@ export function WalkInTeamForm(props: {
               maxLength={80}
               autoFocus
               placeholder="e.g. Block Party"
-              className="border-border-base bg-bg text-fg focus:border-primary focus:ring-primary mt-1 block w-full rounded border px-2 py-1 text-sm shadow-sm focus:ring-1 focus:outline-none"
+              className="border-border-base bg-bg text-fg focus:border-primary focus-visible:ring-primary mt-1 block w-full rounded border px-2 py-1 text-sm shadow-sm focus-visible:ring-2 focus-visible:outline-none"
             />
           </label>
 

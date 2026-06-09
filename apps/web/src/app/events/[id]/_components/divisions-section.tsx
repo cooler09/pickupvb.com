@@ -17,6 +17,13 @@ type Props = {
    * public roster uses. Divisions absent from the map render as 0.
    */
   teamCounts?: ReadonlyMap<string, number>;
+  /**
+   * True when registration (and/or payment) is off PickupVB. The on-platform
+   * registered count is then empty/partial — same reason the public roster is
+   * suppressed — so capacity labels drop the `registered /` prefix and show
+   * the cap alone.
+   */
+  offPlatform?: boolean;
 };
 
 function formatPrice(cents: number | null, unit: string): string | null {
@@ -32,11 +39,14 @@ function formatPrice(cents: number | null, unit: string): string | null {
  * `registered / cap teams` (or `N teams` when uncapped). Individual-signup
  * divisions keep the spots wording.
  */
-function formatCapacity(d: DivisionLite, registeredTeams: number): string {
+function formatCapacity(d: DivisionLite, registeredTeams: number, offPlatform: boolean): string {
   if (d.teamRegistrationMode !== null) {
     if (d.capacityKind === 'fixed' && d.maxSpots !== null) {
-      return `${registeredTeams} / ${d.maxSpots} teams`;
+      // Off-platform: the registered count is empty/partial, so show the cap
+      // alone rather than a misleading `0 / N teams`.
+      return offPlatform ? `${d.maxSpots} teams` : `${registeredTeams} / ${d.maxSpots} teams`;
     }
+    if (offPlatform) return 'Unlimited';
     return `${registeredTeams} ${registeredTeams === 1 ? 'team' : 'teams'}`;
   }
   if (d.capacityKind === 'fixed' && d.maxSpots !== null) return `${d.maxSpots} spots`;
@@ -54,7 +64,7 @@ function formatCapacity(d: DivisionLite, registeredTeams: number): string {
  * separately on the page (always visible so a host can split a
  * single-division event).
  */
-export function DivisionsSection({ divisions, teamCounts }: Props) {
+export function DivisionsSection({ divisions, teamCounts, offPlatform = false }: Props) {
   if (divisions.length <= 1) return null;
   return (
     <section className="space-y-3">
@@ -73,7 +83,7 @@ export function DivisionsSection({ divisions, teamCounts }: Props) {
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-fg text-base font-semibold">{d.label}</h3>
                 <span className="text-muted text-xs">
-                  {formatCapacity(d, teamCounts?.get(d.id) ?? 0)}
+                  {formatCapacity(d, teamCounts?.get(d.id) ?? 0, offPlatform)}
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5 text-xs">

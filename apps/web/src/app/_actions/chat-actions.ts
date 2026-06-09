@@ -6,6 +6,7 @@ import {
   type ConversationKind,
   type MessageAttachment,
   type MessagePage,
+  type RoomKind,
 } from '@pickupvb/domain';
 import {
   DeleteMessageCommand,
@@ -36,6 +37,17 @@ import { consumeRateLimit, rateLimitKey } from '@/lib/rate-limit';
  */
 const CHAT_ATTACHMENT_MESSAGES_PER_DAY = 40;
 const CHAT_ATTACHMENT_WINDOW_SECONDS = 24 * 60 * 60;
+
+/**
+ * General per-message rate cap (audit M-10). Every send — text or attachment —
+ * consumes this, bounding a runaway/abuse loop that would otherwise spam DB rows
+ * + Realtime fan-out unchecked (RLS confines blast radius to rooms the user
+ * belongs to, but the write rate itself was uncapped). Generous enough that real
+ * chatting never hits it (~1/sec sustained). Same 1-per-call fixed-window limiter
+ * as the attachment cap; fails open, so a DB blip never blocks a real send.
+ */
+const CHAT_MESSAGES_PER_WINDOW = 60;
+const CHAT_MESSAGE_WINDOW_SECONDS = 60;
 
 /**
  * Chat server actions (ADR 0028). Shared across the team-room panel (Phase 1)
@@ -82,19 +94,23 @@ async function viewer(): Promise<{ id: string; isAnon: boolean } | null> {
 }
 
 /**
- * Bootstrap a team room: get-or-create its conversation, load the most recent
- * page, and advance the caller's read cursor. One round-trip for the
- * `TeamChatPanel` island to mount against.
+ * Bootstrap a context room (team / event / group): get-or-create its
+ * conversation, load the most recent page, and advance the caller's read cursor.
+ * One round-trip for a {@link RoomChatPanel} island to mount against. Membership
+ * against the source table is enforced server-side by the
+ * `get_or_create_conversation` RPC, so a non-member surfaces as `'forbidden'` and
+ * the panel renders nothing.
  */
-export async function openTeamChat(
-  teamId: string,
+export async function openRoomChat(
+  kind: RoomKind,
+  contextId: string,
 ): Promise<ChatResult<{ conversationId: string; viewerId: string; page: MessagePage }>> {
   const v = await viewer();
   if (!v || v.isAnon) return { ok: false, error: 'anon' };
   try {
     const h = await getChatHandlers();
     const { id: conversationId } = await h.openConversation.execute(
-      new OpenConversationCommand('team', teamId),
+      new OpenConversationCommand(kind, contextId),
     );
     const page = await h.listMessages.execute(new ListMessagesQuery(conversationId, PAGE_SIZE));
     await h.markConversationRead.execute(new MarkConversationReadCommand(conversationId, v.id));
@@ -131,8 +147,17 @@ export async function sendChatMessage(
   const v = await viewer();
   if (!v || v.isAnon) return { ok: false, error: 'anon' };
   if (!body.trim() && attachments.length === 0) return { ok: false, error: 'invalid' };
-  // Cost-control: throttle image uploads per user/day (R-2 Path A). Only counts
-  // attachment-bearing sends; text chat is never limited. Fails open.
+  // General per-message rate cap (M-10) — applies to every send. Fails open.
+  {
+    const { allowed } = await consumeRateLimit({
+      key: rateLimitKey('chat-msg', 'user', v.id),
+      limit: CHAT_MESSAGES_PER_WINDOW,
+      windowSeconds: CHAT_MESSAGE_WINDOW_SECONDS,
+    });
+    if (!allowed) return { ok: false, error: 'rate_limited' };
+  }
+  // Cost-control: additionally throttle image uploads per user/day (R-2 Path A).
+  // Only counts attachment-bearing sends. Fails open.
   if (attachments.length > 0) {
     const { allowed } = await consumeRateLimit({
       key: rateLimitKey('chat-attach', 'user', v.id),
@@ -147,11 +172,13 @@ export async function sendChatMessage(
       new SendMessageCommand(conversationId, v.id, body, v.isAnon, attachments, kind),
     );
     // Ping the recipient (DM bell + push) after the response is sent, so the
-    // notify fan-out never adds latency to the send. Best-effort inside.
+    // notify fan-out never adds latency to the send. Best-effort inside. Use the
+    // stored (moderated) body so a masked room message doesn't leak its raw text
+    // into the push/bell preview.
     const ping = notifyChatMessage({
       conversationId,
       senderId: v.id,
-      body,
+      body: out.body,
       attachmentsCount: attachments.length,
       kind,
     });
@@ -161,7 +188,7 @@ export async function sendChatMessage(
       // No request scope (e.g. unit tests) — let it run as a floating promise.
       void ping;
     }
-    return { ok: true, value: out };
+    return { ok: true, value: { id: out.id } };
   } catch (e) {
     return { ok: false, error: toChatError(e) };
   }

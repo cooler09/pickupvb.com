@@ -23,6 +23,7 @@ export function ProfileIdentityHero({
   positions,
   viewerIsAdmin,
   viewerIsPro,
+  hasPublicHandle,
 }: {
   profile: Model['profile'];
   userEmail: string;
@@ -30,6 +31,7 @@ export function ProfileIdentityHero({
   positions: string[];
   viewerIsAdmin: boolean;
   viewerIsPro: boolean;
+  hasPublicHandle: boolean;
 }) {
   return (
     <section className={cardClass}>
@@ -63,12 +65,14 @@ export function ProfileIdentityHero({
           </p>
           {positions.length > 0 && <p className="text-muted text-xs">{positions.join(' · ')}</p>}
         </div>
-        <Link
-          href={`/players/${profile.handle}` as Route}
-          className="border-border-base hover:bg-fg/5 shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium sm:text-sm"
-        >
-          Public view ↗
-        </Link>
+        {hasPublicHandle && (
+          <Link
+            href={`/players/${profile.handle}` as Route}
+            className="border-border-base hover:bg-fg/5 shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium sm:text-sm"
+          >
+            Public view ↗
+          </Link>
+        )}
       </div>
 
       <div className="border-border-base mt-5 border-t pt-4">
@@ -90,9 +94,19 @@ export function ProfileQuickActions({ isHost }: { isHost: boolean }) {
       />
       <ActionTile href={'/messages' as Route} title="Messages" description="Your conversations" />
       <ActionTile
+        href={'/profile/notifications' as Route}
+        title="Notifications"
+        description="Email, push & in-app"
+      />
+      <ActionTile
         href={'/profile/receipts' as Route}
         title="Receipts"
         description="Your payments"
+      />
+      <ActionTile
+        href={'/profile/passes' as Route}
+        title="My passes"
+        description="Prepaid session credits"
       />
       <ActionTile
         href={'/events/new' as Route}

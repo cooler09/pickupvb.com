@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { revalidatePath, updateTag } from 'next/cache';
 import { RegistrationPaymentStatus, EventTeamRegistrationId } from '@pickupvb/domain';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { repositories } from '@/lib/handlers';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { log } from '@/lib/log';
 
 /**
@@ -60,6 +62,19 @@ export async function GET(
         paidAt: new Date(),
       });
       await eventTeamRegistrationRepo.save(registration);
+      // The team-payment status is cached under eventCacheTag for every viewer
+      // (loadAdHocRowsCached). When this redirect beats the webhook, evict it
+      // here too or the captain sees "Pay now" until the 60s TTL. Guarded so a
+      // revalidation hiccup can't break the redirect.
+      try {
+        updateTag(eventCacheTag(eventId));
+        revalidatePath(`/events/${eventId}`);
+      } catch (revalErr) {
+        log.warn('[team-checkout/success] revalidate failed', {
+          eventId,
+          err: String(revalErr),
+        });
+      }
     } catch (err) {
       // Webhook already won the race — fine.
       void err;

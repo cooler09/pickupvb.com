@@ -14,7 +14,7 @@ import {
 } from '@pickupvb/domain';
 import { isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
-import { getHostStripeAccount } from '@/lib/host-stripe-account';
+import { getEventPayoutAccount } from '@/lib/event-payout';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { buyerProcessingFeeCents, platformFeeCentsFor } from '@/lib/event-pricing';
@@ -122,7 +122,7 @@ export async function startRosterTeamCheckout(eventId: string, teamId: string): 
     payment.expireCheckout();
   }
 
-  const hostAccountId = await getHostStripeAccount(event.hostId as unknown as string);
+  const hostAccountId = await getEventPayoutAccount(eventId, event.hostId as unknown as string);
   if (!hostAccountId) backWithError(eventId, 'host_not_ready');
 
   const { data: feeRow } = await supabase

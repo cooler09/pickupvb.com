@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
-import type { PlayerProfile } from '@pickupvb/domain';
 import { SupabaseProfileRepository, SupabaseMediaPostRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { POSITION_LABEL } from '@/lib/enum-labels';
+import { playerName, playerInitials } from '@/lib/player-name';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { Pagination } from '@/components/pagination';
 import { ProBadge } from '@/components/pro-badge';
@@ -40,6 +40,10 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
     title: name,
     description,
     alternates: { canonical: `/players/${card.handle}` },
+    // Honor the discovery opt-out: a `discoverable = false` player stays
+    // reachable by direct link but is de-indexed (and dropped from the
+    // sitemap) so "stay private" isn't crawled. Default (null/true) indexes.
+    ...(card.discoverable === false ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       title: `${name} · PickupVB`,
       description,
@@ -47,16 +51,6 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
       type: 'profile',
     },
   };
-}
-
-function initialsOf(p: PlayerProfile): string {
-  const parts = (p.displayName ?? '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  return (p.displayName ?? '?').slice(0, 2).toUpperCase();
-}
-
-function nameOf(p: PlayerProfile): string {
-  return p.displayName || 'Player';
 }
 
 export default async function PlayerProfilePage(props: {
@@ -92,7 +86,7 @@ export default async function PlayerProfilePage(props: {
   ]);
 
   const returnPath = `/players/${profile.handle}`;
-  const name = nameOf(profile);
+  const name = playerName(profile.displayName);
 
   const positions = [profile.primaryPosition, profile.secondaryPosition, profile.tertiaryPosition]
     .filter((p): p is string => !!p)
@@ -113,7 +107,7 @@ export default async function PlayerProfilePage(props: {
           {profile.avatarUrl ? (
             <Image
               src={profile.avatarUrl}
-              alt=""
+              alt={`${name}'s profile photo`}
               width={72}
               height={72}
               className="h-20 w-20 shrink-0 rounded-full object-cover"
@@ -123,7 +117,7 @@ export default async function PlayerProfilePage(props: {
               aria-hidden="true"
               className="bg-primary/15 text-primary text-title-lg flex h-20 w-20 shrink-0 items-center justify-center rounded-full font-semibold"
             >
-              {initialsOf(profile)}
+              {playerInitials(profile.displayName)}
             </span>
           )}
           <div className="min-w-0 flex-1">
@@ -173,28 +167,33 @@ export default async function PlayerProfilePage(props: {
         heading={`${name}'s badges`}
       />
 
-      <section id="upcoming-events" className="space-y-3">
-        <h2 className="text-fg text-lg font-semibold">
-          Upcoming events{' '}
-          <span className="text-muted text-sm font-normal">({upcoming.length})</span>
-        </h2>
-        <HostedEventsList
-          events={upcoming.slice(
-            (upage - 1) * UPCOMING_EVENTS_PER_PAGE,
-            upage * UPCOMING_EVENTS_PER_PAGE,
-          )}
-          emptyState={`${name} isn't hosting any upcoming events you can see.`}
-        />
-        <Pagination
-          basePath={`/players/${profile.handle}`}
-          page={upage}
-          pageSize={UPCOMING_EVENTS_PER_PAGE}
-          total={upcoming.length}
-          searchParams={searchParams}
-          pageParam="upage"
-          scrollToId="upcoming-events"
-        />
-      </section>
+      {/* "Hosting" — events this player is hosting. The section is host-scoped,
+          so it's hidden entirely for the (majority) non-host player rather than
+          showing an empty, mislabeled "Upcoming events (0)". Past-hosted events
+          render in their own section below. */}
+      {upcoming.length > 0 && (
+        <section id="upcoming-events" className="space-y-3">
+          <h2 className="text-fg text-lg font-semibold">
+            Hosting <span className="text-muted text-sm font-normal">({upcoming.length})</span>
+          </h2>
+          <HostedEventsList
+            events={upcoming.slice(
+              (upage - 1) * UPCOMING_EVENTS_PER_PAGE,
+              upage * UPCOMING_EVENTS_PER_PAGE,
+            )}
+            emptyState=""
+          />
+          <Pagination
+            basePath={`/players/${profile.handle}`}
+            page={upage}
+            pageSize={UPCOMING_EVENTS_PER_PAGE}
+            total={upcoming.length}
+            searchParams={searchParams}
+            pageParam="upage"
+            scrollToId="upcoming-events"
+          />
+        </section>
+      )}
       {videos.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-fg text-lg font-semibold">

@@ -53,6 +53,18 @@ export async function markTeamRegistrationPaid(args: {
     if (err instanceof InvariantViolation) return;
     throw err;
   }
+  // Ledger entry so the entry fee shows on the captain's receipts and the
+  // host's earnings (receipts-tax R-1). The early `=== Paid` guard above makes
+  // this run once per registration even on a webhook retry. `captainId` is null
+  // for an account-less captain.
+  await repositories.eventPaymentRepo.recordPaymentAudit({
+    eventId: reg.eventId,
+    userId: reg.captainId,
+    action: 'paid',
+    amountCents: args.amountCents,
+    paymentIntentId: args.paymentIntentId,
+    category: 'team',
+  });
 }
 
 export async function expireTeamRegistrationCheckout(registrationId: string): Promise<void> {
@@ -65,14 +77,27 @@ export async function expireTeamRegistrationCheckout(registrationId: string): Pr
 
 export async function refundTeamRegistrationIfAny(
   paymentIntentId: string,
-  _amountRefundedCents: number | null,
+  amountRefundedCents: number | null,
 ): Promise<void> {
   const { eventTeamRegistrationRepo } = repositories;
   const reg = await eventTeamRegistrationRepo.findByPaymentIntentId(paymentIntentId);
   if (!reg) return;
   if (reg.paymentStatus !== RegistrationPaymentStatus.Paid) return;
+  // Capture the paid amount before the state transition, in case markRefunded
+  // ever clears it.
+  const paidCents = reg.amountPaidCents ?? 0;
   reg.markRefunded();
   await eventTeamRegistrationRepo.save(reg);
+  // Matching `refunded` ledger row so the entry nets out (receipts-tax R-1).
+  // The `!== Paid` guard above makes this run once even on a webhook retry.
+  await repositories.eventPaymentRepo.recordPaymentAudit({
+    eventId: reg.eventId,
+    userId: reg.captainId,
+    action: 'refunded',
+    amountCents: amountRefundedCents ?? paidCents,
+    paymentIntentId,
+    category: 'team',
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -105,6 +130,16 @@ export async function markRosterTeamPaymentPaid(args: {
     if (err instanceof InvariantViolation) return;
     throw err;
   }
+  // Ledger entry for receipts/earnings (receipts-tax R-1); runs once per
+  // payment thanks to the `=== Paid` guard above.
+  await repositories.eventPaymentRepo.recordPaymentAudit({
+    eventId: payment.eventId,
+    userId: payment.captainId,
+    action: 'paid',
+    amountCents: args.amountCents,
+    paymentIntentId: args.paymentIntentId,
+    category: 'team',
+  });
 }
 
 export async function expireRosterTeamPaymentCheckout(paymentId: string): Promise<void> {
@@ -117,12 +152,22 @@ export async function expireRosterTeamPaymentCheckout(paymentId: string): Promis
 
 export async function refundRosterTeamPaymentIfAny(
   paymentIntentId: string,
-  _amountRefundedCents: number | null,
+  amountRefundedCents: number | null,
 ): Promise<void> {
   const { eventTeamPaymentRepo } = repositories;
   const payment = await eventTeamPaymentRepo.findByPaymentIntentId(paymentIntentId);
   if (!payment) return;
   if (payment.paymentStatus !== RegistrationPaymentStatus.Paid) return;
+  const paidCents = payment.amountPaidCents ?? 0;
   payment.markRefunded();
   await eventTeamPaymentRepo.save(payment);
+  // Matching `refunded` ledger row so the entry nets out (receipts-tax R-1).
+  await repositories.eventPaymentRepo.recordPaymentAudit({
+    eventId: payment.eventId,
+    userId: payment.captainId,
+    action: 'refunded',
+    amountCents: amountRefundedCents ?? paidCents,
+    paymentIntentId,
+    category: 'team',
+  });
 }

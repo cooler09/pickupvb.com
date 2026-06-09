@@ -1,13 +1,12 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import type { Route } from 'next';
 import { UserId } from '@pickupvb/domain';
 import { ListMessagesQuery, MarkConversationReadCommand } from '@pickupvb/application';
 import { SupabaseProfileRepository, SupabaseUserBlockRepository } from '@pickupvb/infrastructure';
 import { getCurrentUser } from '@/lib/server-auth';
 import { getChatHandlers } from '@/lib/handlers';
 import { ConversationView } from '@/components/conversation-view';
-import { BlockControl } from './_components/block-control';
+import { DmThread } from './_components/dm-thread';
 
 export const metadata = {
   title: 'Messages — PickupVB',
@@ -68,36 +67,41 @@ export default async function ConversationPage(props: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 py-4">
-      <header className="space-y-1">
-        <Link href="/messages" className="text-primary text-sm hover:underline">
-          ← Messages
-        </Link>
-        <div className="flex items-center justify-between gap-3">
-          {otherCard ? (
-            <Link
-              href={`/players/${otherCard.handle}` as Route}
-              className="text-title-lg truncate font-bold hover:underline"
-            >
-              {heading}
-            </Link>
-          ) : (
-            <h1 className="text-title-lg truncate font-bold">{heading}</h1>
-          )}
-          {conv.kind === 'dm' && otherCard && (
-            <BlockControl otherUserId={otherCard.id} initiallyBlocked={initiallyBlocked} />
-          )}
-        </div>
-      </header>
+      <Link href="/messages" className="text-primary text-sm hover:underline">
+        ← Messages
+      </Link>
 
-      <ConversationView
-        conversationId={id}
-        viewerId={user.id}
-        kind={conv.kind}
-        initialMessages={page.messages}
-        initialHasMore={page.hasMore}
-        initialNextBefore={page.nextBefore}
-        participants={participants}
-      />
+      {conv.kind === 'dm' && otherCard ? (
+        // DM with a live counterpart: the title row's block toggle and the
+        // composer share one `blocked` state (audit M-9).
+        <DmThread
+          conversationId={id}
+          viewerId={user.id}
+          heading={heading}
+          otherUserId={otherCard.id}
+          otherHandle={otherCard.handle}
+          initiallyBlocked={initiallyBlocked}
+          participants={participants}
+          initialMessages={page.messages}
+          initialHasMore={page.hasMore}
+          initialNextBefore={page.nextBefore}
+        />
+      ) : (
+        // Room conversation, or a DM whose counterpart was deleted — no block
+        // relationship to manage.
+        <>
+          <h1 className="text-title-lg truncate font-bold">{heading}</h1>
+          <ConversationView
+            conversationId={id}
+            viewerId={user.id}
+            kind={conv.kind}
+            initialMessages={page.messages}
+            initialHasMore={page.hasMore}
+            initialNextBefore={page.nextBefore}
+            participants={participants}
+          />
+        </>
+      )}
     </div>
   );
 }

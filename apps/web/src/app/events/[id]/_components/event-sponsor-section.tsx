@@ -22,7 +22,7 @@ export function EventSponsorSection({ sponsor }: { sponsor: EventSponsor | null 
             width={48}
             height={48}
             unoptimized
-            className="border-border-base bg-md-surface-container h-12 w-12 rounded-md border object-cover"
+            className="border-border-base bg-md-surface-container h-12 w-12 rounded-md border object-contain"
           />
         )}
         <div className="min-w-0">
@@ -47,6 +47,7 @@ export function EventSponsorSection({ sponsor }: { sponsor: EventSponsor | null 
           className="focus-visible:ring-primary block rounded-md focus-visible:ring-2 focus-visible:outline-none"
         >
           {body}
+          <span className="sr-only"> (opens in new tab)</span>
         </a>
       ) : (
         body

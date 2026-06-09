@@ -14,6 +14,17 @@ type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 const CLAIM_COLUMNS = 'id, user_id, channel, kind, to_address, payload, attempts';
 
+/**
+ * Claim lease (notifications audit P2 #7). On claim a row's `scheduled_for` is
+ * pushed this far into the future, so a concurrent worker won't re-claim a row
+ * that's actively being delivered. If the worker dies before writing a terminal
+ * status (the 60s `maxDuration` hard-kills it mid-batch, a throw, a cold-stop),
+ * the lease lapses and the next sweep re-claims the orphaned `sending` row
+ * instead of stranding it forever. 5 min ≫ the worker's 60s ceiling, so an
+ * in-flight row can never be double-claimed.
+ */
+const CLAIM_LEASE_MS = 5 * 60 * 1000;
+
 type OutboxRow = {
   id: string;
   user_id: string;
@@ -106,13 +117,23 @@ export class SupabaseNotificationOutboxRepository
   // ---- Drain side (cron worker + purge) -------------------------------------
 
   async claimBatch(limit: number): Promise<OutboxRecord[]> {
-    // Claim by flipping due pending rows to `sending`. Not a real SKIP LOCKED —
-    // for the volumes we expect, the race is acceptable.
+    // Claim by flipping due rows to `sending` and stamping a lease into
+    // `scheduled_for`. Two row sets are due: fresh `pending` rows, and `sending`
+    // rows whose lease has lapsed — i.e. a prior claim whose worker died before
+    // writing a terminal status (audit P2 #7). Re-claiming the latter is what
+    // stops a crash/timeout from orphaning rows in `sending` forever; the lease
+    // (set below) is what keeps a concurrent worker from grabbing a row that's
+    // still in flight. A perpetually-timing-out row keeps its `attempts` (the
+    // increment only happens in markFailed), so it re-leases rather than burning
+    // a retry — acceptable, since a constant timeout is a systemic fault, not a
+    // poison row. Not a real SKIP LOCKED — for our volumes the race is fine.
+    const now = new Date();
+    const lease = new Date(now.getTime() + CLAIM_LEASE_MS).toISOString();
     const { data, error } = await this.admin
       .from('notification_outbox')
-      .update({ status: 'sending' })
-      .eq('status', 'pending')
-      .lte('scheduled_for', new Date().toISOString())
+      .update({ status: 'sending', scheduled_for: lease })
+      .in('status', ['pending', 'sending'])
+      .lte('scheduled_for', now.toISOString())
       .select(CLAIM_COLUMNS)
       .limit(limit);
     if (error) throw new Error(`claimBatch failed: ${error.message}`);

@@ -158,7 +158,7 @@ export function AvatarUpload({
               <button
                 type="button"
                 onClick={() => void handleRemove()}
-                className="text-muted hover:text-destructive focus-visible:ring-primary rounded text-sm focus:outline-none focus-visible:ring-2"
+                className="text-muted hover:text-md-error focus-visible:ring-primary rounded text-sm focus:outline-none focus-visible:ring-2"
               >
                 Remove
               </button>
@@ -166,7 +166,11 @@ export function AvatarUpload({
           )}
         </div>
         <p className="text-muted text-xs">JPEG, PNG, or WebP · Max 10 MB</p>
-        {error && <p className="text-destructive text-xs">{error}</p>}
+        {error && (
+          <p role="alert" className="text-md-error text-xs">
+            {error}
+          </p>
+        )}
       </div>
 
       <input
@@ -174,6 +178,8 @@ export function AvatarUpload({
         type="file"
         accept="image/jpeg,image/png,image/webp"
         className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handlePickedFile(file);

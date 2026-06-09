@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { Pagination } from '@/components/pagination';
+import { groupAuditRowsByPaymentIntent } from '@/lib/receipts';
 import { BusinessInfoForm } from './business-info-form';
 
 export const dynamic = 'force-dynamic';
@@ -17,23 +18,12 @@ type AuditRow = {
   id: string;
   event_id: string;
   user_id: string | null;
-  action: 'paid' | 'refunded' | 'failed';
+  action: 'paid' | 'refunded';
   amount_cents: number;
   payment_intent_id: string | null;
+  off_platform: boolean;
   occurred_at: string;
   events: { title: string; starts_at: string } | null;
-};
-
-type TransactionRow = {
-  paymentIntentId: string;
-  eventId: string;
-  eventTitle: string;
-  eventStartsAt: string;
-  paidCents: number;
-  refundedCents: number;
-  netCents: number;
-  paidAt: string;
-  refundedAt: string | null;
 };
 
 function formatUsd(cents: number): string {
@@ -82,47 +72,17 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
   const { data: rawRows } = await supabase
     .from('event_payment_audit')
     .select(
-      'id, event_id, user_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at)',
+      'id, event_id, user_id, action, amount_cents, payment_intent_id, off_platform, occurred_at, events:events!inner(title, starts_at)',
     )
     .eq('user_id', user.id)
-    .neq('action', 'failed')
     .order('occurred_at', { ascending: false });
 
   const rows = (rawRows as unknown as AuditRow[] | null) ?? [];
 
   // Group by payment_intent_id (fall back to audit id for legacy rows).
-  const byPi = new Map<string, TransactionRow>();
-  for (const r of rows) {
-    if (!r.events) continue;
-    const key = r.payment_intent_id ?? `audit:${r.id}`;
-    const existing = byPi.get(key);
-    if (existing) {
-      if (r.action === 'paid') {
-        existing.paidCents += r.amount_cents;
-        if (r.occurred_at < existing.paidAt) existing.paidAt = r.occurred_at;
-      } else if (r.action === 'refunded') {
-        existing.refundedCents += r.amount_cents;
-        if (!existing.refundedAt || r.occurred_at > existing.refundedAt) {
-          existing.refundedAt = r.occurred_at;
-        }
-      }
-      existing.netCents = existing.paidCents - existing.refundedCents;
-    } else {
-      byPi.set(key, {
-        paymentIntentId: r.payment_intent_id ?? `audit:${r.id}`,
-        eventId: r.event_id,
-        eventTitle: r.events.title,
-        eventStartsAt: r.events.starts_at,
-        paidCents: r.action === 'paid' ? r.amount_cents : 0,
-        refundedCents: r.action === 'refunded' ? r.amount_cents : 0,
-        netCents: r.action === 'paid' ? r.amount_cents : -r.amount_cents,
-        paidAt: r.occurred_at,
-        refundedAt: r.action === 'refunded' ? r.occurred_at : null,
-      });
-    }
-  }
-
-  const transactions = Array.from(byPi.values()).sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
+  const transactions = groupAuditRowsByPaymentIntent(rows, (r) =>
+    r.events ? { eventId: r.event_id, eventTitle: r.events.title } : null,
+  ).sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
 
   const totalNet = transactions.reduce((s, t) => s + t.netCents, 0);
   const currentYear = new Date().getFullYear();
@@ -151,8 +111,8 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
         </Link>
         <h1 className="text-headline-lg font-bold">Receipts</h1>
         <p className="text-muted text-sm">
-          Every online payment you&apos;ve made for an event signup. Keep these for expense reports
-          and tax records.
+          Every online payment you&apos;ve made on PickupVB — event tickets, team entry fees, and
+          tips. Keep these for expense reports and tax records.
         </p>
       </div>
 

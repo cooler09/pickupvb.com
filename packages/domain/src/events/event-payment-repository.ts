@@ -26,13 +26,37 @@ export interface RefundableAttendee {
   eventId: string;
 }
 
+/**
+ * Revenue kind an audit row records, so the host-earnings read can filter to
+ * host-payout income and the buyer-receipts read can show everything a user
+ * paid (receipts-tax audit R-1). `'ticket'` (individual attendee) and `'team'`
+ * (ad-hoc + roster team entry fees) and `'tip'` are host income;
+ * `'sponsor_slot'` / `'badge_slot'` are platform revenue / host add-ons and are
+ * reserved for forward-compat — they are not recorded yet and must stay out of
+ * the earnings allow-list.
+ */
+export type PaymentAuditCategory = 'ticket' | 'tip' | 'team' | 'sponsor_slot' | 'badge_slot';
+
 /** An `event_payment_audit` trail entry. */
 export interface PaymentAuditEntry {
   eventId: string;
-  userId: string;
+  /** Buyer / captain who paid. Null for account-less captains and anon tips. */
+  userId: string | null;
   action: 'paid' | 'refunded';
   amountCents: number;
   paymentIntentId: string | null;
+  category: PaymentAuditCategory;
+}
+
+/**
+ * The audit context of a tip that {@link EventPaymentRepository.markTipsRefundedByPaymentIntent}
+ * just flipped to refunded, so the caller can append a matching `refunded`
+ * ledger row. Null when no paid tip matched the PI.
+ */
+export interface TipRefundContext {
+  eventId: string;
+  userId: string | null;
+  amountCents: number;
 }
 
 /** The a-la-carte badge-authoring unlock mirrored from a completed checkout. */
@@ -45,7 +69,12 @@ export interface PaidBadgeSlot {
   paidAt: string;
 }
 
-/** The a-la-carte sponsor slot purchase mirrored from a completed checkout. */
+/**
+ * The sponsor *content* materialized from a completed à-la-carte checkout. The
+ * entitlement (payment provenance) is recorded separately via
+ * {@link PaidSponsorAccess} so removing the sponsor never destroys the paid
+ * unlock (monetization audit SP-1).
+ */
 export interface PaidSponsorSlot {
   eventId: string;
   name: string;
@@ -53,6 +82,11 @@ export interface PaidSponsorSlot {
   linkUrl: string | null;
   logoUrl: string | null;
   discountCode: string | null;
+}
+
+/** The à-la-carte sponsor-slot *entitlement* mirrored from a completed checkout. */
+export interface PaidSponsorAccess {
+  eventId: string;
   purchasedByUserId: string;
   checkoutSessionId: string;
   paymentIntentId: string | null;
@@ -78,8 +112,10 @@ export interface EventPaymentRepository {
     tipId: string,
     paid: { paymentIntentId: string | null; paidAt: string },
   ): Promise<void>;
-  /** Upsert the a-la-carte sponsor slot (one per event). Throws on a DB error. */
+  /** Upsert the sponsor *content* (one per event). Throws on a DB error. */
   upsertSponsorSlot(slot: PaidSponsorSlot): Promise<void>;
+  /** Record the à-la-carte sponsor-slot *entitlement* (one per event). Throws on a DB error. */
+  unlockSponsorSlot(unlock: PaidSponsorAccess): Promise<void>;
   /** Unlock à-la-carte badge authoring for an event (one per event). Throws on a DB error. */
   unlockBadgeSlot(slot: PaidBadgeSlot): Promise<void>;
   /** Resolve an event's payout host. Null if the event was deleted mid-flight. */
@@ -94,15 +130,23 @@ export interface EventPaymentRepository {
   /** Delete a still-pending tip row (idempotent). */
   deletePendingTip(tipId: string): Promise<void>;
 
-  // --- payment_intent.payment_failed -----------------------------------------
-  /** Drop all still-pending attendee reservations attached to a PI. */
-  deletePendingAttendeesByPaymentIntent(paymentIntentId: string): Promise<void>;
-  /** Mark still-pending tips on a PI as `failed` (kept for host visibility). */
-  markPendingTipsFailedByPaymentIntent(paymentIntentId: string): Promise<void>;
+  // Note: `payment_intent.payment_failed` is handled as a no-op — releasing a
+  // reservation while the Checkout Session is still retryable is unsafe (the
+  // buyer may complete on that same session). Cleanup is owned by
+  // `checkout.session.expired` + the cancel route. See `handlePaymentFailed`
+  // and docs/audits/stripe-integration.md SI-1.
 
   // --- charge.refunded -------------------------------------------------------
-  /** Mark any tip on this PI `refunded`. `refundedAt` is an ISO-8601 stamp. */
-  markTipsRefundedByPaymentIntent(paymentIntentId: string, refundedAt: string): Promise<void>;
+  /**
+   * Mark a paid tip on this PI `refunded` and return its audit context (so the
+   * caller can append a `refunded` ledger row — receipts-tax R-1). `refundedAt`
+   * is an ISO-8601 stamp. Returns null when no paid tip matched (idempotent on
+   * a webhook retry).
+   */
+  markTipsRefundedByPaymentIntent(
+    paymentIntentId: string,
+    refundedAt: string,
+  ): Promise<TipRefundContext | null>;
   /** Find the paid attendee charge on this PI, or null. */
   findRefundableAttendeeByPaymentIntent(
     paymentIntentId: string,
@@ -111,4 +155,15 @@ export interface EventPaymentRepository {
   deleteAttendee(participantId: string): Promise<void>;
   /** Resolve an event's title for the refund notification. Null if deleted. */
   findEventTitle(eventId: string): Promise<string | null>;
+
+  // --- charge.dispute.created ------------------------------------------------
+  /**
+   * Resolve `{ eventId, hostId }` for a tip charged on this PI, for routing a
+   * chargeback notification to the host. Null when no tip matches (the charge
+   * was an attendee ticket, a team payment, or unrelated). See
+   * `handleChargeDisputed`.
+   */
+  findTipContextByPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<{ eventId: string; hostId: string } | null>;
 }

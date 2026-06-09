@@ -9,6 +9,7 @@ import { addFriend, removeFriend } from '@/app/friends/actions';
 import { startDmWithUser } from '@/app/_actions/chat-actions';
 import { ShareLink } from '@/components/share-link';
 import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
+import { useToast } from '@/components/toast';
 
 type Props = {
   profileId: string;
@@ -35,6 +36,7 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
   const [isPending, startTransition] = useTransition();
   const [isMessaging, startMessaging] = useTransition();
   const router = useRouter();
+  const { show } = useToast();
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -72,6 +74,7 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
         await addFriend(profileId, returnPath);
       } catch {
         setState({ status: 'other', isFollowing: false });
+        show({ variant: 'error', message: 'Couldn’t follow. Try again.' });
       }
     });
   }
@@ -83,6 +86,7 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
         await removeFriend(profileId, returnPath);
       } catch {
         setState({ status: 'other', isFollowing: true });
+        show({ variant: 'error', message: 'Couldn’t unfollow. Try again.' });
       }
     });
   }
@@ -90,7 +94,17 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
   function handleMessage() {
     startMessaging(async () => {
       const res = await startDmWithUser(profileId);
-      if (res.ok) router.push(`/messages/${res.value.conversationId}` as Route);
+      if (res.ok) {
+        router.push(`/messages/${res.value.conversationId}` as Route);
+      } else {
+        show({
+          variant: 'error',
+          message:
+            res.error === 'forbidden'
+              ? 'You can’t message this person.'
+              : 'Couldn’t open the conversation. Try again.',
+        });
+      }
     });
   }
 
@@ -142,11 +156,7 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
           + Follow
         </button>
       )}
-      <button
-        onClick={handleMessage}
-        disabled={isMessaging}
-        className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm disabled:opacity-60"
-      >
+      <button onClick={handleMessage} disabled={isMessaging} className={neutralButtonClass('sm')}>
         {isMessaging ? 'Opening…' : 'Message'}
       </button>
       <ShareLink path={`/players/${profileHandle}`} title={profileName} />

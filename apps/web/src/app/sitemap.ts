@@ -1,17 +1,26 @@
 import type { MetadataRoute } from 'next';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
-import { getServerSupabase } from '@/lib/supabase';
+import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { IS_PROD_HOST, PROD_APP_URL } from '@/lib/app-url';
+import { legalLastUpdatedDate } from './legal/legal-meta';
 
 const BASE = PROD_APP_URL;
+
+// Sitemap is the single most-crawled endpoint and serves identical,
+// viewer-independent public content to every crawler. Use the cookie-free
+// anon client (so the route can be cached — `getServerSupabase()` reads
+// `cookies()`, which forces every crawl to be a fresh origin render) and
+// revalidate hourly. Newly-published events show up within the hour; mutating
+// actions don't need to evict it (perf audit P2 #21).
+export const revalidate = 3600;
 
 /**
  * Sitemap. Lists static marketing/listing pages plus all public,
  * non-cancelled events and public group profiles. Uses the anon
- * Supabase session — RLS naturally filters down to public rows.
+ * Supabase client — RLS naturally filters down to public rows.
  *
- * Re-fetched on each crawl (no caching) so newly-published events show
- * up fast. If/when the catalog grows large enough that this is slow,
+ * ISR-cached (1h revalidate) so a recrawl doesn't re-run these queries every
+ * time. If/when the catalog grows large enough that the full reads are slow,
  * switch to a generator that paginates.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -72,15 +81,37 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     },
     // Stable legal pages — footer-linked, so Google finds them anyway, but
-    // advertising them in the sitemap closes the discovery gap.
-    { url: `${BASE}/legal/privacy`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
-    { url: `${BASE}/legal/terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
-    { url: `${BASE}/legal/refunds`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
+    // advertising them in the sitemap closes the discovery gap. `lastModified`
+    // tracks each page's real document date (legal-meta.ts), not build time.
+    {
+      url: `${BASE}/legal/privacy`,
+      lastModified: legalLastUpdatedDate('privacy'),
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
+    {
+      url: `${BASE}/legal/terms`,
+      lastModified: legalLastUpdatedDate('terms'),
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
+    {
+      url: `${BASE}/legal/refunds`,
+      lastModified: legalLastUpdatedDate('refunds'),
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
+    {
+      url: `${BASE}/legal/accessibility`,
+      lastModified: legalLastUpdatedDate('accessibility'),
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
   ];
 
   let dynamicRoutes: MetadataRoute.Sitemap = [];
   try {
-    const supabase = await getServerSupabase();
+    const supabase = createSupabaseAnonClient();
 
     const { data: eventRows } = await supabase
       .from('events_view')
@@ -120,9 +151,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     }));
 
+    // Only advertise players who opted into discovery. A `discoverable = false`
+    // player keeps a direct-link-reachable page (documented decision, privacy.md)
+    // but is excluded from the sitemap and de-indexed in `generateMetadata` —
+    // otherwise "stay private" still ends up crawled.
     const { data: playerRows } = await supabase
       .from('profiles_public')
-      .select('handle, created_at');
+      .select('handle, created_at')
+      .eq('discoverable', true);
     type PlayerRow = { handle: string; created_at: string | null };
     const players = (playerRows as PlayerRow[] | null) ?? [];
     const playerEntries: MetadataRoute.Sitemap = players.map((p) => ({

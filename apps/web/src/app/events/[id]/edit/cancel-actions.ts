@@ -108,6 +108,7 @@ export async function cancelEventAction(
         eventTitle: detail.title,
         startsAt: detail.startsAt.toISOString(),
         reason,
+        ...(detail.timeZone ? { timeZone: detail.timeZone } : {}),
       },
       { idempotencyKey: `cancel:${eventId}:${a.user_id}` },
     );

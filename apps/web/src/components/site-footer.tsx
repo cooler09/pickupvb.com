@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 
 import { ReportBugButton } from './report-bug-button';
+import { reopenConsent } from './consent-banner-actions';
 
 /**
  * Site-wide footer. Three small columns on desktop, stacked on mobile.
@@ -32,10 +33,10 @@ export function SiteFooter() {
           <FooterColumn
             title="Legal"
             links={[
-              { href: '/legal/terms' as Route, label: 'Terms of Service' },
-              { href: '/legal/privacy' as Route, label: 'Privacy Policy' },
-              { href: '/legal/refunds' as Route, label: 'Refund Policy' },
-              { href: '/legal/accessibility' as Route, label: 'Accessibility' },
+              { href: '/legal/terms', label: 'Terms of Service' },
+              { href: '/legal/privacy', label: 'Privacy Policy' },
+              { href: '/legal/refunds', label: 'Refund Policy' },
+              { href: '/legal/accessibility', label: 'Accessibility' },
             ]}
             extras={[{ href: 'mailto:support@pickupvb.com', label: 'Contact support' }]}
           />
@@ -43,8 +44,15 @@ export function SiteFooter() {
 
         <div className="border-border-base text-muted mt-8 flex flex-col items-center gap-2 border-t pt-6 text-center text-xs sm:flex-row sm:justify-between">
           <p>© {year} PickupVB. All rights reserved.</p>
-          <div>
-            Found a bug? <ReportBugButton />
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <form action={reopenConsent}>
+              <button type="submit" className="hover:text-fg hover:underline">
+                Cookie preferences
+              </button>
+            </form>
+            <span>
+              Found a bug? <ReportBugButton />
+            </span>
           </div>
         </div>
       </div>
@@ -68,8 +76,8 @@ function FooterColumn({
     <div>
       <h2 className="text-fg text-sm font-semibold">{title}</h2>
       <ul className="mt-3 space-y-2 text-sm">
-        {links.map((link, i) => (
-          <li key={i}>
+        {links.map((link) => (
+          <li key={link.href}>
             <Link href={link.href} className="hover:underline">
               {link.label}
             </Link>

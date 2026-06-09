@@ -18,6 +18,7 @@ vi.mock('@/lib/handlers', () => ({
       recordPaymentAudit: vi.fn(async () => {}),
       markTipPaid: vi.fn(async () => {}),
       upsertSponsorSlot: vi.fn(async () => {}),
+      unlockSponsorSlot: vi.fn(async () => {}),
       unlockBadgeSlot: vi.fn(async () => {}),
       findEventHostId: vi.fn(async () => 'host_from_db'),
       deletePendingAttendeeByCheckoutSession: vi.fn(async () => {}),
@@ -137,6 +138,7 @@ describe('handleCheckoutCompleted — attendee', () => {
       action: 'paid',
       amountCents: 2500,
       paymentIntentId: 'pi_1',
+      category: 'ticket',
     });
     expect(capture).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -167,6 +169,16 @@ describe('handleCheckoutCompleted — tip', () => {
     expect(repo.markTipPaid).toHaveBeenCalledWith('t1', {
       paymentIntentId: 'pi_1',
       paidAt: expect.any(String),
+    });
+    // The tip is also written to the audit ledger so it shows on the tipper's
+    // receipts and the host's earnings (receipts-tax R-1).
+    expect(repo.recordPaymentAudit).toHaveBeenCalledWith({
+      eventId: 'e1',
+      userId: 'u1',
+      action: 'paid',
+      amountCents: 2500,
+      paymentIntentId: 'pi_1',
+      category: 'tip',
     });
     expect(capture).toHaveBeenCalledWith(
       expect.objectContaining({ props: expect.objectContaining({ kind: 'tip' }) }),
@@ -228,7 +240,7 @@ describe('handleCheckoutCompleted — team branches (mediators)', () => {
 });
 
 describe('handleCheckoutCompleted — sponsor slot', () => {
-  it('upserts the sponsor slot and captures a sponsor sale', async () => {
+  it('records the entitlement, upserts the (content-only) sponsor, and captures a sponsor sale', async () => {
     await handleCheckoutCompleted(
       sessionOf({
         event_id: 'e1',
@@ -240,6 +252,15 @@ describe('handleCheckoutCompleted — sponsor slot', () => {
         sponsor_link_url: ' https://acme.test ',
       }),
     );
+    // Entitlement is recorded separately (SP-1) so a later removal can't destroy it.
+    expect(repo.unlockSponsorSlot).toHaveBeenCalledWith({
+      eventId: 'e1',
+      purchasedByUserId: 'u1',
+      checkoutSessionId: 'cs_1',
+      paymentIntentId: 'pi_1',
+      paidAt: expect.any(String),
+    });
+    // The content write carries no payment provenance anymore.
     expect(repo.upsertSponsorSlot).toHaveBeenCalledWith({
       eventId: 'e1',
       name: 'Acme',
@@ -247,10 +268,6 @@ describe('handleCheckoutCompleted — sponsor slot', () => {
       linkUrl: 'https://acme.test',
       logoUrl: null,
       discountCode: null,
-      purchasedByUserId: 'u1',
-      checkoutSessionId: 'cs_1',
-      paymentIntentId: 'pi_1',
-      paidAt: expect.any(String),
     });
     expect(capture).toHaveBeenCalledWith(
       expect.objectContaining({ props: expect.objectContaining({ kind: 'sponsor_slot' }) }),
@@ -258,10 +275,11 @@ describe('handleCheckoutCompleted — sponsor slot', () => {
     );
   });
 
-  it('no-ops when the sponsor name is blank', async () => {
+  it('no-ops (neither entitlement nor content) when the sponsor name is blank', async () => {
     await handleCheckoutCompleted(
       sessionOf({ event_id: 'e1', kind: 'sponsor_slot', user_id: 'u1', sponsor_name: '   ' }),
     );
+    expect(repo.unlockSponsorSlot).not.toHaveBeenCalled();
     expect(repo.upsertSponsorSlot).not.toHaveBeenCalled();
   });
 });

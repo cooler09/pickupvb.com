@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
@@ -14,15 +14,37 @@ import {
 import { primaryButtonClass, textButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
 import { ChatImage } from '@/components/chat-image';
+import { useToast } from '@/components/toast';
 import {
   deleteChatMessage,
   editChatMessage,
   loadOlderChatMessages,
   reportChatMessage,
   sendChatMessage,
+  type ChatError,
 } from '@/app/_actions/chat-actions';
 
 const BUCKET = 'chat-attachments';
+
+/** Layout effect on the client, no-op on the server — avoids the SSR warning
+ * while still adjusting scroll before paint (so "load earlier" doesn't flash). */
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+/** Human-readable copy for a {@link ChatError}. Shared by every mutation in the
+ * view so a failed send/edit/delete/report always tells the user something
+ * instead of silently no-op-ing. */
+function chatErrorMessage(error: ChatError): string {
+  switch (error) {
+    case 'forbidden':
+      return 'You can no longer post in this conversation.';
+    case 'rate_limited':
+      return 'You’ve shared a lot of photos today. Please try again later.';
+    case 'invalid':
+      return 'Message could not be sent.';
+    default:
+      return 'Something went wrong. Try again.';
+  }
+}
 
 type Props = {
   conversationId: string;
@@ -35,6 +57,9 @@ type Props = {
   initialNextBefore: string | null;
   /** Name lookup for live broadcast rows (which carry only `sender_id`). */
   participants: { id: string; name: string }[];
+  /** DM only: the viewer has blocked the counterpart. Replaces the composer with
+   * a banner so they don't type into a send that RLS will reject (audit M-9). */
+  blocked?: boolean;
 };
 
 type SenderCard = { name: string; avatar: string | null };
@@ -104,9 +129,9 @@ function imageDimensions(file: File): Promise<{ width: number; height: number }>
 /**
  * The reusable live chat surface (ADR 0028) — message list, "load earlier",
  * composer (text + image attachments), and per-message edit / delete / report.
- * Shared by the team-room island ({@link TeamChatPanel}, which bootstraps
- * client-side then mounts this) and the DM thread page (which bootstraps
- * server-side). It owns no access logic — the caller decides whether to render
+ * Shared by the context-room island ({@link RoomChatPanel}, which bootstraps
+ * client-side then mounts this for team / event / group rooms) and the DM thread
+ * page (which bootstraps server-side). It owns no access logic — the caller decides whether to render
  * it; this just needs an opened `conversationId` + the initial page, and
  * subscribes to the private `chat:{conversationId}` Broadcast topic for live
  * INSERT / UPDATE (the same pattern as the notification bell, ADR 0027).
@@ -119,6 +144,7 @@ export function ConversationView({
   initialHasMore,
   initialNextBefore,
   participants,
+  blocked = false,
 }: Props) {
   const [messages, setMessages] = useState<MessageView[]>(initialMessages);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -134,10 +160,15 @@ export function ConversationView({
   // Text fed to the sr-only polite live region (A5) when a message arrives
   // from someone else over Realtime.
   const [announcement, setAnnouncement] = useState('');
+  const { show } = useToast();
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Set by `loadOlder` just before prepending an older page, so the next layout
+  // pass can restore the viewport to where the reader was instead of jumping
+  // (audit M-8). Holds the pre-prepend scrollHeight + scrollTop.
+  const restoreScrollRef = useRef<{ prevHeight: number; prevTop: number } | null>(null);
 
   // Sender card lookup, seeded from the roster and enriched (avatars) as
   // messages with embedded sender cards load.
@@ -158,30 +189,67 @@ export function ConversationView({
     [],
   );
 
+  // Live broadcast rows carry only `sender_id` (ADR 0028 — `broadcast_changes`
+  // emits the raw `messages` row, no joined sender card). When a message arrives
+  // from someone not already cached — a member who joined after page load, or a
+  // captain who isn't on the seeded roster — fetch their public card once from
+  // `profiles_public` (pitfall #13: the public projection, never base
+  // `profiles`) and patch every already-rendered message from them. Deduped per
+  // id; the viewer + seeded roster are already cached, so this only fires for
+  // genuinely unknown senders. Resolves the "Member" fallback / sticky-cache
+  // issue (notifications-messaging audit M-7).
+  const pendingSenderFetches = useRef<Set<string>>(new Set());
+  const ensureSenderCard = useCallback((id: string) => {
+    if (!id || senderCards.current.has(id) || pendingSenderFetches.current.has(id)) return;
+    pendingSenderFetches.current.add(id);
+    void (async () => {
+      const supabase = createSupabaseBrowserClient();
+      const { data } = await supabase
+        .from('profiles_public')
+        .select('display_name, avatar_url')
+        .eq('id', id)
+        .maybeSingle();
+      pendingSenderFetches.current.delete(id);
+      const row = data as { display_name: string | null; avatar_url: string | null } | null;
+      if (!row) return;
+      const card: SenderCard = {
+        name: row.display_name ?? 'Member',
+        avatar: row.avatar_url ?? null,
+      };
+      senderCards.current.set(id, card);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.senderId === id ? { ...m, senderName: card.name, senderAvatarUrl: card.avatar } : m,
+        ),
+      );
+    })();
+  }, []);
+
   // Seed sender names from the initial page once on mount.
   useEffect(() => {
     learnSenders(initialMessages);
   }, [initialMessages, learnSenders]);
 
-  const recordToView = useCallback(
-    (rec: BroadcastRow): MessageView => {
-      const deleted = rec.deleted_at !== null;
-      const who = resolveSender(rec.sender_id);
-      return {
-        id: rec.id,
-        conversationId: rec.conversation_id,
-        senderId: rec.sender_id,
-        senderName: who.name,
-        senderAvatarUrl: who.avatar,
-        body: deleted ? '' : rec.body,
-        attachments: deleted ? [] : toAttachmentViews(rec.attachments),
-        isDeleted: deleted,
-        isEdited: rec.edited_at !== null,
-        createdAt: rec.created_at,
-      };
-    },
-    [resolveSender],
-  );
+  const recordToView = useCallback((rec: BroadcastRow): MessageView => {
+    const deleted = rec.deleted_at !== null;
+    // Resolve from the cache; an unknown sender stays null (rendered as the
+    // 'Member' fallback) until `ensureSenderCard` fetches and patches it in.
+    // Deliberately NOT cached as 'Member' here — that's what made the fallback
+    // stick for the rest of the session (audit M-7).
+    const card = senderCards.current.get(rec.sender_id) ?? null;
+    return {
+      id: rec.id,
+      conversationId: rec.conversation_id,
+      senderId: rec.sender_id,
+      senderName: card?.name ?? null,
+      senderAvatarUrl: card?.avatar ?? null,
+      body: deleted ? '' : rec.body,
+      attachments: deleted ? [] : toAttachmentViews(rec.attachments),
+      isDeleted: deleted,
+      isEdited: rec.edited_at !== null,
+      createdAt: rec.created_at,
+    };
+  }, []);
 
   // ---- Realtime subscription ---------------------------------------------
   useEffect(() => {
@@ -194,14 +262,23 @@ export function ConversationView({
         data: { session },
       } = await supabase.auth.getSession();
       if (cancelled) return;
+      // Set only the INITIAL realtime token here. supabase-js's own auth listener
+      // forwards every later TOKEN_REFRESHED to `realtime.setAuth`, which pushes
+      // the fresh JWT to already-joined channels — so a long-lived chat tab stays
+      // authorized against the `realtime.messages` RLS policy across token
+      // refresh. But that listener ignores INITIAL_SESSION, so the first token
+      // must be set explicitly. Don't add a manual refresh handler (it would
+      // duplicate the client's built-in one) and don't drop this initial call.
       if (session) await supabase.realtime.setAuth(session.access_token);
       if (cancelled) return;
 
       const onWrite = (msg: { payload: unknown }): MessageView | null => {
         const rec = (msg.payload as { record?: BroadcastRow }).record;
         if (!rec) return null;
+        // Kick off a one-shot card fetch for an unknown sender (deduped); the
+        // view renders 'Member' until it resolves and patches in.
+        ensureSenderCard(rec.sender_id);
         const view = recordToView(rec);
-        learnSenders([view]);
         setMessages((prev) => mergeMessages(prev, [view]));
         return view;
       };
@@ -228,12 +305,23 @@ export function ConversationView({
       cancelled = true;
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [conversationId, recordToView, learnSenders, viewerId]);
+  }, [conversationId, recordToView, ensureSenderCard, viewerId]);
 
-  // ---- Auto-scroll to newest when already at the bottom -------------------
-  useEffect(() => {
+  // ---- Scroll management on message change --------------------------------
+  // Runs before paint: if `loadOlder` just prepended a page, restore the
+  // viewport to the reader's prior position (height grew at the top, so add the
+  // delta to scrollTop — M-8); otherwise, if already at the bottom, stick to the
+  // newest message.
+  useIsomorphicLayoutEffect(() => {
     const el = listRef.current;
-    if (el && atBottomRef.current) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const restore = restoreScrollRef.current;
+    if (restore) {
+      el.scrollTop = el.scrollHeight - restore.prevHeight + restore.prevTop;
+      restoreScrollRef.current = null;
+      return;
+    }
+    if (atBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   const onScroll = useCallback(() => {
@@ -333,15 +421,7 @@ export function ConversationView({
       setMessages((prev) => prev.filter((m) => m.id !== tempView.id));
       setDraft(body);
       setPending(sentPending);
-      setError(
-        res.error === 'forbidden'
-          ? 'You can no longer post in this conversation.'
-          : res.error === 'rate_limited'
-            ? 'You’ve shared a lot of photos today. Please try again later.'
-            : res.error === 'invalid'
-              ? 'Message could not be sent.'
-              : 'Something went wrong. Try again.',
-      );
+      setError(chatErrorMessage(res.error));
       return;
     }
     for (const p of sentPending) URL.revokeObjectURL(p.previewUrl);
@@ -361,6 +441,10 @@ export function ConversationView({
     if (!res.ok) return;
     learnSenders(res.value.messages);
     atBottomRef.current = false;
+    // Capture the pre-prepend metrics so the layout effect can hold the reader's
+    // position once the older page is inserted above the current view (M-8).
+    const el = listRef.current;
+    if (el) restoreScrollRef.current = { prevHeight: el.scrollHeight, prevTop: el.scrollTop };
     setMessages((prev) => mergeMessages(prev, res.value.messages));
     setHasMore(res.value.hasMore);
     setNextBefore(res.value.nextBefore);
@@ -375,9 +459,18 @@ export function ConversationView({
         setMessages((prev) =>
           prev.map((m) => (m.id === messageId ? { ...m, body, isEdited: true } : m)),
         );
+        setEditingId(null);
+        setEditDraft('');
+        setError(null);
+        return;
       }
-      setEditingId(null);
-      setEditDraft('');
+      // Keep the editor open so the user's text isn't lost. A moderation block
+      // comes back as 'invalid'.
+      setError(
+        res.error === 'invalid'
+          ? 'Your edit couldn’t be saved — it may contain blocked content.'
+          : chatErrorMessage(res.error),
+      );
     },
     [editDraft, kind],
   );
@@ -391,13 +484,23 @@ export function ConversationView({
           m.id === messageId ? { ...m, isDeleted: true, body: '', attachments: [] } : m,
         ),
       );
+    } else {
+      setError(chatErrorMessage(res.error));
     }
   }, []);
 
-  const report = useCallback(async (messageId: string) => {
-    if (!window.confirm('Report this message to the moderators?')) return;
-    await reportChatMessage(messageId, null);
-  }, []);
+  const report = useCallback(
+    async (messageId: string) => {
+      if (!window.confirm('Report this message to the moderators?')) return;
+      const res = await reportChatMessage(messageId, null);
+      show(
+        res.ok
+          ? { variant: 'success', message: 'Reported. Thanks for flagging it.' }
+          : { variant: 'error', message: chatErrorMessage(res.error) },
+      );
+    },
+    [show],
+  );
 
   const empty = useMemo(() => messages.filter((m) => !m.isDeleted).length === 0, [messages]);
   const canSend = (draft.trim().length > 0 || pending.length > 0) && !sending && !uploading;
@@ -527,84 +630,92 @@ export function ConversationView({
         })}
       </div>
 
-      {pending.length > 0 && (
-        <div className="border-border-base flex flex-wrap gap-2 border-t p-2">
-          {pending.map((p) => (
-            <div key={p.attachment.path} className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element -- local object-URL preview before send */}
-              <img
-                src={p.previewUrl}
-                alt="Attachment preview"
-                className="h-16 w-16 rounded-md object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => removePending(p.attachment.path)}
-                aria-label="Remove attachment"
-                className="bg-fg/70 absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
-              >
-                ×
-              </button>
+      {blocked ? (
+        <p className="border-border-base text-muted border-t p-3 text-center text-sm">
+          You’ve blocked this person. Unblock above to send a message.
+        </p>
+      ) : (
+        <>
+          {pending.length > 0 && (
+            <div className="border-border-base flex flex-wrap gap-2 border-t p-2">
+              {pending.map((p) => (
+                <div key={p.attachment.path} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- local object-URL preview before send */}
+                  <img
+                    src={p.previewUrl}
+                    alt="Attachment preview"
+                    className="h-16 w-16 rounded-md object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePending(p.attachment.path)}
+                    aria-label="Remove attachment"
+                    className="bg-fg/70 absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      <form
-        className="border-border-base flex items-end gap-2 border-t p-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => void pickFiles(e.target.files)}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || pending.length >= MAX_ATTACHMENTS}
-          aria-label="Attach image"
-          className="tap-target text-fg/70 hover:bg-fg/5 hover:text-primary rounded-md disabled:opacity-50"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-          </svg>
-        </button>
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+          <form
+            className="border-border-base flex items-end gap-2 border-t p-2"
+            onSubmit={(e) => {
               e.preventDefault();
               void send();
-            }
-          }}
-          rows={1}
-          maxLength={4000}
-          placeholder={uploading ? 'Uploading…' : 'Type a message…'}
-          aria-label="Message"
-          className={`${fieldInputClass} resize-none`}
-        />
-        <button type="submit" disabled={!canSend} className={primaryButtonClass('md')}>
-          Send
-        </button>
-      </form>
+            }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => void pickFiles(e.target.files)}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || pending.length >= MAX_ATTACHMENTS}
+              aria-label="Attach image"
+              className="tap-target text-fg/70 hover:bg-fg/5 hover:text-primary rounded-md disabled:opacity-50"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+            </button>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+              rows={1}
+              maxLength={4000}
+              placeholder={uploading ? 'Uploading…' : 'Type a message…'}
+              aria-label="Message"
+              className={`${fieldInputClass} resize-none`}
+            />
+            <button type="submit" disabled={!canSend} className={primaryButtonClass('md')}>
+              Send
+            </button>
+          </form>
+        </>
+      )}
       {error && (
         <p role="alert" className="text-md-error text-xs">
           {error}

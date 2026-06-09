@@ -104,6 +104,31 @@ cancel/complete go through the aggregate so invariants stay enforced
 
 ---
 
+### Waiver acknowledgement + signature tracking
+
+**Not a legal-waiver substitute** — hosts who need one have their own (insurer /
+sanctioning body / DocuSign) and often collect signatures in person. This is a
+free-for-any-host, **soft** (never blocks sign-up) tool to surface the rules /
+their real waiver and track who's acknowledged it:
+
+- **Author** (`event_waivers`, versioned, mask-at-write — any host, from the edit
+  panel): a **link to your own waiver** (`external_url`) and/or pasted rules
+  `body` (at least one).
+- **Attendees acknowledge online** — click-wrap (type name + agree) on the event
+  page ([event-waiver-section.tsx](../apps/web/src/app/events/%5Bid%5D/_components/event-waiver-section.tsx))
+  → `waiver_signatures` (`method='self'`, self-RLS, one per event+user, upserted;
+  a body edit bumps the version and prompts re-sign).
+- **Host records in-person signatures** at their discretion — a free-text name
+  → `waiver_signatures` (`method='in_person'`, `user_id` null, `recorded_by` =
+  host, admin client). The edit panel lists all signatures (Online / In person +
+  date) with remove.
+- **Soft by design:** touches no join/checkout path. Monetization O-9 — shipped
+  **free** 2026-06-08 (the maintainer chose not to paywall a safety tool).
+  Deferred (possible premium hooks): hard-gating sign-up on a signature,
+  team/tournament (captain-vs-player) waivers, signed-PDF export.
+
+---
+
 ## 3. Visibility & discovery
 
 `Visibility` enum gates who can see/find an event:
@@ -173,6 +198,36 @@ links to onboarding if charges aren't enabled yet.
   pool.
 - `charge.refunded` removes the attendee and notifies them.
 
+### Group payouts — Club tier (ADR 0038)
+
+By default an event pays out to `events.host_id` (a user). A group on the paid
+**Club** tier (`group_subscriptions`, ~$25/mo) can connect its **own** Stripe
+Connect account (`group_stripe_accounts`) and opt group-hosted events to pay out
+to the club instead.
+
+- **Resolver:** the per-event flows (ticket / team / tip) resolve their
+  destination via `getEventPayoutAccount(eventId, hostId)`
+  ([lib/event-payout.ts](../apps/web/src/lib/event-payout.ts)) — group account if
+  the event opted in (`events.payout_group_id`), else the host user's.
+- **Opt-in is per-event + immutable once sold:** set on the event edit page
+  ("Club payouts" panel) only while the price is unlocked; frozen after the first
+  paid registration, like `host_id`.
+- **No host fallback:** if a group-routed event's club account isn't ready, the
+  resolver returns null ("not ready") — it never routes club money to the host.
+- **Manage:** `/groups/[slug]/billing` (owner/admin) — subscribe to Club, connect
+  the payout account. Selling Club is gated to group owners/admins.
+- **Multi-admin Pro (O-2a):** an active Club confers full Pro benefits on the
+  group's **owners/admins** — `hasProBenefits` ORs in `user_has_club_benefits`,
+  so club admins get the fee discount, unlimited paid events, passes/memberships,
+  etc. (plain members don't).
+- **Club dashboard (O-2b/c):** `/groups/[slug]/analytics` (owner/admin + Club) —
+  engagement (events hosted, attendees, scoped to `host_group_id`) + **payout
+  income** (gross/net/est-payout scoped to `payout_group_id` — what the club's
+  Stripe account received, invisible to a host before this).
+- **Scope:** routing covers ticket/team/tip only; passes + memberships stay
+  host-user routed. Full write-up:
+  [payments.md § Group payouts](payments.md#group-payouts-club-tier).
+
 ---
 
 ## 5. Pro Host subscription
@@ -190,15 +245,17 @@ runs checkout.
 
 **What Pro unlocks.**
 
-| Capability              | Free                                           | Pro                              |
-| ----------------------- | ---------------------------------------------- | -------------------------------- |
-| Free events             | Unlimited                                      | Unlimited                        |
-| Paid events / 30 days   | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited                        |
-| Platform fee on tickets | 5%                                             | **2.5%**                         |
-| Platform fee on tips    | None                                           | None                             |
-| Standalone brackets     | 1 active at a time                             | Unlimited                        |
-| CSV attendee export     | —                                              | ✓                                |
-| Pro badge on profile    | —                                              | ✓ (opt-out via `show_pro_badge`) |
+| Capability              | Free                                           | Pro                                               |
+| ----------------------- | ---------------------------------------------- | ------------------------------------------------- |
+| Free events             | Unlimited                                      | Unlimited                                         |
+| Paid events / 30 days   | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited                                         |
+| Platform fee on tickets | 5%                                             | **2.5%**                                          |
+| Platform fee on tips    | None                                           | None                                              |
+| Standalone brackets     | 1 active at a time                             | Unlimited                                         |
+| Sell season passes      | —                                              | ✓ ([ADR 0037](adr/0037-season-passes.md))         |
+| Sell memberships        | —                                              | ✓ ([ADR 0037 Phase 2](adr/0037-season-passes.md)) |
+| CSV attendee export     | —                                              | ✓                                                 |
+| Pro badge on profile    | —                                              | ✓ (opt-out via `show_pro_badge`)                  |
 
 **Implementation.**
 
@@ -213,6 +270,76 @@ runs checkout.
   `customer.subscription.{created,updated,deleted}` webhooks into
   `host_subscriptions`.
 - Billing portal access goes through `openBillingPortal` server action.
+
+### Season passes (Pro capability)
+
+A Pro host sells a **prepaid pack of session credits** — e.g. a "10-session
+open-play pass" — that an attendee buys once and redeems per session, instead of
+paying every event. Full design: [ADR 0037](adr/0037-season-passes.md).
+
+- **Sell (Pro only):** create/manage packs at
+  [/profile/billing/passes](../apps/web/src/app/profile/billing/passes/) —
+  title, credit count, price, optional expiry. Stored in `host_passes`.
+- **Buy (any account):** a buyer purchases a pack as a **destination charge to
+  the host** (tiered platform fee, exactly like a ticket — host-routed, see
+  [payments.md](payments.md)). Balance lives in `pass_purchases`; the buyer sees
+  it at [/profile/passes](../apps/web/src/app/profile/passes/).
+- **Opt in per event:** the host flags an open-play event
+  `events.accepts_pass_credits` (edit page). v1 is open-play only.
+- **Redeem:** on an eligible event the buyer hits "Use a pass credit"
+  ([`PassPanel`](../apps/web/src/app/events/%5Bid%5D/_components/pass-panel.tsx)),
+  which reserves a normal attendee spot via the atomic `redeem_pass_credit`
+  SECURITY DEFINER RPC (capacity trigger fires, **no charge**). Cancelling
+  returns the credit automatically (participant-delete cascade decrements
+  `pass_purchases.credits_used`).
+- **Helpers:** [lib/passes.ts](../apps/web/src/lib/passes.ts) (reads) +
+  [lib/pass-helpers.ts](../apps/web/src/lib/pass-helpers.ts) (pure: credits
+  remaining, expiry). Purchase fulfillment is the `pass_purchase` checkout kind
+  in [webhooks/checkout.ts](../apps/web/src/lib/webhooks/checkout.ts).
+- **v1 follow-ups:** pass income isn't yet in the earnings page / tax CSV (host
+  sees revenue on the management page); no buyer-paid fee line (host absorbs the
+  platform fee).
+
+### Recurring memberships (Pro capability, ADR 0037 Phase 2)
+
+The recurring sibling of passes: a Pro host sells a **monthly membership**;
+while a member's subscription is active they claim a **free** spot on any of the
+host's `accepts_pass_credits` open-play events — unlimited, no credit ledger.
+
+- **Sell (Pro only):** create/manage plans at
+  [/profile/billing/memberships](../apps/web/src/app/profile/billing/memberships/)
+  (title, monthly price). Stored in `host_membership_plans`.
+- **Subscribe (any account):** a buyer subscribes via a **Connect destination
+  subscription** (Stripe Checkout `mode: 'subscription'`, `transfer_data` to the
+  host + `application_fee_percent` at the host's tier — host-routed, see
+  [payments.md](payments.md)). State mirrors into `host_memberships` from the
+  `customer.subscription.*` webhook (keyed on `metadata.kind = 'host_membership'`).
+- **Claim:** on an eligible event, an active member hits "Claim your spot"
+  ([`PassPanel`](../apps/web/src/app/events/%5Bid%5D/_components/pass-panel.tsx)) →
+  `claim_membership_spot` RPC reserves a normal attendee spot (capacity trigger
+  fires, **no charge**). Member claims always take precedence over pass credits.
+- **Manage:** the member sees + cancels (at period end) at
+  [/profile/passes](../apps/web/src/app/profile/passes/); cancel calls Stripe
+  directly (the subscription lives on the platform account — no billing portal).
+- **Active rule:** `is_active_member(user, host)` — trialing/active, or past_due
+  within a 30-day period-end grace (same backstop as `is_pro_host`).
+- **v1 follow-ups:** monthly only (no annual); unlimited-access only (no
+  credit-refill variant); membership income not yet in the earnings page / CSV.
+
+### Referrals — earn Pro (ADR 0039)
+
+A host can refer other hosts and earn free Pro. Share `/r/<your-user-id>`
+([app/r/[code]/route.ts](../apps/web/src/app/r/%5Bcode%5D/route.ts) drops a
+30-day cookie, or attributes immediately if already signed in); the **auth
+callback** records the `referrals` row for genuinely-new accounts only. When a
+referred host publishes **≥3 paid events** (checked from
+[events/new/actions.ts](../apps/web/src/app/events/new/actions.ts) via
+`maybeQualifyReferral`), the referrer earns **30 days of Pro** as a row in
+`pro_grants` — which `hasProBenefits()` honors, so it unlocks every Pro perk
+(stacks across referrals). Surfaced on the Pro page (share link + counts +
+"Pro free until …"). Comp grants are why **every Pro perk gates on
+`hasProBenefits`, not bare `isPro`**. Full design:
+[ADR 0039](adr/0039-referrals-pro-grants.md).
 
 ---
 

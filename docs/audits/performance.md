@@ -30,6 +30,50 @@ before/after each fix.
 >   resolved) — they're left in place as the record of where the issue was, not a
 >   live pointer. New findings must use current `path#Lstart-Lend` anchors.
 
+**Status update (2026-06-08) — fresh re-audit (monetization surface):**
+read-only pass over the ~40-commit feature surface added since the 2026-06-07
+close-out — **season passes / punch cards** (ADR 0037), **recurring host
+memberships**, **Club tier pooled payouts** (ADR 0038), **host referrals** (ADR
+0039), the **Club analytics dashboard** + multi-admin Pro, **liability waivers**
+(O-9), **sponsor-access decoupling**, **email bounce/complaint suppression**,
+**audit log**, and the **player-discoverability sitemap gate**. **The new code is
+again mostly performance-clean** — every new monetization table is fully indexed
+on its hot read columns, the email-suppression check is batched into the outbox
+worker (one query per batch + `Set` lookup, the P2 #7 pattern), the pass /
+membership / waiver / referral lib reads are all single-query (no N+1), the
+Stripe webhook router is a flat single-await switch, the `event-detail-cache`
+loaders all stay cookie-free on the admin client, and the receipts/earnings CSV
+routes are year-bounded + RLS-scoped with a batched host-name lookup. Opened
+**1 P2 + 3 P3**, all caching-posture / over-fetch / hygiene items — no bugs, no
+data-loss, no missing indexes. Full write-up:
+[§ Reevaluation — 2026-06-08](#reevaluation--2026-06-08). Headlines:
+
+- **P2 #21** — `sitemap.ts` reads `cookies()` (via `getServerSupabase()`), so the
+  single most-crawled endpoint is fully dynamic + uncached, re-running ~5 queries
+  (incl. an unbounded `teams` scan) on every crawl. Anon client + `revalidate`
+  makes it CDN-cacheable (the Bundle 13a shape).
+- **P3 #22** — the new Club analytics dashboard reads `event_payment_audit`
+  unbounded (no limit/window) — same class as the deferred `/profile/billing/analytics`.
+- **P3 #23** — the event-detail `PassPanel` + `EventWaiverSection` async server
+  components run as a **third sequential wave** after `loadEventDetail`, and
+  `PassPanel` re-fetches the `events` row (same shape P3 #19 just folded into wave 1).
+- **P3 #24** — redundant `force-dynamic` re-accumulated on 5 new private pages
+  (no-op, same hygiene class as the resolved P1 #2 / P3 #18).
+
+> **2026-06-09 follow-up — the entire 2026-06-08 re-audit backlog is closed
+> (1 P2 + 3 P3 all resolved), quad-green.** #21 sitemap → cookie-free anon client
+>
+> - `revalidate = 3600` (build flips `/sitemap.xml` `ƒ` → `○ 1h`); #22 club
+>   dashboard → cheap narrow all-time read + 24-month windowed detail read (+ dead
+>   `months` dropped); #23 event-detail pass/waiver panels → `<Suspense>`-wrapped
+>   off the critical path; #24 → redundant `force-dynamic` deleted from the 5 pages
+>   (still build `ƒ`). Full write-up:
+>   [2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
+>   A follow-on consistency pass then gave `/profile/billing/analytics` the same
+>   narrow+windowed shape as #22 (closing that pagination-sweep deferral). The
+>   standing open items remain the older deferrals (the `/events` + `/events/[id]`
+>   full ISR shells and the migration-gated discovery-feed paging).
+
 **Status update (2026-06-06) — fresh re-audit (202 commits since 05-31):**
 read-only pass over the large feature surface added since the last audit —
 standalone brackets (ADR 0025), chat messaging, capacity waitlist, free-agent
@@ -598,6 +642,240 @@ grows.
 
 ---
 
+## Reevaluation — 2026-06-08
+
+Read-only re-audit against HEAD, graded with the
+[audits README rubric](README.md#how-findings-are-graded) (P1 = bug /
+data-loss / broken behavior; P2 = important hardening/quality; P3 =
+nice-to-have). Scope: the ~40-commit monetization surface added since the
+2026-06-07 close-out — **season passes / punch cards** (ADR 0037), **recurring
+host memberships**, **Club tier pooled payouts** (ADR 0038), **host referrals**
+(ADR 0039), the **Club analytics dashboard** + multi-admin Pro, **liability
+waivers** (O-9), **sponsor-access decoupling**, **email suppression**, the
+**audit log**, and the **player-discoverability sitemap gate**. No profiling;
+latency/cost notes are static-analysis estimates.
+
+### What's well-built (no findings)
+
+The recurring 2026-05 smells (N+1 fan-out, missing indexes, sequential awaits,
+unbounded loads) are again largely absent across the new surface:
+
+- **Index coverage on every new table.** `host_passes(host_id, status)`,
+  `pass_purchases(buyer_user_id, payment_status)` + `(host_id, payment_status)`,
+  `host_membership_plans(host_id, status)`, `host_memberships(member_user_id,
+status)` + `(host_id, status)`, `pro_grants(user_id, granted_until desc)`,
+  `referrals(referrer_user_id, status)`, `waiver_signatures(event_id)`,
+  `audit_log` entity + actor indexes, `event_waitlist(event_id, created_at)` FIFO
+  — all the hot read columns are covered, and the Club/group-subscription rows are
+  keyed on `group_id` (PK) + unique Stripe-id indexes.
+- **Email suppression is batched into the worker** — `drainOneBatch` pre-fetches
+  the batch's distinct addresses in one `emailSuppressions.listSuppressed(...)`
+  call and skips via a `Set`, exactly the P2 #7 push-subscription pattern, so a
+  broadcast burst costs one suppression query per batch, not one per row
+  ([worker/route.ts#L186-L193](../../apps/web/src/app/api/notifications/worker/route.ts#L186-L193)).
+- **The pass / membership / waiver / referral lib reads are single-query.**
+  `listActiveHostPasses`, `getRedeemablePassesForHost`, `listActiveMembershipPlans`,
+  `getActiveMembershipForHost`, `getEventWaiver`, `getReferralStats`, and
+  `maybeQualifyReferral` each issue one indexed read and reduce in memory — no
+  N+1 ([passes.ts](../../apps/web/src/lib/passes.ts),
+  [memberships.ts](../../apps/web/src/lib/memberships.ts),
+  [referrals.ts](../../apps/web/src/lib/referrals.ts)). The Club gates
+  (`isClubGroup` / `hasClubProBenefits`) are `React.cache`-memoized RPC reads
+  ([club.ts#L16-L30](../../apps/web/src/lib/club.ts#L16-L30)).
+- **The Stripe webhook router is a flat single-await switch** — one handler per
+  event type (`charge.dispute.created`, `payment_intent.payment_failed`,
+  `customer.subscription.*`, …), each running once per Stripe event, no fanout
+  ([stripe/route.ts#L144-L170](../../apps/web/src/app/api/webhooks/stripe/route.ts#L144-L170)).
+- **Receipts/earnings CSV routes are bounded.** Both are calendar-year-windowed,
+  RLS-scoped to the viewer, and resolve host names in one batched
+  `profiles_public.in('id', hostIds)` lookup
+  ([receipts/[year]/statement.csv/route.ts#L59-L84](../../apps/web/src/app/api/receipts/%5Byear%5D/statement.csv/route.ts#L59-L84)).
+- **The event-detail cache layer stays cookie-free.** The new sponsor / badges /
+  media / hero cached loaders all resolve the admin client via dynamic `import()`
+  inside `unstable_cache` and tag on `eventCacheTag(id)` — no `cookies()` in a
+  cached callback (the Next 16 pitfall)
+  ([event-detail-cache.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts)).
+
+---
+
+### P2 #21 — `sitemap.ts` is cookie-bound (fully dynamic + uncached) and re-runs ~5 queries per crawl 🆕 2026-06-08
+
+**Status:** ✅ _Resolved 2026-06-09_ — swapped `getServerSupabase()` for the
+cookie-free `createSupabaseAnonClient()` + added `export const revalidate = 3600`.
+The build route table now reports `/sitemap.xml` as `○ … 1h` (static + 1h ISR)
+instead of dynamic `ƒ`, so a recrawl serves cached XML rather than re-running ~5
+Supabase queries; RLS still filters to public rows for the anon role. The
+unbounded `teams` scan is left as the documented future pagination switch. See
+the [2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
+**Category:** Caching / revalidation
+**Files:**
+
+- [apps/web/src/app/sitemap.ts#L83](../../apps/web/src/app/sitemap.ts#L83) — `const supabase = await getServerSupabase()` (reads `cookies()` → forces the route dynamic; no `export const revalidate`).
+- [apps/web/src/app/sitemap.ts#L113](../../apps/web/src/app/sitemap.ts#L113) — `supabase.from('teams').select('slug, updated_at')` with **no filter** (full-table scan). The events read is bounded (public / non-draft / last 30d), but groups / teams / discoverable-players / community-listings are each a full read.
+
+**Issue:** The sitemap is the single most-crawled dynamic endpoint (Google, Bing,
+social unfurlers hit it on every recrawl), and it's inherently viewer-independent
+public content. But it resolves data through `getServerSupabase()`, which reads
+`cookies()` — so Next marks the route fully dynamic and **every crawl is an origin
+render issuing ~5 Supabase queries** (events + groups + an unfiltered `teams`
+scan + discoverable players + active community listings) with no edge cache in
+front. Unlike the content detail pages (whose data sits behind `unstable_cache`),
+the sitemap has **no cache layer at all** — it's the same "public + viewer-
+independent but never cached" class as P1 #1's listing pages, on the one endpoint
+crawlers fetch most. The file's own comment acknowledges the unbounded scan
+("If/when the catalog grows large enough that this is slow, switch to a generator
+that paginates").
+
+**Why P2:** Pure caching/cost regression (not broken behavior), but on the
+highest-frequency crawler endpoint with zero caching today, and it does an
+unbounded table scan. Graded P2 (schedule it) rather than P3 — it's worse than
+the cached-data-uncached-shell partial state, since there's no `unstable_cache`
+behind it. Currently low-urgency only because the pre-launch catalog is small.
+
+**Fix:** Mirror the Bundle 13a listing shape — swap `getServerSupabase()` for
+`createSupabaseAnonClient()` (no cookies → the route can be cached; RLS still
+filters to public rows for the anon role) and add `export const revalidate = 3600`
+(a sitemap doesn't need per-request freshness; newly-published events tolerate up
+to an hour, and mutating actions don't need to evict it). The unbounded `teams`
+scan is acceptable while the catalog is small; the documented pagination switch is
+the escalation once it isn't.
+
+---
+
+### P3 #22 — Club analytics dashboard reads `event_payment_audit` unbounded 🆕 2026-06-08
+
+**Status:** ✅ _Resolved 2026-06-09_ — split the single unbounded read into (1) a
+cheap **all-time** headline read (`action, amount_cents, off_platform` only — no
+`events` join, no order; gross/refunded/on-platform-net summed directly, since
+payment-intent grouping doesn't change those sums) and (2) a **windowed** detail
+read (trailing `DETAIL_WINDOW_MONTHS = 24`) for the per-event table + this-year
+totals. Both now filter on `event_id IN (club payout events)` instead of joining
+`events.payout_group_id`, so neither audit read carries the join. All-time totals
+stay correct across full history; the expensive ordered read no longer grows
+unbounded. Page copy notes the per-event table reflects the last 24 months. Also
+dropped the dead `months` / `ClubMonthAgg` (computed, never rendered). See the
+[2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
+**Category:** Over-fetch / unbounded read
+**File:**
+
+- [apps/web/src/app/groups/[id]/analytics/\_loaders/load-club-dashboard.ts#L95-L102](../../apps/web/src/app/groups/%5Bid%5D/analytics/_loaders/load-club-dashboard.ts#L95-L102)
+
+**Issue:** `loadClubDashboard` fetches **every** `event_payment_audit` row that
+paid out to the club (`events.payout_group_id = groupId`, `category in (ticket,
+tip, team)`), ordered by `occurred_at`, with **no limit and no date window**,
+then groups + aggregates in memory. The engagement half of the loader is well-built
+(it uses `count: 'exact', head: true` for the attendee total rather than pulling
+rows — [#L85-L90](../../apps/web/src/app/groups/%5Bid%5D/analytics/_loaders/load-club-dashboard.ts#L85-L90)),
+but the payout-income read grows monotonically with the club's transaction
+history. This is the same class as the already-deferred `/profile/billing/analytics`
+"loads all host events to aggregate" item (pagination-sweep remediation log) —
+a new instance of it on the new Club dashboard.
+
+**Why P3:** Over-fetch on a manager-only (low-fanout) page, not broken behavior;
+the cost only materializes for a high-volume club, and matches the deferred
+`/profile/billing/analytics` grade. The in-memory grouping is correct — it's the
+unbounded fetch that's the concern.
+
+**Fix:** The all-time totals genuinely need the full set, so a naive `.range()`
+would break them (the same constraint that kept the receipts page on an in-memory
+slice). Two viable options: (a) push the aggregation into a `SECURITY DEFINER`
+RPC that returns the per-event / per-month rollups + totals (the DB does the
+GROUP BY, the app never materializes the row set); or (b) bound the detail read to
+a rolling window (e.g. trailing 24 months) while keeping a separate cheap
+`count`/`sum` for the all-time headline. Track alongside the
+`/profile/billing/analytics` deferral — same fix shape.
+
+---
+
+### P3 #23 — Event-detail `PassPanel` + `EventWaiverSection` add a third sequential wave (and `PassPanel` re-fetches the `events` row) 🆕 2026-06-08
+
+**Status:** ✅ _Resolved 2026-06-09 (Suspense-wrap)_ — wrapped both `<PassPanel>`
+and `<EventWaiverSection>` in `<Suspense fallback={null}>` so they stream
+off the critical path instead of blocking the page as a third wave after
+`loadEventDetail`. The event-detail shell now paints without waiting on the gated
+pass/waiver reads (each panel is still defensive + gated, so non-pass / non-waiver
+events render nothing). The deeper option (surface `acceptsPassCredits` on the
+read model + drop `PassPanel`'s redundant `events` re-fetch + fold into wave 1)
+was deliberately not taken — it touches domain + infra for a P3 micro-opt that
+Suspense already removes from the critical path. See the
+[2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
+**Category:** Sequential await / over-fetch
+**Files:**
+
+- [apps/web/src/app/events/[id]/page.tsx#L297](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L297) — `<PassPanel eventId={event.id} />` (async server component, not Suspense-wrapped).
+- [apps/web/src/app/events/[id]/page.tsx#L393](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L393) — `<EventWaiverSection eventId={event.id} … />` (same).
+- [apps/web/src/app/events/[id]/\_components/pass-panel.tsx#L48-L52](../../apps/web/src/app/events/%5Bid%5D/_components/pass-panel.tsx#L48-L52) — re-`select`s `host_id, type, accepts_pass_credits` off `events`.
+- [apps/web/src/app/events/[id]/\_components/event-waiver-section.tsx#L27-L30](../../apps/web/src/app/events/%5Bid%5D/_components/event-waiver-section.tsx#L27-L30) — `getEventWaiver` → `getViewerSignature` (two sequential awaits).
+
+**Issue:** `loadEventDetail` is `await`ed at the top of the page before any JSX
+renders, so the two new async server components in the body — `PassPanel` and
+`EventWaiverSection` — only begin their reads **after** the loader's wave 1 + wave
+2 complete. They render concurrently with each other (RSC siblings), but neither is
+wrapped in `<Suspense>`, so they block the page's HTML response: a **third
+sequential wave** on the hottest page in the app. This is the exact shape the
+2026-06-07 close-out folded out of the loader for the capacity-waitlist read (P3
+#19). Two aggravating sub-costs: `PassPanel` re-fetches the `events` row whose
+`host_id` (`event.primaryHostUser.id`) and `type` (`event.type`) are already on
+the read model (only `accepts_pass_credits` is not surfaced), and
+`EventWaiverSection` chains `getEventWaiver` → `getViewerSignature` serially.
+Both `getViewer()` re-calls are cheap (`React.cache`-memoized), and both panels are
+tightly gated — `PassPanel` to `open_play && accepts_pass_credits`, `WaiverSection`
+to events that have a waiver — so the common event pays nothing.
+
+**Why P3:** Micro-optimization on gated paths (matches the P3 #19 grade), but on
+the highest-fanout render in the app, so worth folding in the same way #19 was.
+
+**Fix (two options):**
+
+1. **Lowest-risk:** wrap each panel in `<Suspense fallback={null}>` so they stream
+   out-of-band and drop off the critical path — the event-detail shell paints
+   without waiting on them. (Minor: they appear a beat late.)
+2. **More thorough:** surface `acceptsPassCredits` on the `EventDetailReadModel`
+   so the page can gate `PassPanel` from the already-loaded `vm` (dropping the
+   redundant `events` re-fetch and the `host_id`/`type` re-reads), then fold the
+   remaining pass / membership / waiver reads into the `loadEventDetail` wave-1
+   `Promise.all` (the `loadWaitlist` precedent) — keeping them in the initial
+   paint but parallel with the rest of the page.
+
+---
+
+### P3 #24 — Redundant `force-dynamic` re-accumulated on 5 new private pages 🆕 2026-06-08
+
+**Status:** ✅ _Resolved 2026-06-09_ — deleted the redundant `export const dynamic
+= 'force-dynamic'` from all five pages (replaced with a one-line "dynamic via
+cookies" comment). The build route table still reports each as `ƒ` (dynamic via
+`cookies()`), confirming the flag was a true no-op — same outcome as the resolved
+P1 #2 / P3 #18. The deliberate `events/[id]/manage/page.tsx` keep (commented
+"never index") was left untouched. See the
+[2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
+**Category:** Caching / revalidation (clarity / stale code)
+**Files (each reads `cookies()` via auth, so the flag is a no-op):**
+
+- [apps/web/src/app/profile/passes/page.tsx#L12](../../apps/web/src/app/profile/passes/page.tsx#L12)
+- [apps/web/src/app/profile/billing/memberships/page.tsx#L22](../../apps/web/src/app/profile/billing/memberships/page.tsx#L22)
+- [apps/web/src/app/profile/billing/passes/page.tsx#L14](../../apps/web/src/app/profile/billing/passes/page.tsx#L14)
+- [apps/web/src/app/groups/[id]/analytics/page.tsx#L9](../../apps/web/src/app/groups/%5Bid%5D/analytics/page.tsx#L9)
+- [apps/web/src/app/groups/[id]/billing/page.tsx#L20](../../apps/web/src/app/groups/%5Bid%5D/billing/page.tsx#L20)
+
+**Issue:** All five new private pages call `getServerSupabase()` / auth (verified:
+each reads `cookies()`), so Next renders them dynamically regardless — the
+`export const dynamic = 'force-dynamic'` line does nothing. This is the same
+redundant-no-op the resolved P1 #2 cleaned off the profile pages and P3 #18 cleaned
+off `/brackets`; it keeps re-accumulating as new private pages are scaffolded.
+Harmless at runtime, but it makes the caching story dishonest (a reader can't tell
+the flag is inert).
+
+**Why P3:** No behavior change; clarity/hygiene/stale-code only. (Note the one
+_deliberate_ keep: `events/[id]/manage/page.tsx` carries `force-dynamic` with a
+comment as a belt-and-suspenders "never index this" marker — leave that one.)
+
+**Fix:** Delete the `force-dynamic` line from the five pages above; they stay
+dynamic via `cookies()`. Consider a lightweight lint note so it stops
+re-accumulating (the same ratchet-behind-cleanup posture as the CTA/field
+vocabularies), though that's optional for a P3.
+
+---
+
 ## Reevaluation — 2026-06-06
 
 Read-only re-audit against HEAD, graded with the
@@ -1026,6 +1304,25 @@ log.
 
 ## Remediation log
 
+### 2026-06-09 — monetization perf re-audit fixes
+
+Landed all four findings (#21–#24) from the 2026-06-08 re-audit. The two with a real
+minimal-vs-thorough choice (#22, #23) took the recommended lower-risk path.
+
+| Item                                   | Grade | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------- | ----- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #21 sitemap cookie-bound → ISR         | P2    | ✅ Done | [sitemap.ts](../../apps/web/src/app/sitemap.ts): `getServerSupabase()` → `createSupabaseAnonClient()` + `export const revalidate = 3600`. Build now reports `/sitemap.xml` as `○ … 1h` (was dynamic `ƒ`). RLS still filters to public rows for anon. Unbounded `teams` scan left as the documented pagination follow-up.                                                                             |
+| #22 club analytics unbounded read      | P3    | ✅ Done | [load-club-dashboard.ts](../../apps/web/src/app/groups/%5Bid%5D/analytics/_loaders/load-club-dashboard.ts): cheap narrow all-time read (3 cols, no join/order, summed directly) + windowed (24mo) detail read; both filter `event_id IN (payout events)` so neither joins `events`. All-time totals stay full-history; page copy notes the table is last-24mo. Dropped dead `months`/`ClubMonthAgg`. |
+| #23 event-detail pass/waiver 3rd wave  | P3    | ✅ Done | [events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx): `<Suspense fallback={null}>` around `<PassPanel>` + `<EventWaiverSection>` so their gated reads stream off the critical path. Deeper read-model change deliberately skipped (Suspense already de-criticalizes them).                                                                                                        |
+| #24 redundant `force-dynamic` ×5       | P3    | ✅ Done | Dropped the no-op `force-dynamic` from `profile/passes`, `profile/billing/{memberships,passes}`, `groups/[id]/{analytics,billing}`. All five still build as `ƒ` (dynamic via `cookies()`), proving the flag was inert. Deliberate `events/[id]/manage` keep untouched.                                                                                                                               |
+| `/profile/billing/analytics` follow-on | P3    | ✅ Done | Consistency pass: gave the long-deferred `/profile/billing/analytics` unbounded read the same narrow-all-time + 24-month-windowed shape as #22 (closes the pagination-sweep deferral). Engagement metrics still read all attendee/division rows (all-time by nature, roster-bounded, not time-unbounded). [analytics/page.tsx](../../apps/web/src/app/profile/billing/analytics/page.tsx)            |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(typecheck 15/15; lint 0 errors, 3 pre-existing warnings in untouched files; test
+356 web + domain/application; build 8/8). Route-table proof: `/sitemap.xml` flipped
+`ƒ` → `○ 1h`; the five #24 pages stayed `ƒ`; `/events/[id]` unchanged `ƒ`. **This
+closes every finding from the 2026-06-08 re-audit (1 P2 + 3 P3).**
+
 ### 2026-06-07 — P3 #20: historical file-anchors note
 
 Doc-hygiene close-out of the 2026-06-06 re-audit. The `events/[id]/page.tsx`
@@ -1135,7 +1432,7 @@ where bounded in practice.
 | `/profile` Following + Videos              | P3    | ✅ Done | Same file as Hosting: `fpage` / `FOLLOWING_PER_PAGE = 24` (slices `friends`, full set kept for the count) and `vpage` / `VIDEOS_PER_PAGE = 6` (videos are iframe embeds → small page). [profile/page.tsx](../../apps/web/src/app/profile/page.tsx). **Groups left unpaged on purpose** — bounded (self-managed memberships, <10 typical) and `MyGroupsSection` owns its own count display, so paging would change the component contract for no gain. |
 | `/messages` inbox cap                      | P3    | 🔴 Open | `get_inbox` RPC hard-caps at `p_limit: 50` with no "load older" — conversations past 50 are unreachable. Real paging needs a migration (offset/cursor + a count fn) + port change. **Deferred 2026-05-31** — not worth a production schema migration for a P3 at current scale. [supabase-messaging-repository.ts](../../packages/infrastructure/src/supabase-messaging-repository.ts)                                                                |
 | `/events` + `/community` discovery feeds   | P3    | 🔴 Open | Capped at `limit: 30` / `60` with no page nav; items past the cap are unreachable. Real paging needs offset + total on the search RPCs (migration) **and** a feed-vs-directory product call. **Deferred 2026-05-31** pending that decision.                                                                                                                                                                                                           |
-| `/profile/billing/analytics`               | P3    | 🔴 Open | Loads all host events to aggregate, displays `slice(0, 10)`. Display bounded; the query is not — a perf concern, not a UI-pagination one.                                                                                                                                                                                                                                                                                                             |
+| `/profile/billing/analytics`               | P3    | ✅ Done | Resolved 2026-06-09 with the #22 narrow+windowed shape — all-time GMV headline from a narrow 2-column sum; monthly chart + per-event Net from a 24-month windowed read. Engagement (registrations / repeat-rate / fill-rate) still reads all attendee + division rows (inherently all-time, bounded by the host's roster, not by time). [analytics/page.tsx](../../apps/web/src/app/profile/billing/analytics/page.tsx)                               |
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 

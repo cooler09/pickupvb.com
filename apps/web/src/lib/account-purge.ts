@@ -36,9 +36,11 @@ export async function executeAccountDeletion(
   const userId = String(request.userId);
 
   // 1. Closure email — resolve the address while the auth user still exists.
+  //    Keep the address for step 4 (suppression cleanup) before it's gone.
+  let email: string | undefined;
   try {
     const { data } = await admin.auth.admin.getUserById(userId);
-    const email = data.user?.email;
+    email = data.user?.email ?? undefined;
     if (email) await sendEmail(closureEmail(email));
   } catch (err) {
     await log.warn('[account-purge] closure email failed', {
@@ -82,7 +84,11 @@ export async function executeAccountDeletion(
   if (scrubError) throw new Error(`profile scrub failed: ${scrubError.message}`);
 
   // 4. Drop transient notification rows (settings, device tokens, in-app feed)
-  //    and cancel any still-pending outbox deliveries.
+  //    and cancel any still-pending outbox deliveries. Also clear the email
+  //    suppression for this address (privacy #22) so a hard-bounced address
+  //    doesn't outlive the account as residual PII and a future re-signup on a
+  //    recycled mailbox isn't silently un-mailed. email_suppressions has no FK to
+  //    profiles, so the auth-delete cascade in step 6 can't reach it.
   await Promise.all([
     admin.from('push_subscriptions').delete().eq('user_id', userId),
     admin.from('notification_preferences').delete().eq('user_id', userId),
@@ -92,6 +98,9 @@ export async function executeAccountDeletion(
       .update({ status: 'cancelled' })
       .eq('user_id', userId)
       .eq('status', 'pending'),
+    ...(email
+      ? [admin.from('email_suppressions').delete().eq('address', email.trim().toLowerCase())]
+      : []),
   ]);
 
   // 5. Record the transition while the row + FK target still exist.

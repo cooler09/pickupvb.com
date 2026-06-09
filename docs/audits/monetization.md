@@ -12,6 +12,533 @@ signal; P3 = opportunistic / post-product-market-fit.
 
 ---
 
+## Status — 2026-06-08 — Sponsor slot focused audit (code / UX pass)
+
+**Trigger:** user-requested focused audit of the **sponsor slot** feature
+(Bundles 84–85) — bugs, gaps, improvements, stale code, UX/UI. Traced end to
+end: `event_sponsors` schema + RLS, the two server-action paths (Pro
+direct-save vs. free à-la-carte checkout in
+[sponsor-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts)),
+the Stripe webhook materialization
+([checkout.ts](../../apps/web/src/lib/webhooks/checkout.ts)), the cached public
+render ([event-sponsor-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-sponsor-section.tsx)),
+and the storage/orphan lifecycle.
+
+### Headline
+
+- **No P1 — the core machinery is sound.** Writes go through the user-scoped
+  client so RLS enforces the manager gate; the admin client is confined to the
+  session-less webhook; the checkout idempotency key folds the draft hash; the
+  orphan walker correctly tolerates the `?t=` cache-buster; the webhook + repo
+  upsert are unit-tested.
+- **The one real design flaw (SP-1/SP-2) is that entitlement is welded to the
+  content row.** `access_kind`/`paid_at` live _on_ `event_sponsors`, so
+  removing a sponsor destroys a paid à-la-carte unlock (re-charge risk), and the
+  authoring gate also gates removal (a lapsed-Pro host can't delete their own
+  sponsor). Badges already solved this with a separate `event_badge_access`
+  table — sponsors should mirror it.
+- **The rest is polish** — a dead `text-destructive` token, a hardcoded `$3`
+  that bypasses the `SPONSOR_SLOT_UNLOCK_CENTS` single-source-of-truth,
+  `object-cover` cropping rectangular logos, and a few vocab/robustness nits.
+
+> **Update — 2026-06-08 (same pass): all P3 quick wins applied** (uncommitted).
+> SP-3 (`text-destructive` → `text-md-error`), SP-4 (`$3` now derived from
+> `SPONSOR_SLOT_UNLOCK_CENTS`), SP-5 (`object-cover` → `object-contain` on both
+> the upload preview and the public render), SP-6 (dropped dead
+> `disabled={false}`), SP-7 (Remove button → `neutralButtonClass`).
+>
+> **Update — 2026-06-08 (same day): SP-1/SP-2 (P2) fixed** (uncommitted; migration
+> deploy-gated). Entitlement is now decoupled from content via a new
+> `event_sponsor_access` table (migration `20261006000000`), mirroring
+> `event_badge_access`: the webhook records the paid unlock there and upserts the
+> (now content-only) `event_sponsors` row separately, `removeSponsor` deletes only
+> the content row (entitlement survives → no re-charge), and removal is no longer
+> entitlement-gated (a lapsed-Pro host can delete their own sponsor). The 5
+> entitlement columns were dropped from `event_sponsors` after a backfill. Quad-green;
+> repo + webhook tests pin the split.
+>
+> **Update — 2026-06-08 (same day): SP-8/SP-9/SP-10 fixed — sponsor slot fully
+> closed (SP-1…SP-10)** (uncommitted). SP-8: extracted a shared `guardManage()`
+> that re-throws unexpected manage-check errors instead of masking them as
+> "unauthorized" (the three actions no longer copy-paste the catch block).
+> SP-9: dropped the misleading "(Pro)" from the panel header and surfaced the
+> "Pro or $3/event" framing in the subtext. SP-10: new
+> `sponsor-actions.test.ts` pins the gate branches (non-manager → unauthorized;
+> Pro / free+paid → save; free+unpaid → `pro` with no write; SP-8 re-throw; SP-2
+> ungated removal). Quad-green. See the remediation log at the bottom.
+
+### Findings — sponsor slot
+
+#### SP-1 (P2) — Removing a sponsor destroys a paid à-la-carte unlock (re-charge risk) — ✅ fixed
+
+Entitlement is stored _on the content row_, so
+[`removeSponsor`](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L248-L269)
+`DELETE`s the whole `event_sponsors` row — including `access_kind='ala_carte'`
+and `paid_at`, the only proof the host paid $3.
+[`hasAlaCarteAccess`](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L91-L93)
+then returns false, so re-adding a sponsor charges the host **again**. Contrast
+badges, which decouple entitlement from content via a separate
+`event_badge_access` table ([edit/page.tsx#L91](../../apps/web/src/app/events/%5Bid%5D/edit/page.tsx#L91)).
+**Fix:** mirror that shape — an `event_sponsor_access` table (entitlement) +
+`event_sponsors` (content), or have `removeSponsor` null the content fields
+while preserving the entitlement columns. Ship with a test that fails against
+today's behavior.
+
+#### SP-2 (P2) — The authoring gate also gates removal → lapsed-Pro hosts get stuck — ✅ fixed
+
+[`removeSponsor#L260`](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L260)
+flashes `pro` when the caller isn't _currently_ entitled. A host who created a
+sponsor while Pro, then let Pro lapse, can no longer **remove their own
+sponsor** — the block keeps rendering publicly but is unmanageable. Deleting
+your own data shouldn't be a premium capability. **Fix:** gate create/edit on
+entitlement; allow `removeSponsor` for anyone who passes `assertCanManage`.
+
+#### SP-3 (P3) — `text-destructive` is an undefined token (dead class) — ✅ fixed
+
+[sponsor-logo-upload.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-logo-upload.tsx)
+used `hover:text-destructive` / `text-destructive`, but no `destructive` color
+exists in [globals.css](../../apps/web/src/app/globals.css) or `gen-palette.ts`,
+so the Remove-logo hover and the upload-error message rendered with **no
+color**. Replaced with `text-md-error` (AGENTS pattern #17). **Follow-up
+(out of scope here):** the same dead token also appears in `avatar-upload`,
+`hero-image-upload`, `event-badge-icon-upload`, `avatar-crop-dialog`, and
+`templates-section` — worth a one-line sweep.
+
+#### SP-4 (P3) — Hardcoded "$3" in the panel defeats the single-source-of-truth — ✅ fixed
+
+[sponsor-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx)
+wrote `$3` as a literal in the info alert and the button label, while the
+pricing/Pro pages correctly derive it from `SPONSOR_SLOT_UNLOCK_CENTS`
+([pricing/page.tsx#L34](../../apps/web/src/app/pricing/page.tsx#L34)) —
+exactly the staleness M-3 / [pro.ts#L24-L33](../../apps/web/src/lib/pro.ts#L24-L33)
+set out to prevent. Now derived from the constant.
+
+#### SP-5 (P3) — `object-cover` crops rectangular logos — ✅ fixed
+
+Both the upload preview and the public render boxed a 48×48 logo with
+`object-cover`; real sponsor logos (gym, brewery) are usually wide and got
+center-cropped into unreadability despite the "Square works best" hint. Changed
+to `object-contain` in
+[sponsor-logo-upload.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-logo-upload.tsx)
+and [event-sponsor-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-sponsor-section.tsx).
+
+#### SP-6 (P3) — Dead `disabled={false}` on the save button — ✅ fixed
+
+Removed from [sponsor-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx).
+
+#### SP-7 (P3) — Remove button hand-rolled classes — ✅ fixed
+
+The Remove button hand-wrote `border-border-base text-fg rounded-md border …`
+instead of the shared vocab (AGENTS pattern #11). Switched to
+`neutralButtonClass('md')` (preserves the bordered-neutral look). _Note:_ since
+removal is destructive, the error family (`errorOutlinedButtonClass` /
+`errorTextButtonClass`) is arguably the more correct fit — deferred to avoid a
+larger visual change in this pass.
+
+#### SP-8 (P3) — Sloppy/duplicated `catch` blocks swallow real errors as "unauthorized" — ✅ fixed
+
+In all three actions (e.g.
+[upsert#L104-L108](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L104-L108)),
+an unexpected error in `assertCanManage` (e.g. a DB failure) falls through to
+`flashTo(eventId, 'unauthorized')` — misleading, and it converts a genuine 500
+into a silent redirect with no log. The block is copy-pasted three times.
+**Fix:** extract one `guardManage()` helper that maps `NotFoundError` /
+`UnauthorizedError` and **re-throws** anything else.
+
+#### SP-9 (P3) — Panel header "Sponsor slot (Pro)" misleads free hosts — ✅ fixed
+
+[sponsor-panel.tsx#L47](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx#L47)
+labels the section Pro-only, but a free host can buy it à-la-carte. Minor copy
+tweak (e.g. drop the "(Pro)" suffix, or "Pro or $3/event").
+
+#### SP-10 (P3) — No test for the server-action gate — ✅ fixed
+
+The webhook ([checkout.test.ts#L241](../../apps/web/src/lib/webhooks/checkout.test.ts#L241))
+and repo upsert are covered, but the **gating logic** in `sponsor-actions.ts`
+(Pro → save, free+paid → save, free+unpaid → checkout, and SP-1's
+remove-destroys-entitlement) has no test. Since it guards money, a small unit
+test on `hasAlaCarteAccess` + branch selection is high-signal — pair it with the
+SP-1 fix. **Minor:** `parseDraft` re-reads `fieldOrNull(… 'link_url')` /
+`'logo_url'` twice each for validation (compute once); and it `throw`s a plain
+`Error` (caught locally → tolerable, but pattern #2 prefers typed).
+
+---
+
+## Status — 2026-06-08 — Re-audit (code-quality + stale-code + opportunity pass)
+
+**Trigger:** user-requested monetization audit — find bugs, gaps, improvements,
+stale code, **and** new monetization opportunities that align with users
+(value-creating, not a tax). First pass with a code-correctness lens layered on
+the strategy lens. Since the 2026-05-31 re-eval the following monetization-touching
+surfaces shipped: **collectible event badges** ($5/event à-la-carte, Pro-included —
+[ADR 0031](../adr/0031-gamification-badges.md)), the capacity **waitlist + auto-promotion**
+([ADR 0036](../adr/0036-capacity-waitlist.md)), **free-agent pickup**, the
+**leagues container model**, and the receipts/tax ledger — plus two adjacent
+code-quality audits already landed: [stripe-integration.md](stripe-integration.md)
+and [receipts-tax.md](receipts-tax.md) (both 2026-06-08). This pass does **not**
+re-audit Stripe correctness or receipts (those two files own it) — it covers the
+monetization-specific surfaces those didn't.
+
+### Headline
+
+- **The revenue engine is still sound; no P1.** $10/mo Pro + 5%/2.5% ticket
+  take-rate + 0% tips + host-owned sponsor/badge slots is unchanged and
+  defensible ([ADR 0014](../adr/0014-monetization-strategy.md)). Nothing here
+  argues to move a price lever.
+- **The monetization _surface_ grew (badges) but the strategy docs didn't keep
+  up.** The two highest-value findings are documentation drift (M-4, M-5), not
+  bugs.
+- **One real hardening gap (M-2):** `is_pro_host` trusts the Stripe status
+  string with no period-end backstop and treats `past_due` as Pro — an
+  indefinite free-Pro leak if Stripe dunning isn't configured to eventually
+  cancel.
+- **The strongest unbuilt opportunity is the _season pass / multi-session
+  punch card_ (O-1)** — a host-priced bundle that wins for the attendee
+  (discount + convenience), the host (committed up-front cash, less weekly
+  Venmo chasing), and the platform (normal take-rate on a larger transaction).
+  It creates value rather than extracting it, which is exactly the brief.
+
+> **Update — 2026-06-08 (same day): all five code/gap findings implemented**
+> (uncommitted; the M-2 migration is deploy-gated). M-3 centralized the unlock
+> prices in [pro.ts](../../apps/web/src/lib/pro.ts); M-2 added the `is_pro_host`
+> period-end backstop migration + the integrations.md dunning note; M-3b
+> documented the deliberate non-recording in the webhook; M-4 amended ADR 0014
+>
+> - marked the stale sections historical; M-5 added payments.md § Platform-direct
+>   charges. `pnpm typecheck && lint && test && build` green. The six
+>   **opportunities (O-1…O-6) are left open** for a later strategy pass. See the
+>   remediation log at the bottom of this file.
+
+### Findings — code / correctness / stale
+
+#### M-2 (P2) — `is_pro_host` grants Pro on `past_due` forever, with no period-end backstop
+
+**File:** [supabase/migrations/20260517000000_pro_subscriptions.sql#L54-L67](../../supabase/migrations/20260517000000_pro_subscriptions.sql#L54-L67)
+(never redefined since — confirmed only definition in `supabase/migrations/`).
+
+`is_pro_host(uuid)` returns true for `status in ('trialing','active','past_due')`
+and reads **nothing else** — not `current_period_end`, not `trial_end`. The
+`past_due` grace is deliberate (Stripe retries ~3 weeks), but the safety of that
+grace is **entirely outsourced to Stripe Dashboard dunning config**: if "Manage
+failed payments" is set to _leave the subscription past_due_ (a valid setting)
+rather than _cancel after retries_, a host whose card permanently fails stays
+`past_due` → keeps Pro (unlimited paid events, 2.5% fee, all perks) **forever,
+for free**. There is no code-level backstop, and the dependency is undocumented.
+A missed final `customer.subscription.deleted`/`.updated` webhook has the same
+effect (the row never leaves `past_due`).
+
+**Recommended fix (defense-in-depth, pick one or both):**
+
+1. Add a period-end guard to the grace branch so an abandoned `past_due` row
+   self-expires:
+   ```sql
+   where user_id = p_user_id
+     and (
+       status in ('trialing','active')
+       or (status = 'past_due'
+           and current_period_end is not null
+           and current_period_end > now() - interval '30 days')
+     )
+   ```
+   This caps the grace at ~30d past the paid period regardless of webhook
+   delivery or dunning config.
+2. Document the **required** Stripe setting (Settings → Billing → Subscriptions
+   → Manage failed payments → "Cancel subscription" after retries) in
+   [integrations.md § Stripe](../integrations.md#stripe) and add it to the
+   launch checklist, so the ops side of the grace is explicit.
+
+#### M-3 (P3) — À-la-carte unlock prices are duplicated across 6 sites; no single source of truth
+
+**Files:** `SPONSOR_SLOT_UNLOCK_CENTS = 300`
+([sponsor-actions.ts#L19](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L19)),
+`BADGE_SLOT_UNLOCK_CENTS = 500`
+([badge-actions.ts#L27](../../apps/web/src/app/events/%5Bid%5D/edit/badge-actions.ts#L27)),
+and the **string literals** `"$3"` / `"$5"` hand-typed in
+[pricing/page.tsx#L34-L35](../../apps/web/src/app/pricing/page.tsx#L34-L35),
+[pricing/page.tsx#L225-L226](../../apps/web/src/app/pricing/page.tsx#L225-L226),
+the two FAQ answers ([#L263](../../apps/web/src/app/pricing/page.tsx#L263),
+[#L267](../../apps/web/src/app/pricing/page.tsx#L267)), and
+[profile/billing/pro/page.tsx#L110](../../apps/web/src/app/profile/billing/pro/page.tsx#L110).
+
+The charge amount lives as a private const in each action file and the
+marketing copy re-states the dollar figure as a literal. Bump the sponsor
+unlock to $4 and you must remember to edit five copy sites by hand or the
+pricing page lies. This is the same drift the audit closed for the _ticket_ fee
+by centralizing `PLATFORM_FEE_BPS` / `PRO_PLATFORM_FEE_BPS` in
+[pro.ts](../../apps/web/src/lib/pro.ts) / [stripe.ts](../../apps/web/src/lib/stripe.ts).
+
+**Recommended fix:** move both to [pro.ts](../../apps/web/src/lib/pro.ts) next to
+`PRO_MONTHLY_PRICE_USD` (e.g. `SPONSOR_SLOT_UNLOCK_CENTS`,
+`BADGE_SLOT_UNLOCK_CENTS`), import them in the two action files, and derive the
+copy (`$${SPONSOR_SLOT_UNLOCK_CENTS / 100}/event`) in the pricing + Pro pages so
+there is exactly one number to change — the discipline ADR 0014 already applies
+to the fee rate.
+
+#### M-3b (P3) — Host→PickupVB à-la-carte purchases record no in-app ledger row
+
+**File:** [checkout.ts#L211-L276](../../apps/web/src/lib/webhooks/checkout.ts#L211-L276)
+(`sponsor_slot` / `badge_slot` branches).
+
+Every other completed checkout kind (`attendee`, `tip`, `team_registration`,
+`roster_team_payment`) calls `recordPaymentAudit(...)` to write a payment-ledger
+row. The two à-la-carte unlocks do **not** — they only upsert the
+sponsor/badge-access row + fire analytics. So a host who pays PickupVB $3/$5 has
+**no in-app record** of that purchase (the host isn't the payee here — PickupVB
+is — so it's correctly absent from the host-earnings/receipts surfaces the
+receipts-tax audit owns, but there's also no "things I bought from PickupVB"
+view). Today the only receipt is whatever Stripe emails from the platform
+account if receipt emails are enabled.
+
+**Recommended fix (low priority):** confirm Stripe receipt emails are enabled on
+the **platform** account so the host at least gets an emailed receipt; longer
+term, if a host "purchase history" surface is ever built, write a lightweight
+ledger row here keyed `category: 'sponsor_unlock' | 'badge_unlock'`. Not urgent —
+flagged so it's a known gap, not a silent one. Coordinate with
+[receipts-tax.md](receipts-tax.md) before adding a ledger category.
+
+### Findings — documentation staleness (the real gaps)
+
+#### M-4 (P2) — This audit + ADR 0014 are stale on the perk set (badges) and the answered open-questions
+
+**Files:** this file (the 2026-05-24 "Today's monetization surface" + "Pro perks
+actually shipped" sections, and the unanswered-looking "Open questions" blocks);
+[ADR 0014 Consequences](../adr/0014-monetization-strategy.md) ("nine perks as of
+Bundle 98").
+
+Drift since 2026-05-31:
+
+- **Collectible event badges** are a live monetization surface ($5/event
+  à-la-carte / Pro-included) and appear on the pricing page + comparison table,
+  but this audit's "Today's monetization surface" section
+  ([§ Pro perks actually shipped](#pro-host-subscription) lists only three) and
+  ADR 0014's perk count predate them.
+- The **"Open questions (need the user)"** block at the top of the 2026-05-31
+  status and the bottom "Open questions for the user" are **fully answered** —
+  R-1 (live scoring built), R-3 (bracket cap shipped), R-5 (tips → 0% shipped),
+  media (Path A shipped). Reads as open backlog when it isn't.
+
+**Recommended fix:** refresh "Today's monetization surface" to the current perk
+set (add badges; note tips are 0%); add a one-line ADR 0014 amendment recording
+badges as a perk + the $5/$3 à-la-carte prices; collapse the answered open-question
+lists into the remediation log. (This status block is the start of that refresh.)
+
+#### M-5 (P2) — payments.md routing table omits the two platform-direct charge flows
+
+**File:** [docs/payments.md § Payment routing](../payments.md#payment-routing--every-entry-point-goes-through-host_id)
+(the routing table lists only ticket / team / tip).
+
+payments.md is explicitly "read this before touching payment routing," and its
+table documents the **three Connect destination charges** that flow to
+`events.host_id`. It does **not** mention the **two platform-direct charges** that
+intentionally bypass host routing entirely:
+
+- **Sponsor slot unlock** ($3) and **badge slot unlock** ($5) — created in
+  [sponsor-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts) /
+  [badge-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/badge-actions.ts)
+  with **no `transfer_data.destination`**, so the money lands in PickupVB's own
+  account and **no host Connect onboarding is required** (a free host with zero
+  Stripe setup can still buy an unlock). This is correct and deliberate, but a
+  reader of payments.md would not know these flows exist or that they're
+  routing-exempt.
+- The **Pro subscription** itself (Stripe Billing, platform account) is likewise
+  absent.
+
+**Recommended fix:** add a short "Platform-direct charges (not host-routed)"
+section to payments.md listing the sponsor/badge unlocks + Pro subscription,
+stating explicitly that they charge the platform account, take no
+`application_fee`/destination, and require no host Connect account — so a future
+agent doesn't "fix" them by adding destination routing.
+
+### Opportunities — value-aligned, not extractive (strategy / P3)
+
+The user asked specifically for monetization that _creates value for users
+rather than taxing them_. Ranked by alignment × reachability at 2–3 metros.
+None of these violate the "What NOT to do" list below.
+
+#### O-1 (strongest) — Season passes / multi-session punch cards — ✅ Shipped 2026-06-08 ([ADR 0037](../adr/0037-season-passes.md))
+
+**Built** the v1 vertical: a Pro host sells a prepaid credit pack
+(`host_passes`); a buyer purchases it as a destination charge to the host
+(`pass_purchases`, tiered platform fee); the host flags open-play events
+`accepts_pass_credits`; the buyer redeems a credit to claim a spot via the
+atomic `redeem_pass_credit` SECURITY DEFINER RPC (capacity trigger fires, no
+Stripe charge); cancelling returns the credit automatically (participant-delete
+cascade → `event_participant_payments` delete trigger decrements `credits_used`).
+Surfaces: host management page (`/profile/billing/passes`, Pro-gated), event-edit
+opt-in, event-detail buy/redeem `PassPanel`, buyer `/profile/passes`, pricing
+copy. Pure helpers unit-tested (`pass-helpers.test.ts`); migration
+`20260930000000_season_passes.sql` (deploy-gated). **Deferred follow-ups:** pass
+income into the global earnings page / tax CSV (blocked on the
+`event_payment_audit.event_id` NOT NULL constraint — coordinate with
+[receipts-tax.md](receipts-tax.md)); a buyer-paid platform-fee line (v1 has the
+host absorb it); a post-purchase confirmation banner (the PassPanel balance is
+the current feedback); per-event refund-window nuance on credit return (v1
+returns the credit on any pre-event cancel). Rationale write-up retained below.
+
+**Original opportunity (rationale):**
+
+A host sells a **bundle** — "10-session open-play punch card," "league season
+pass," "monthly membership" — at a host-set discount vs. drop-in. PickupVB takes
+its **normal ticket take-rate** on the (larger, up-front) transaction; no new
+fee, no new tax.
+
+- **Attendee wins:** lower per-session price + one payment instead of chasing a
+  Venmo every week.
+- **Host wins:** committed revenue up front, dramatically less weekly payment
+  admin (the #1 pain the off-platform upsell already targets), predictable
+  attendance.
+- **Platform wins:** larger transactions at the same rate, deeper lock-in to
+  on-platform payments (pulls Venmo hosts onto Stripe — the exact goal of the
+  Bundle-100 off-platform upsell), and a natural Pro hook (e.g. pass management
+  / auto-renew as a Pro capability).
+- **Shape:** a `passes` / `pass_purchases` model; redemption decrements a balance
+  at check-in (the check-in flow already exists). Per-player only (no team-mode
+  complexity v1). Probably 2–3 bundles; an ADR first. **This is the highest-value
+  net-new monetization surface and the most community-aligned.**
+
+#### O-2 — Club / Group tier with pooled payouts ("PickupVB Club") — ✅ Shipped 2026-06-08 ([ADR 0038](../adr/0038-group-payouts-club-tier.md))
+
+**Built** the v1 vertical (pooled payouts only). A group subscribes to **Club**
+(~$25/mo, Stripe Billing on the platform — `group_subscriptions`,
+`is_club_group`), connects its **own** Stripe Connect account
+(`group_stripe_accounts`, onboarding mirrors the host flow, `owner_type='group'`
+metadata routes the `account.updated` webhook), and opts group-hosted events to
+pay out to the club via `events.payout_group_id`. The three per-event flows
+(ticket/team/tip + roster-team) resolve through `getEventPayoutAccount` — group
+account if opted-in, else host; **never falls back to host** if the club account
+isn't ready; routing frozen once a registration is paid (`isPricingLocked`);
+existing/non-opted events unchanged; the platform fee still keys on the host
+user. Surfaces: `/groups/[slug]/billing` (subscribe + connect), event-edit "Club
+payouts" panel, group-page link. Migration `20261002000000` (deploy-gated).
+**Deferred (per scope):** multi-admin Pro, club analytics, club payout income in
+the per-user earnings page. payments.md + AGENTS Pattern 7 amended (the "no group
+payouts" limitation is resolved). Original rationale below.
+
+**Original opportunity (rationale):**
+
+Resolves the standing limitation in
+[payments.md § Open question](../payments.md#open-question--known-limitation):
+there is no group-owned payout account. A paid **Club** tier (above individual
+Pro) could offer (a) a group-owned Stripe Connect destination so club admins
+share payouts without nominating a personal "treasurer," (b) multiple Pro-enabled
+admins under one subscription, (c) club-level analytics across all the club's
+events. Captures more value from the **highest-value persona** (the club running
+leagues — exactly the leagues-container work that just shipped) **without taxing
+casual hosts**, who never need it. Schema + routing work is non-trivial (the
+payments.md open-question spans `group_stripe_accounts`, a payout-owner column,
+and every routing site) — needs an ADR before any code. Reconsider once a launch
+metro has a multi-admin club running a league.
+
+##### Club follow-ups (deferred from O-2 v1) — ✅ All shipped 2026-06-08 ([ADR 0038 follow-up](../adr/0038-group-payouts-club-tier.md))
+
+- **O-2a — Multi-admin Pro — ✅ built.** An active Club confers full Pro benefits
+  on the group's **owners/admins** (not plain members). `hasProBenefits`
+  ([admin.ts](../../apps/web/src/lib/admin.ts)) ORs in `user_has_club_benefits`
+  (SECURITY DEFINER RPC, migration
+  [20261004000000](../../supabase/migrations/20261004000000_club_member_pro_benefits.sql),
+  30-day past_due grace). Single-site gate widening (every perk already routes
+  through `hasProBenefits`): subscription OR platform-admin OR referral comp OR
+  Club-admin. Owner/admin-only limits the "added member gets Pro" abuse.
+- **O-2b — Club analytics + O-2c — Club payout income — ✅ built (one dashboard).**
+  `/groups/[slug]/analytics` (owner/admin + Club gated): engagement (events
+  hosted, attendees — scoped to `host_group_id`) + payout income
+  (gross/refunded/net/est-payout, YTD + all-time + per-event — scoped to
+  `payout_group_id`, the income the club's Stripe account received, previously
+  invisible in-app). Admin-client reads (a group admin isn't the event host);
+  reuses the earnings ledger helpers. Linked from the group billing page.
+  Migration `20261004000000` (O-2a only; the dashboard is read-only).
+
+(Standalone opportunities still open: **O-5** SMS/Twilio, **O-8** white-label
+branding, **O-9** per-event waiver e-sign.)
+
+#### O-3 — Referral credit — ✅ Shipped 2026-06-08 ([ADR 0039](../adr/0039-referrals-pro-grants.md))
+
+**Built.** A host shares `/r/<userId>`; first-touch attribution records a
+`referrals` row for genuinely-new signups (auth callback); when the referred host
+publishes **≥3 paid events** the referrer earns **30 days of Pro** as a
+`pro_grants` row. The grant is honored by `hasProBenefits` (not bare `isPro`), so
+it unlocks every Pro perk and stacks. No Stripe coupon — comp via our own gate.
+Surfaced on the Pro page (share link + counts + "Pro free until …"). Migration
+`20261003000000`. **Deferred:** referral leaderboard, referred-side reward.
+
+#### O-4 — Convert harder on levers already shipped — ✅ Shipped 2026-06-08
+
+- **Cap-hit upgrade nudge — built.** A free host who's already used their
+  rolling-30d paid-event allowance now sees a proactive banner at the top of
+  `/events/new` (linking to `/profile/billing/pro`) _before_ filling out a paid
+  event, not just at submit-time rejection. Free events stay unlimited.
+- **Annual-default framing — built.** On the Pro billing page the monthly button
+  is de-emphasized (secondary) and the yearly option is the filled default with a
+  "Best value · save $X" badge; the pricing page already led with yearly.
+  (Formal A/B left for when a framework exists.)
+
+#### O-5 — SMS as a Pro perk when Twilio lands (carry-over R-4 / P3 #11)
+
+Unchanged: SMS has real per-message cost (~$0.008 US) and is the cleanest "Pro
+pays for what it costs us" lever. Decide gating **in** the SMS bundle (Pro-only
+or low free quota), not free-first-then-clawback.
+
+#### O-6 (flag — lean NO) — Platform "featured event" boost
+
+A host-paid "feature my event at the top of `/events?metro=…`" placement is the
+obvious next ask, and there is **no featured/boost surface today** (confirmed —
+nothing in the events tree). But it sits uncomfortably close to the
+ADR-0014-rejected "platform-sold discovery advertising": it degrades discovery
+quality (pay-to-win ordering) and once one host pays for the top slot, ranking
+decisions are partly defended on boost revenue. **Recommendation: don't ship
+pre-launch.** If ever revisited, gate it hard — clearly labeled "Promoted,"
+host-paid (never platform-sold third-party), capped at one per metro page, and
+never on the event-detail page. The host-owned **sponsor slot** already captures
+the community-safe version of "host pays to promote their thing."
+
+#### O-7 — Recurring memberships (Phase 2 of O-1) — ✅ Shipped 2026-06-08 ([ADR 0037 Phase 2](../adr/0037-season-passes.md))
+
+**Built** the recurring sibling of season passes: a Pro host sells a **monthly
+membership** (`host_membership_plans`); a buyer subscribes via a **Connect
+destination subscription** (Stripe `mode: 'subscription'`, `transfer_data` to the
+host + tiered `application_fee_percent` — the first recurring host-routed flow);
+while their `host_memberships` row is active (`is_active_member`, with the M-2
+past_due backstop) they **claim free spots** on the host's `accepts_pass_credits`
+open-play events via the `claim_membership_spot` RPC (no charge, unlimited).
+Subscription state mirrors from the `customer.subscription.*` webhook
+(`metadata.kind = 'host_membership'`, branched off the Pro path); cancel is
+`cancel_at_period_end` via the Stripe API. Surfaces: host management
+(`/profile/billing/memberships`), the extended event `PassPanel` (member-claim
+takes precedence over credits), buyer `/profile/passes` (cancel), pricing copy.
+`membership-helpers.test.ts` unit-tested; migration `20261001000000` deploy-gated.
+**Deferred:** annual interval; credit-refill variant; membership income in the
+earnings page / tax CSV; buyer-paid platform fee.
+
+#### O-9 — Per-event waiver acknowledgement + signature tracking — ✅ Shipped 2026-06-08 (free, soft)
+
+**Reality-checked + reframed:** hosts who care about liability already have their
+own waiver (insurer / sanctioning body / DocuSign) and often collect signatures
+in person — so this is **not** a legal-waiver substitute. It's a free-for-any-host,
+**soft** (never blocks sign-up) tool to (a) **link the host's own waiver**
+(`event_waivers.external_url`) and/or paste rules text, with an online click-wrap
+**acknowledgement** (`waiver_signatures method='self'`, self-RLS, versioned), and
+(b) let the host **manually track who signed in person** at their discretion
+(`method='in_person'`, free-text name, `recorded_by` = host, admin client) — the
+edit panel lists all signatures (Online / In person) with remove. **Not
+monetized** (the maintainer chose not to paywall a safety tool). Migration
+`20261005000000_event_waivers.sql`. **Deferred (possible premium hooks):**
+hard-gating registration on a signature, team/tournament (captain-vs-player)
+waivers, signed-PDF export.
+
+#### O-8 (catalogued, not started) — white-label event branding
+
+Pro-host custom event-page branding (logo/colors), a low-cost vanity perk that
+doesn't touch the attendee's wallet. Net-new feature build; not yet scoped.
+
+### Reaffirmed — the engine and the guardrails still hold
+
+The "What NOT to do" list below (no platform-sold ads, no clawback of free
+features, no chat/DM paywall, no per-metro price discrimination, no churning the
+$10 / 5% / 2.5% levers pre-launch) is unchanged and reaffirmed. ADR 0014's
+success-criteria triggers remain the only sanctioned reason to move price.
+
+---
+
 ## Status — 2026-05-31 — Re-evaluation (post chat / media / live-scoring / MapTiler)
 
 **Trigger:** a week of feature shipping since the 2026-05-24 audit — chat /
@@ -241,6 +768,15 @@ Quick-reference table. Detailed findings follow below.
 ---
 
 ## Today's monetization surface (the factual picture)
+
+> **Historical snapshot (2026-05-24/27).** The sections below predate the
+> collectible-badges surface and the tips→0% change. The **current** monetization
+> surface — Pro perk set incl. collectible event badges ($5/event à-la-carte /
+> Pro-included), sponsor slot ($3/event à-la-carte / Pro-included), 0% tips, and
+> the centralized à-la-carte prices in `lib/pro.ts` — is summarized in the
+> [2026-06-08 re-audit status block](#status--2026-06-08--re-audit-code-quality--stale-code--opportunity-pass)
+> at the top of this file (M-3 / M-4). The Pro perk list is authoritatively the
+> one rendered on the pricing page.
 
 ### Pro Host subscription
 
@@ -794,6 +1330,184 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — SP-8/SP-9/SP-10 fixed: sponsor slot fully closed (uncommitted).**
+  SP-8 — extracted `guardManage(eventId, userId)` in
+  [sponsor-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts):
+  maps `NotFoundError`/`UnauthorizedError` to flash codes and **re-throws**
+  anything else (a DB failure no longer masquerades as "unauthorized"); the three
+  actions now call it instead of copy-pasting a catch block. SP-9 — dropped the
+  misleading "(Pro)" from the panel header and moved the "Pro or $3/event"
+  framing into the subtext (derived from `SPONSOR_SLOT_UNLOCK_CENTS`). SP-10 —
+  new `sponsor-actions.test.ts` (7 tests) pins the gate branch selection
+  (non-manager → unauthorized; Pro → save; free+paid → save; free+unpaid → `pro`
+  with **no write**; the SP-8 re-throw; and SP-2's ungated removal deleting only
+  the content row). `pnpm typecheck && lint && test && build` green. **Sponsor
+  slot SP-1…SP-10 all closed.**
+
+- **2026-06-08 — SP-1/SP-2 fixed: sponsor entitlement decoupled from content (uncommitted; migration deploy-gated).**
+  New migration `20261006000000_event_sponsor_access.sql` adds a per-event
+  `event_sponsor_access` entitlement table mirroring `event_badge_access` (RLS
+  on, no client policies — webhook-written, admin-read). The 5 entitlement
+  columns (`access_kind`, `purchased_by_user_id`, `stripe_*`, `paid_at`) were
+  dropped from `event_sponsors` after backfilling existing paid à-la-carte rows.
+  App layer: the `sponsor_slot` webhook now calls `unlockSponsorSlot` (access)
+  then `upsertSponsorSlot` (content-only); `removeSponsor` deletes only the
+  content row and is **no longer entitlement-gated** (SP-2 — a lapsed-Pro host
+  can delete their own sponsor); the edit-page/action gate reads `paid_at` from
+  the new table via the admin client. Domain port split into `PaidSponsorSlot`
+  (content) + `PaidSponsorAccess` (entitlement). `database.types.ts` hand-edited
+  to match (will be regenerated on the next deployed `gen:types`). Repo + webhook
+  unit tests pin the split (incl. a guard that the content write carries no
+  `access_kind`/`paid_at`). `pnpm typecheck && lint && test && build` green.
+  **Open: SP-8 (shared `guardManage()` helper), SP-9 (header copy), SP-10
+  (server-action gate test).**
+
+- **2026-06-08 — Sponsor slot focused audit + P3 quick wins (uncommitted).**
+  Authored the "Sponsor slot focused audit" status block at the top (SP-1…SP-10).
+  Applied all five P3 quick wins this pass: SP-3 (`text-destructive` →
+  `text-md-error` in `sponsor-logo-upload.tsx` — the token was undefined, so the
+  hover/error text had no color), SP-4 (`$3` in `sponsor-panel.tsx` now derived
+  from `SPONSOR_SLOT_UNLOCK_CENTS`), SP-5 (`object-cover` → `object-contain` on
+  the logo preview + public render so wide logos aren't cropped), SP-6 (removed
+  dead `disabled={false}`), SP-7 (Remove button → `neutralButtonClass`).
+  **Left open: SP-1/SP-2 (P2 — entitlement welded to the content row → re-charge
+  on remove + lapsed-Pro hosts can't remove; fix = decouple à la
+  `event_badge_access`), SP-8 (shared `guardManage()` helper), SP-9 (header
+  copy), SP-10 (server-action gate test).**
+
+- **2026-06-08 — O-9 shipped: waiver acknowledgement + signature tracking (free + soft; uncommitted, migration deploy-gated).**
+  Reality-checked after a maintainer note (hosts have their own waivers + collect
+  in person), so **reframed**: not a legal substitute. Free for any host, **soft**
+  (never blocks registration — touches no payment/registration path). Host links
+  their own waiver (`event_waivers.external_url`) and/or pastes rules text;
+  attendees click-wrap **acknowledge** online (`waiver_signatures method='self'`,
+  self-RLS, versioned); host **manually records in-person signers** by name
+  (`method='in_person'`, free-text, admin client) and sees the full list with
+  remove. **Not monetized** (maintainer's call — don't paywall safety). New:
+  migration `20261005000000_event_waivers.sql`, `lib/waivers.ts`,
+  `edit/waiver-actions.ts` + `event-waiver-panel.tsx`, `waiver-actions.ts` +
+  `_components/event-waiver-section.tsx` (injected on the event page). No ADR
+  (small, free, non-architectural). Quad-green. Deferred (possible premium
+  hooks): hard-gate, team waivers, signed-PDF export. **Open: O-5 (SMS/Twilio),
+  O-8 (white-label).**
+
+- **2026-06-08 — O-2a/b/c shipped: the deferred Club perks ([ADR 0038 follow-up](../adr/0038-group-payouts-club-tier.md), uncommitted; migration deploy-gated).**
+  - **O-2a (multi-admin Pro):** new `user_has_club_benefits` RPC (migration
+    `20261004000000_club_member_pro_benefits.sql`); `hasProBenefits`
+    ([admin.ts](../../apps/web/src/lib/admin.ts)) now ORs in Club owner/admin
+    benefits (`lib/club.ts` `hasClubProBenefits`) alongside subscription / admin /
+    referral comp. Owner/admin only.
+  - **O-2b + O-2c (one dashboard):** `/groups/[slug]/analytics` (owner/admin +
+    Club) — engagement (`host_group_id`) + club payout income (`payout_group_id`,
+    gross/net/est-payout + per-event); admin-client reads, reuses the earnings
+    ledger helpers. Linked from group billing.
+  - Quad-green. Closes the O-2 deferral list. Open: O-5, O-8, O-9.
+
+- **2026-06-08 — O-3 + O-4 shipped; Club follow-ups tracked ([ADR 0039](../adr/0039-referrals-pro-grants.md), uncommitted; O-3 migration deploy-gated).**
+  - **O-3 (referrals + comped Pro):** `/r/<userId>` link → first-touch
+    attribution at signup (auth callback, new-accounts-only) → referred host
+    publishes ≥3 paid events → referrer earns 30d Pro as a `pro_grants` row that
+    `hasProBenefits` honors (comp, no Stripe coupon; stacks). New: migration
+    `20261003000000_referrals_pro_grants.sql`, `lib/{referrals,pro-grants}.ts`,
+    `hasProBenefits` extended, `/r/[code]` route, auth-callback + `new/actions`
+    hooks, Pro-page referral section + comped-Pro note, hand-edited types, ADR 0039.
+  - **O-4 (conversion, no new product):** proactive cap-hit upgrade banner on
+    `/events/new` for capped free hosts; annual de-emphasizes monthly + "Best
+    value" framing on the Pro billing page.
+  - **Club follow-ups tracked** as O-2a (multi-admin Pro), O-2b (club analytics),
+    O-2c (club payout income in earnings — P2) in the Opportunities section, plus
+    O-8/O-9 catalogued. Quad-green. Open: O-5 (SMS/Twilio), O-2a/b/c, O-8, O-9.
+
+- **2026-06-08 — O-2 shipped: Club tier + group payouts ([ADR 0038](../adr/0038-group-payouts-club-tier.md), uncommitted; migration deploy-gated).**
+  The highest-risk bundle (touches money routing — payments.md "read before
+  touching"). v1 = pooled payouts only. A group subscribes to **Club** (~$25/mo,
+  Stripe Billing on the platform; `group_subscriptions` + `is_club_group`),
+  connects its **own** Connect account (`group_stripe_accounts`; onboarding mirrors
+  the host flow, `owner_type='group'` metadata branches the `account.updated`
+  webhook), and opts group-hosted events to it via `events.payout_group_id`. The
+  per-event flows (ticket/team/tip/roster-team) now resolve through
+  `getEventPayoutAccount(eventId, hostId)` — **never falls back to host** if the
+  club account isn't charges-enabled; routing frozen once a registration is paid;
+  existing + non-opted events route to `host_id` unchanged; platform fee still
+  keys on the host user. New: migration `20261002000000_group_payouts_club.sql`,
+  `lib/{group-stripe-account,club,event-payout}.ts`, `groups/[id]/billing/`
+  (page + actions), `events/[id]/edit/payout-actions.ts` + edit panel, webhook
+  branches (`account.updated` group + subscription `kind=club`), 4 checkout-site
+  swaps, hand-edited DB types. Docs: payments.md (TL;DR + routing + resolved the
+  open limitation), AGENTS Pattern 7 amended, features.md, pricing FAQ.
+  Quad-green. Deferred: multi-admin Pro, club analytics, club income in the
+  per-user earnings page. O-3/O-4/O-5/O-8/O-9 remain open.
+
+- **2026-06-08 — O-7 shipped: recurring memberships (Phase 2 of O-1; [ADR 0037 Phase 2](../adr/0037-season-passes.md), uncommitted; migration deploy-gated).**
+  A Pro host sells a monthly membership (`host_membership_plans`); a buyer
+  subscribes via a **Connect destination subscription** (`mode: 'subscription'`,
+  `transfer_data` + tiered `application_fee_percent` — the first recurring
+  host-routed flow); while active (`is_active_member`, M-2 past_due backstop) they
+  **claim free spots** on the host's `accepts_pass_credits` open plays via
+  `claim_membership_spot` (no charge, unlimited). Subscription state mirrors from
+  the `customer.subscription.*` webhook (branched on `metadata.kind =
+'host_membership'`); cancel = `cancel_at_period_end` via Stripe API. New:
+  migration `20261001000000_host_memberships.sql`, `lib/memberships.ts` +
+  `lib/membership-helpers.ts` (+ test), host plan CRUD
+  (`profile/billing/memberships/actions.ts`), buyer subscribe/claim/cancel
+  (`events/[id]/membership-actions.ts`), the webhook branch, host management page,
+  buyer `/profile/passes` (now "Passes & memberships" with cancel), extended
+  `PassPanel` (member-claim precedence), pricing/features/payments copy,
+  hand-edited DB types, `host_membership.changed` audit action. Quad-green.
+  Deferred: annual interval, credit-refill variant, earnings/CSV, buyer-paid fee.
+  Also catalogued **O-8** (white-label branding) / **O-9** (waiver e-sign) as
+  not-started.
+
+- **2026-06-08 — O-1 shipped: season passes ([ADR 0037](../adr/0037-season-passes.md), uncommitted; migration deploy-gated).**
+  Built the strongest opportunity to a v1 vertical. A Pro host sells a prepaid
+  credit pack (`host_passes`); a buyer purchases it as a **destination charge to
+  the host** (`pass_purchases`, tiered platform fee — host-routed, unlike the
+  platform-direct sponsor/badge unlocks); the host opts open-play events into
+  `events.accepts_pass_credits`; the buyer redeems a credit to reserve a spot via
+  the atomic `redeem_pass_credit` SECURITY DEFINER RPC (capacity trigger fires,
+  zero charge); cancelling returns the credit (participant-delete cascade → the
+  `event_participant_payments` AFTER DELETE trigger decrements `credits_used`).
+  New: migration `20260930000000_season_passes.sql`, `lib/passes.ts` +
+  `lib/pass-helpers.ts` (+ `pass-helpers.test.ts`), host actions
+  (`profile/billing/passes/actions.ts`), buyer actions
+  (`events/[id]/pass-actions.ts`), `pass_purchase` webhook fulfillment in
+  `webhooks/checkout.ts`, host management page, buyer `/profile/passes`,
+  event-detail `PassPanel`, event-edit opt-in, pricing copy, hand-edited DB
+  types. Hand-edited types flagged for regen on next `gen:types`.
+  `pnpm typecheck && lint && test && build` green. Deferred: earnings/CSV
+  ledger integration, buyer-paid fee line, post-purchase banner (PassPanel is
+  the feedback). O-2…O-6 remain open.
+
+- **2026-06-08 — Re-audit + all five code/gap findings fixed (uncommitted; M-2
+  migration deploy-gated).** Re-ran the monetization lens with a code-correctness
+  layer (status block at top). Shipped:
+  - **M-2 (P2, bug)** — `is_pro_host` past_due grace had no period-end backstop →
+    indefinite free Pro if Stripe dunning is misconfigured. New migration
+    [20260929000000_is_pro_host_period_end_backstop.sql](../../supabase/migrations/20260929000000_is_pro_host_period_end_backstop.sql)
+    self-expires a past_due row ~30d past `current_period_end`; required Stripe
+    "cancel after retries" dunning setting documented in
+    [integrations.md § Stripe](../integrations.md#stripe). Signature unchanged,
+    no type regen.
+  - **M-3 (P3, stale)** — centralized `SPONSOR_SLOT_UNLOCK_CENTS` ($3) +
+    `BADGE_SLOT_UNLOCK_CENTS` ($5) in [pro.ts](../../apps/web/src/lib/pro.ts);
+    [sponsor-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts) /
+    [badge-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/badge-actions.ts)
+    import them; pricing + Pro page copy now derive the dollar figure (6 hand-typed
+    literals removed).
+  - **M-3b (P3, gap)** — documented the deliberate no-ledger-row decision for the
+    sponsor/badge unlocks in [checkout.ts](../../apps/web/src/lib/webhooks/checkout.ts)
+    (they're platform revenue, excluded from host earnings; category reserved for
+    forward-compat only).
+  - **M-4 (P2, gap)** — [ADR 0014](../adr/0014-monetization-strategy.md) amendment
+    records badges as a Pro perk + the centralized à-la-carte prices; the stale
+    "Today's monetization surface" section is flagged historical, pointing to the
+    2026-06-08 status block.
+  - **M-5 (P2, gap)** — [payments.md](../payments.md#platform-direct-charges-not-host-routed)
+    gained a "Platform-direct charges (NOT host-routed)" section covering the two
+    slot unlocks + the Pro subscription (no Connect destination, no host onboarding).
+  - **Opportunities O-1…O-6 left open** for a later strategy pass (O-1 season
+    passes is the strongest). `pnpm typecheck && lint && test && build` green.
 
 - **2026-06-01 — R-2 resolved (Path A, cost-control — no paywall).** Premise
   corrected first: ADR 0024 "media" is external links (≈$0 storage); avatar/hero/
