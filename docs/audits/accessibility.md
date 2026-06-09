@@ -1,5 +1,24 @@
 # Accessibility audit — 2026-05-17
 
+> **Status update (2026-06-09, re-audit — legal/footer + post-monetization
+> surface):** Light re-sweep the day after the 2026-06-08 monetization pass,
+> covering the just-shipped legal/footer rework (privacy / terms / refunds, the
+> `/legal/accessibility` statement, the consent banner, the footer) plus a
+> fresh anti-pattern grep across `apps/web`. **The audit is in excellent shape**
+> — every ratchet is holding (`text-destructive` → 0 real uses,
+> `<th>`-without-`scope` → 0, weak `focus:ring-1` → 0, `focus:outline-none`
+> without a `focus-visible` replacement → 0), the 2026-06-07 semantic-color
+> migration is effectively complete (`text-red-600` → 0), the legal pages carry
+> a clean h1→h2→h3 hierarchy with real list semantics, and the consent
+> banner/footer are well-formed (labelled `role="region"`, `<h2>` footer
+> columns, the accessibility statement linked). Only **2 minor new P3s
+> (D1–D2)** surfaced — the scoreboard save-bar status isn't announced + uses raw
+> palette, and the public-profile follow toggle skipped the `aria-pressed`
+> convention. **No P1/P2 this pass.** The two carried-over backlog refactors
+> (**C7** Radix-dialog migration, **C8** shared Combobox + end-to-end AT
+> testing) stay open. Full write-up in
+> **[2026-06-09 re-audit findings](#2026-06-09-re-audit--legal--post-monetization-surface)**.
+
 > **Status update (2026-06-08, re-audit remediated):** All six re-audit findings
 > are now **fixed and `pnpm typecheck && lint && test && build` green** (1108
 > unit tests). **C1** — swapped the dead `text-destructive` token →
@@ -723,6 +742,110 @@ focus-visible:ring-offset-2 focus-visible:ring-primary`. These hand-rolled
   all use a wrapping `<label>` or an explicit `aria-label` (e.g. "Home team").
 - **`off-platform-upsell`** — `<aside aria-label>` + an `aria-label`'d Dismiss
   button.
+
+---
+
+## 2026-06-09 re-audit — legal / post-monetization surface
+
+Static review (Tailwind-class + JSX inspection; no AT/keyboard runtime testing)
+the day after the 2026-06-08 monetization/chat/media/games pass. Covered the
+newly-reworked legal + footer surface (privacy / terms / refunds pages, the
+`/legal/accessibility` statement, the `ConsentBanner`, `SiteFooter`) and a fresh
+anti-pattern grep across `apps/web`. Same WCAG 2.1 AA / Section 508 bar; grading
+per the [audits rubric](README.md).
+
+### What's holding (regression guards + prior fixes verified)
+
+- **`text-destructive` ratchet (C1) is holding** — the only `destructive` hits
+  are the `FormModal`/`ConfirmSubmitButton` JSX prop and code comments; **zero**
+  dead-token class strings. The `no-restricted-syntax` Literal + TemplateElement
+  rules in [eslint.config.mjs](../../apps/web/eslint.config.mjs) are in place.
+- **`<th scope>` ratchet (A1) is holding** — a fresh walk of every `<th>` in the
+  tree returns **0** without a `scope`, across the now-much-larger table surface
+  (club analytics, billing analytics, standings, receipts, schedule).
+- **Semantic-color migration effectively complete** — `text-red-600` → **0**.
+  The only raw status palette left is the scoreboard save-bar (D1 below) and the
+  intentionally-decorative `timer-view` expired pulse (documented in C2).
+- **Focus rings** — `focus:ring-1` → **0**, and `focus:outline-none` without a
+  `focus-visible` replacement → **0**; the 2026-06-08 C3 regression stayed fixed.
+- **Legal / footer surface** — privacy/terms/refunds carry a clean h1→h2→h3
+  hierarchy with no skips and real `<ul>` list semantics (the `LegalLayout`
+  styles all three heading levels). `ConsentBanner` is a labelled `role="region"`
+  with two real `type="button"` controls; `SiteFooter` uses `<h2>` column titles
+  and now links the `/legal/accessibility` statement. No positive `tabIndex`
+  anywhere in the tree.
+
+### P3 findings
+
+#### D1. Scoreboard match save-bar status isn't announced; success/error use raw palette
+
+- **Where:**
+  [scoreboard-view.tsx#L585](../../apps/web/src/app/tools/scoreboard/[code]/_components/scoreboard-view.tsx#L585)
+  (`Saved ✓`, `text-emerald-500`) and
+  [#L592](../../apps/web/src/app/tools/scoreboard/[code]/_components/scoreboard-view.tsx#L592)
+  (`{error && <span … text-red-400>`), inside the plain `<div>` save-bar wrapper
+  at [~L566](../../apps/web/src/app/tools/scoreboard/[code]/_components/scoreboard-view.tsx#L566).
+- **Issue:** When a host saves a scheduled-match result from this bar (the
+  fallback surface that stays after the `WinnerOverlay` is dismissed), the
+  "Saved ✓" confirmation and the save-failure error render into a plain `<div>`
+  with **no `role="status"`/`role="alert"`/`aria-live`** — so a keyboard / SR
+  user gets no spoken confirmation or failure, and can't tell whether the save
+  landed. The 2026-06-03 A3 fix gave the **primary** save surface
+  (`WinnerOverlay`) a dialog role + focus move, and A5 gave chat a live region,
+  but this inline status bar was never covered. Separately the two states use
+  raw `text-emerald-500` / `text-red-400` instead of the M3 `text-md-success` /
+  `text-md-error` role tokens — and `text-red-400` (`#f87171`) on the **white**
+  scoreboard theme is well under the 4.5:1 AA floor for this small-text label.
+- **WCAG:** 4.1.3 Status Messages, 1.4.3 Contrast (Minimum).
+- **Fix:** Wrap the right-hand status group in a polite live region —
+  `role="status" aria-live="polite"` on the success branch, `role="alert"` on
+  the error `<span>` — so the save outcome is announced. Swap
+  `text-emerald-500` → `text-md-success` and `text-red-400` → `text-md-error`
+  (the role tokens are contrast-tuned for both the black and white scoreboard
+  themes, per AGENTS.md §17). Low stakes — the `WinnerOverlay` is the primary
+  save path — hence P3.
+
+#### D2. Public-profile follow/message toggle skips the `aria-pressed` convention + explicit `type`
+
+- **Where:**
+  [player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx)
+  — the `✓ Following` / `+ Follow` toggle (~L156–L168) and the `Message` button.
+- **Issue:** The follow toggle conveys its state by swapping the label/icon
+  (`+ Follow` ↔ `✓ Following`) but exposes **no `aria-pressed`**, unlike the
+  binary-toggle convention the 2026-06-02 A2 / 2026-06-08 C6 fixes standardized
+  on — `players-follow.tsx`, `groups-follow.tsx`, `block-control.tsx`, and the
+  media-card vote chips all carry `aria-pressed`. This newer public-profile CTA
+  island (shipped in the public-profile-ux work) didn't pick it up. The three
+  buttons (Follow/Unfollow, Message) also omit an explicit `type="button"`;
+  they're **not** inside a `<form>` so there's no accidental-submit bug, but it
+  diverges from the repo's "buttons set explicit `type`" convention. The visible
+  label text does change, so the state isn't fully silent to AT — hence P3, not
+  P2.
+- **WCAG:** 4.1.2 Name, Role, Value.
+- **Fix:** Add `aria-pressed={state.isFollowing}` to the follow/unfollow button
+  (match `players-follow.tsx`), and add `type="button"` to all three buttons. No
+  `aria-live` needed — the existing `useToast` already announces follow/unfollow
+  failures.
+
+### Carried-over backlog (unchanged this pass)
+
+- **C7 — Radix-dialog migration of the hand-rolled overlays.** Confirmed still
+  open: **6** hand-rolled `role="dialog"` surfaces remain — the scoreboard
+  `ShareModal` + `WinnerOverlay` (and their interim `useDialogFocusTrap`),
+  [notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx),
+  [share-link.tsx](../../apps/web/src/components/share-link.tsx),
+  [datetime-picker.tsx](../../apps/web/src/components/datetime-picker.tsx), and
+  [mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx) — while
+  [form-modal.tsx](../../apps/web/src/components/form-modal.tsx)
+  (`@radix-ui/react-dialog`, free Escape / focus-trap / return-focus /
+  `aria-labelledby`) already exists in-tree. The interim hand-rolled focus logic
+  is duplicated, hand-maintained a11y where a battle-tested primitive is
+  available. Pure-refactor target — see the 2026-06-08 C7 write-up.
+- **C8 — Shared `Combobox` primitive + end-to-end AT testing.** Unchanged:
+  `address-autocomplete` and `user-picker` still each hand-wire the full
+  WAI-ARIA combobox pattern, and no VoiceOver/NVDA pass has been run against the
+  chat live region, the scoreboard win announcement, or the canvas-game
+  `role="img"` labels. Static review can't judge announcement quality.
 
 ---
 
