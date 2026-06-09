@@ -2177,7 +2177,7 @@ export type Database = {
         Row: {
           created_at: string;
           description: string | null;
-          host_id: string;
+          host_id: string | null;
           id: string;
           price_cents: number;
           status: string;
@@ -2187,7 +2187,7 @@ export type Database = {
         Insert: {
           created_at?: string;
           description?: string | null;
-          host_id: string;
+          host_id?: string | null;
           id?: string;
           price_cents: number;
           status?: string;
@@ -2197,7 +2197,7 @@ export type Database = {
         Update: {
           created_at?: string;
           description?: string | null;
-          host_id?: string;
+          host_id?: string | null;
           id?: string;
           price_cents?: number;
           status?: string;
@@ -2219,9 +2219,9 @@ export type Database = {
           cancel_at_period_end: boolean;
           created_at: string;
           current_period_end: string | null;
-          host_id: string;
+          host_id: string | null;
           id: string;
-          member_user_id: string;
+          member_user_id: string | null;
           plan_id: string;
           status: string;
           stripe_customer_id: string | null;
@@ -2233,9 +2233,9 @@ export type Database = {
           cancel_at_period_end?: boolean;
           created_at?: string;
           current_period_end?: string | null;
-          host_id: string;
+          host_id?: string | null;
           id?: string;
-          member_user_id: string;
+          member_user_id?: string | null;
           plan_id: string;
           status?: string;
           stripe_customer_id?: string | null;
@@ -2247,9 +2247,9 @@ export type Database = {
           cancel_at_period_end?: boolean;
           created_at?: string;
           current_period_end?: string | null;
-          host_id?: string;
+          host_id?: string | null;
           id?: string;
-          member_user_id?: string;
+          member_user_id?: string | null;
           plan_id?: string;
           status?: string;
           stripe_customer_id?: string | null;
@@ -2287,7 +2287,7 @@ export type Database = {
           credit_count: number;
           description: string | null;
           expires_in_days: number | null;
-          host_id: string;
+          host_id: string | null;
           id: string;
           price_cents: number;
           status: string;
@@ -2299,7 +2299,7 @@ export type Database = {
           credit_count: number;
           description?: string | null;
           expires_in_days?: number | null;
-          host_id: string;
+          host_id?: string | null;
           id?: string;
           price_cents: number;
           status?: string;
@@ -2311,7 +2311,7 @@ export type Database = {
           credit_count?: number;
           description?: string | null;
           expires_in_days?: number | null;
-          host_id?: string;
+          host_id?: string | null;
           id?: string;
           price_cents?: number;
           status?: string;
@@ -2331,13 +2331,13 @@ export type Database = {
       pass_purchases: {
         Row: {
           amount_paid_cents: number | null;
-          buyer_user_id: string;
+          buyer_user_id: string | null;
           checkout_session_id: string | null;
           created_at: string;
           credits_total: number;
           credits_used: number;
           expires_at: string | null;
-          host_id: string;
+          host_id: string | null;
           id: string;
           paid_at: string | null;
           pass_id: string;
@@ -2348,13 +2348,13 @@ export type Database = {
         };
         Insert: {
           amount_paid_cents?: number | null;
-          buyer_user_id: string;
+          buyer_user_id?: string | null;
           checkout_session_id?: string | null;
           created_at?: string;
           credits_total: number;
           credits_used?: number;
           expires_at?: string | null;
-          host_id: string;
+          host_id?: string | null;
           id?: string;
           paid_at?: string | null;
           pass_id: string;
@@ -2365,13 +2365,13 @@ export type Database = {
         };
         Update: {
           amount_paid_cents?: number | null;
-          buyer_user_id?: string;
+          buyer_user_id?: string | null;
           checkout_session_id?: string | null;
           created_at?: string;
           credits_total?: number;
           credits_used?: number;
           expires_at?: string | null;
-          host_id?: string;
+          host_id?: string | null;
           id?: string;
           paid_at?: string | null;
           pass_id?: string;

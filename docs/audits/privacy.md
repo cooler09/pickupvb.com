@@ -51,10 +51,11 @@ user-data table lands self/owner-or-host RLS, and the closest-to-#16 surface
 (`waiver_signatures.signed_name`, incl. host-recorded free-text names for
 non-account signers) is correctly gated `auth.uid() = user_id` so a NULL-user
 in-person row is **un-harvestable** via REST — the captain-phone mistake was not
-repeated. Three findings, **all open** (1 P2, 2 P3):
+repeated. Three findings — **#21 (P2) fixed the same day** (2026-06-08); #20 and
+#22 (both P3) remain open:
 
-- **#21 (P2, data preservation + deletion-blocking) — new payment tables CASCADE
-  to `profiles` where every other payment table SET-NULLs.** `pass_purchases` and
+- **#21 (P2, data preservation + deletion-blocking) — FIXED. New payment tables
+  CASCADE'd to `profiles` where every other payment table SET-NULLs.** `pass_purchases` and
   `host_memberships` point `host_id` / `buyer_user_id` / `member_user_id` at
   `profiles` with `ON DELETE CASCADE`, contradicting the P1 #3 rule (every
   financial FK — `event_tips`, `host_stripe_accounts`, `host_subscriptions`,
@@ -610,7 +611,16 @@ cascade`, `member_user_id … on delete cascade`.
   where the cascade fires.
 
 **Category:** data preservation + account-deletion correctness
-**Status:** ⬜ open (graded P2).
+**Status:** ✅ fixed (2026-06-08) — deploy-gated (CI applies the migration).
+[20261006000000_pass_membership_fk_set_null.sql](../../supabase/migrations/20261006000000_pass_membership_fk_set_null.sql)
+flips all six profiles-referencing FKs on `host_passes` / `host_membership_plans`
+/ `pass_purchases` / `host_memberships` to `ON DELETE SET NULL` (+ `drop not
+null`), so a deleted user's product/purchase rows survive (preserved for
+reconciliation, invisible to live readers — every read filters `.eq(<col>, uid)`)
+and nothing cascade-deletes through the product table, dissolving the
+`pass_id` / `plan_id` RESTRICT deadlock. `redeem_pass_credit`'s ownership guard
+was hardened `<>` → `is distinct from` so a now-nullable buyer can't slip past it.
+No RLS / read-code change needed. See the remediation log.
 
 P1 #3 established that **every** payment/financial FK to `profiles` is
 `ON DELETE SET NULL`, so the records survive an account deletion for tax /
@@ -1104,6 +1114,46 @@ RLS than UI.
   this gets a separate audit.
 
 ## Remediation log
+
+### 2026-06-08 — #21: pass / membership FKs CASCADE → SET NULL
+
+[20261006000000_pass_membership_fk_set_null.sql](../../supabase/migrations/20261006000000_pass_membership_fk_set_null.sql).
+Flips the six `profiles`-referencing FKs that the season-pass / host-membership
+bundles wrongly created as `ON DELETE CASCADE` — `host_passes.host_id`,
+`host_membership_plans.host_id`, `pass_purchases.host_id` +`.buyer_user_id`,
+`host_memberships.host_id` + `.member_user_id` — to `ON DELETE SET NULL`, each
+paired with `alter column … drop not null` and a drop+re-add of the inline
+`*_fkey` constraint. This brings the new payment tables in line with the P1 #3
+rule (every other payment FK is `SET NULL`) so:
+
+- **Records survive account deletion.** A deleted buyer/member/host leaves the
+  product + purchase rows intact with the user nulled — the platform's only
+  ledger of pass sales (passes aren't in `event_payment_audit` in v1) is no
+  longer destroyed, and live readers never see the orphan (every read filters
+  `.eq(host_id|buyer_user_id|member_user_id, uid)`, which a NULL can't match).
+- **The purge can't deadlock.** Nothing cascade-deletes through `host_passes` /
+  `host_membership_plans` anymore, so the `pass_purchases.pass_id` /
+  `host_memberships.plan_id` `RESTRICT` FKs can't trip mid-cascade and abort
+  `auth.admin.deleteUser` (which would have stranded the user's email in
+  `auth.users` after the request was already marked `executed`).
+
+The one SQL consequence of the new nullability: `redeem_pass_credit`'s ownership
+guard `v_purchase.buyer_user_id <> v_uid` would yield `NULL` (not `TRUE`) for an
+orphaned purchase and fall through, so it's re-created (otherwise byte-identical
+to 20260930000000) with `is distinct from`, which rejects a NULL buyer.
+`claim_membership_spot` needs no change — it matches on `member_user_id = v_uid`,
+which a NULL can't satisfy. No RLS policy change (the `auth.uid() = <col>`
+policies already filter a NULL row out) and **no app-code change** — the read
+facades ([lib/passes.ts](../../apps/web/src/lib/passes.ts) /
+[lib/memberships.ts](../../apps/web/src/lib/memberships.ts)) use hand-written row
+types + concrete-uid filters and never join `profiles` for a counterparty name.
+
+Generated types hand-edited to mark the six columns nullable (Row `string |
+null`, Insert/Update `?: string | null`) per the AGENTS.md migration convention —
+regenerated against the deployed schema on the next `gen:types`. Verify quad
+green: typecheck 15/15, lint 0 errors (3 pre-existing warnings), test 353 passed,
+build 8/8. The migration is reasoned-about-only (migrations policy) and applied
+by CI on deploy.
 
 ### 2026-06-07 — #16 + #17 + #18 + #19 (post-audit feature-sweep bundle)
 
