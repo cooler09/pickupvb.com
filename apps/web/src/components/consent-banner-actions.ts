@@ -42,3 +42,16 @@ export async function setConsentDecision(input: DecisionInput): Promise<void> {
   });
   revalidatePath('/');
 }
+
+/**
+ * Re-open the consent banner. Clears the `pickupvb_consent` cookie so the
+ * root layout (which mounts the banner only when no decision is recorded)
+ * shows it again on the next render, letting the user revisit their choice
+ * without clearing all site cookies (which would also sign them out).
+ * Wired to the "Cookie preferences" control in the site footer.
+ */
+export async function reopenConsent(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete({ name: CONSENT_COOKIE, path: '/' });
+  revalidatePath('/');
+}

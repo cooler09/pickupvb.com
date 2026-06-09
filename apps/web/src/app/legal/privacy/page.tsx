@@ -1,11 +1,14 @@
 import type { Metadata } from 'next';
 
+import { LEGAL_LAST_UPDATED } from '../legal-meta';
+
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: 'How PickupVB collects, uses, and protects your information.',
+  alternates: { canonical: '/legal/privacy' },
 };
 
-const LAST_UPDATED = 'May 26, 2026';
+const LAST_UPDATED = LEGAL_LAST_UPDATED.privacy;
 const COMPANY = 'Zachary Lockhart Consulting, LLC';
 const BRAND = 'PickupVB';
 const PRIVACY_EMAIL = 'privacy@pickupvb.com';
@@ -72,6 +75,12 @@ export default function PrivacyPage() {
           <strong>Error telemetry:</strong> we use Sentry to capture errors that occur in the
           Service. This includes the URL, a stack trace, and your user identifier; we do not include
           passwords, payment data, or message contents.
+        </li>
+        <li>
+          <strong>Push notification subscription:</strong> if you enable browser or device push
+          notifications, we store the push subscription your browser issues (an endpoint URL and
+          public keys) so we can deliver notifications. You can revoke it at any time from your
+          browser or device settings.
         </li>
       </ul>
 
@@ -174,9 +183,10 @@ export default function PrivacyPage() {
         The first time you visit the Service you&apos;ll see a consent banner with two choices:{' '}
         <strong>Accept</strong> (first-party analytics on) or <strong>Decline</strong>
         (analytics suppressed at the server adapter). Your choice is stored in a
-        <code> pickupvb_consent</code> cookie for 180 days; you can change it at any time by
-        clearing site cookies, and we honor the <em>Global Privacy Control</em> (GPC) signal as a
-        default-deny for analytics until you explicitly accept.
+        <code> pickupvb_consent</code> cookie for 180 days; you can change it at any time using the{' '}
+        <strong>Cookie preferences</strong> link in the site footer, and we honor the{' '}
+        <em>Global Privacy Control</em> (GPC) signal as a default-deny for analytics until you
+        explicitly accept.
       </p>
       <p>
         You can also disable cookies in your browser settings, but the Service may not function
@@ -198,13 +208,17 @@ export default function PrivacyPage() {
       </p>
       <ul>
         <li>
-          <strong>Notification delivery records</strong> (the rendered email / SMS body and the
-          delivery address for messages we sent on your or another user&apos;s behalf): purged 90
-          days after successful delivery, or 30 days after a permanent delivery failure.
+          <strong>Notification delivery records</strong> (the rendered email body and the delivery
+          address for messages we sent on your or another user&apos;s behalf): purged 90 days after
+          successful delivery, or 30 days after a permanent delivery failure.
         </li>
         <li>
           <strong>In-app notifications</strong> in your inbox: purged 30 days after you read them,
           or 180 days after they were created if still unread.
+        </li>
+        <li>
+          <strong>Push notification subscriptions</strong>: purged 90 days after they were last used
+          to send you a notification.
         </li>
         <li>
           <strong>Marketing attribution data</strong> (the referral source captured when you first

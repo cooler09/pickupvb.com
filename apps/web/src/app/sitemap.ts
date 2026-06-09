@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { IS_PROD_HOST, PROD_APP_URL } from '@/lib/app-url';
+import { legalLastUpdatedDate } from './legal/legal-meta';
 
 const BASE = PROD_APP_URL;
 
@@ -80,10 +81,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     },
     // Stable legal pages — footer-linked, so Google finds them anyway, but
-    // advertising them in the sitemap closes the discovery gap.
-    { url: `${BASE}/legal/privacy`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
-    { url: `${BASE}/legal/terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
-    { url: `${BASE}/legal/refunds`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
+    // advertising them in the sitemap closes the discovery gap. `lastModified`
+    // tracks each page's real document date (legal-meta.ts), not build time.
+    {
+      url: `${BASE}/legal/privacy`,
+      lastModified: legalLastUpdatedDate('privacy'),
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
+    {
+      url: `${BASE}/legal/terms`,
+      lastModified: legalLastUpdatedDate('terms'),
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
+    {
+      url: `${BASE}/legal/refunds`,
+      lastModified: legalLastUpdatedDate('refunds'),
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
+    {
+      url: `${BASE}/legal/accessibility`,
+      lastModified: legalLastUpdatedDate('accessibility'),
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
   ];
 
   let dynamicRoutes: MetadataRoute.Sitemap = [];
