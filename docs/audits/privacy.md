@@ -612,7 +612,7 @@ cascade`, `member_user_id … on delete cascade`.
 
 **Category:** data preservation + account-deletion correctness
 **Status:** ✅ fixed (2026-06-08) — deploy-gated (CI applies the migration).
-[20261006000000_pass_membership_fk_set_null.sql](../../supabase/migrations/20261006000000_pass_membership_fk_set_null.sql)
+[20261006000100_pass_membership_fk_set_null.sql](../../supabase/migrations/20261006000100_pass_membership_fk_set_null.sql)
 flips all six profiles-referencing FKs on `host_passes` / `host_membership_plans`
 / `pass_purchases` / `host_memberships` to `ON DELETE SET NULL` (+ `drop not
 null`), so a deleted user's product/purchase rows survive (preserved for
@@ -1211,7 +1211,7 @@ Pure app code (route + test) — no migration, no schema change.
 
 ### 2026-06-08 — #21: pass / membership FKs CASCADE → SET NULL
 
-[20261006000000_pass_membership_fk_set_null.sql](../../supabase/migrations/20261006000000_pass_membership_fk_set_null.sql).
+[20261006000100_pass_membership_fk_set_null.sql](../../supabase/migrations/20261006000100_pass_membership_fk_set_null.sql).
 Flips the six `profiles`-referencing FKs that the season-pass / host-membership
 bundles wrongly created as `ON DELETE CASCADE` — `host_passes.host_id`,
 `host_membership_plans.host_id`, `pass_purchases.host_id` +`.buyer_user_id`,
