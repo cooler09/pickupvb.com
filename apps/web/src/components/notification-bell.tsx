@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import * as RadixPopover from '@radix-ui/react-popover';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
@@ -38,7 +39,6 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationRow[]>(initialItems);
   const [unread, setUnread] = useState(initialUnreadCount);
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // New notifications stream in over the shared private Broadcast channel
   // (ADR 0027: `notifications:<userId>`). The channel is owned by
@@ -54,23 +54,6 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
       }),
     [userId],
   );
-
-  // Close on outside click / escape.
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
 
   // Mark unread read when the popover opens. Update *every* unread row for the
   // user (RLS scopes the write to `auth.uid()`), not just the ≤20 in view — a
@@ -95,39 +78,40 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
   const badge = useMemo(() => (unread > 99 ? '99+' : String(unread)), [unread]);
 
   return (
-    <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
-        className="tap-target text-fg/70 hover:bg-fg/5 hover:text-primary focus-visible:ring-primary relative rounded-md transition-colors focus:outline-none focus-visible:ring-2"
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+    <RadixPopover.Root open={open} onOpenChange={setOpen}>
+      <RadixPopover.Trigger asChild>
+        <button
+          type="button"
+          aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
+          className="tap-target text-fg/70 hover:bg-fg/5 hover:text-primary focus-visible:ring-primary relative rounded-md transition-colors focus:outline-none focus-visible:ring-2"
         >
-          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-        </svg>
-        {unread > 0 && (
-          <span className="bg-primary ring-surface text-primary-fg absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2">
-            {badge}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div
-          role="dialog"
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </svg>
+          {unread > 0 && (
+            <span className="bg-primary ring-surface text-primary-fg absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2">
+              {badge}
+            </span>
+          )}
+        </button>
+      </RadixPopover.Trigger>
+      <RadixPopover.Portal>
+        <RadixPopover.Content
+          align="end"
+          sideOffset={8}
           aria-label="Notifications"
-          className="border-border-base bg-md-surface-container rounded-shape-sm absolute right-0 z-50 mt-2 w-80 overflow-hidden border shadow-lg"
+          className="md-popover-motion border-border-base bg-md-surface-container rounded-shape-sm z-50 w-80 overflow-hidden border shadow-lg"
         >
           <div className="border-border-base flex items-center justify-between border-b px-3 py-2">
             <span className="text-sm font-semibold">Notifications</span>
@@ -167,8 +151,8 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
               })}
             </ul>
           )}
-        </div>
-      )}
-    </div>
+        </RadixPopover.Content>
+      </RadixPopover.Portal>
+    </RadixPopover.Root>
   );
 }

@@ -1151,6 +1151,28 @@ body {
 }
 
 /*
+ * ============================================================================
+ *  M3 popover motion (Bundle 6 — accessibility audit C7).
+ *
+ *  Applied to Radix `Popover.Content` via `.md-popover-motion`. Same
+ *  anchor-origin scale-in as the menu — reuses the `md-menu-enter` /
+ *  `md-menu-exit` keyframes — but reads the popover popper's own
+ *  transform-origin var. Used by the notification bell and the share menu.
+ * ============================================================================
+ */
+.md-popover-motion {
+  transform-origin: var(--radix-popover-content-transform-origin);
+}
+.md-popover-motion[data-state='open'] {
+  animation: md-menu-enter var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-emphasized-decelerate);
+}
+.md-popover-motion[data-state='closed'] {
+  animation: md-menu-exit var(--md-sys-motion-duration-short3)
+    var(--md-sys-motion-easing-emphasized-accelerate);
+}
+
+/*
  * Honor `prefers-reduced-motion` globally — defangs all CSS transitions /
  * animations / smooth-scroll for users who request it. Per-component motion
  * (e.g. `match-flash` above) can still opt back in with a deliberate

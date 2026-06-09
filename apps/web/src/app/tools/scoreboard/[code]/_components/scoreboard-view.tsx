@@ -1,14 +1,7 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-  type RefObject,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import * as RadixDialog from '@radix-ui/react-dialog';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useScoreboardSync } from '../../_lib/use-scoreboard-sync.js';
@@ -44,67 +37,6 @@ type Props = {
 type LocalTheme = 'light' | 'dark';
 
 const THEME_STORAGE_KEY = 'pickupvb:scoreboard:theme';
-
-/** Focusable-element selector for the dialog focus trap (mirrors mobile-menu.tsx). */
-const DIALOG_FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/**
- * Interim modal a11y for the scoreboard overlays (accessibility audit A3):
- * move focus into `ref` on open, trap Tab/Shift+Tab inside it, restore focus to
- * the previously-focused element on close, and — when `onEscape` is provided —
- * close on Escape. Self-contained per mount (deps are stable), so the parent's
- * frequent re-renders (live score pushes, peer count) never steal focus.
- * Superseded once the shared Radix Dialog primitive lands (AGENTS.md
- * "UI primitives — Radix UI", Bundle 6).
- */
-function useDialogFocusTrap<T extends HTMLElement>(
-  ref: RefObject<T | null>,
-  onEscape?: () => void,
-) {
-  const onEscapeRef = useRef(onEscape);
-  // Keep the latest handler in a ref so the trap effect can stay mount-scoped
-  // (writing the ref in render is disallowed by react-hooks/refs).
-  useEffect(() => {
-    onEscapeRef.current = onEscape;
-  }, [onEscape]);
-  useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    function focusables(): HTMLElement[] {
-      const root = ref.current;
-      if (!root) return [];
-      return Array.from(root.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE)).filter(
-        (el) => !el.hasAttribute('aria-hidden') && el.offsetParent !== null,
-      );
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && onEscapeRef.current) {
-        e.preventDefault();
-        onEscapeRef.current();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const items = focusables();
-      if (items.length === 0) return;
-      const first = items[0]!;
-      const last = items[items.length - 1]!;
-      const active = document.activeElement as HTMLElement | null;
-      if (e.shiftKey && (active === first || !ref.current?.contains(active))) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && active === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-    document.addEventListener('keydown', onKey);
-    focusables()[0]?.focus();
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      previouslyFocused?.focus();
-    };
-  }, [ref]);
-}
 
 export function ScoreboardView({ code, initialConfig, binding }: Props) {
   const { state, setState, status, peerCount } = useScoreboardSync(code, initialConfig);
@@ -681,10 +613,6 @@ function WinnerOverlay({
    *  save-to-record moment instead of a Rematch / New game prompt. */
   bound?: { save: SaveToMatch; returnPath: string };
 }) {
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  // No `onEscape`: the match is over, so the overlay has no dismiss — the user
-  // chooses an action. Focus is moved in and trapped between them.
-  useDialogFocusTrap(panelRef);
   const setSummary = useMemo(
     () => state.setHistory.map((h) => `${h.a}–${h.b}`).join(' · '),
     [state.setHistory],
@@ -692,56 +620,58 @@ function WinnerOverlay({
   // Hide "Undo" once a bound result is recorded — the official record is the
   // source of truth at that point (re-open from the host tools to amend).
   const showUndo = state.setHistory.length > 0 && !bound?.save.saved;
+  // Controlled Radix Dialog: the match is over, so the overlay has no dismiss —
+  // the user must pick an action. `open` is fixed true (the parent only mounts
+  // this when there's a winner); Escape / outside-click are suppressed. Radix
+  // gives us the focus-move-in + trap + role/aria for free (replaces the
+  // hand-rolled useDialogFocusTrap, AGENTS.md "UI primitives — Radix UI").
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="scoreboard-winner-eyebrow scoreboard-winner-name"
-        className="rounded-shape-md bg-white p-8 text-center text-black shadow-xl"
-      >
-        <p
-          id="scoreboard-winner-eyebrow"
-          className="text-md-success text-xs font-semibold tracking-widest uppercase"
+    <RadixDialog.Root open modal>
+      <RadixDialog.Portal>
+        <RadixDialog.Overlay className="md-dialog-overlay fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" />
+        <RadixDialog.Content
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          className="md-dialog-motion rounded-shape-md fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 bg-white p-8 text-center text-black shadow-xl"
         >
-          Match won
-        </p>
-        <p id="scoreboard-winner-name" className="text-display-sm mt-2 font-bold">
-          {name}
-        </p>
-        {setSummary && <p className="mt-2 text-sm font-medium text-black/60">{setSummary}</p>}
-        {bound ? (
-          <BoundWinnerActions bound={bound} onResetMatch={onResetMatch} />
-        ) : (
-          <div className="mt-6 flex justify-center gap-3">
+          <RadixDialog.Description className="text-md-success text-xs font-semibold tracking-widest uppercase">
+            Match won
+          </RadixDialog.Description>
+          <RadixDialog.Title className="text-display-sm mt-2 font-bold">{name}</RadixDialog.Title>
+          {setSummary && <p className="mt-2 text-sm font-medium text-black/60">{setSummary}</p>}
+          {bound ? (
+            <BoundWinnerActions bound={bound} onResetMatch={onResetMatch} />
+          ) : (
+            <div className="mt-6 flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={onResetMatch}
+                className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium"
+              >
+                Rematch
+              </button>
+              <button
+                type="button"
+                onClick={onNewGame}
+                className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white"
+              >
+                New game
+              </button>
+            </div>
+          )}
+          {showUndo && (
             <button
               type="button"
-              onClick={onResetMatch}
-              className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium"
+              onClick={onUndoSet}
+              className="mt-4 text-xs font-medium text-black/50 underline underline-offset-2 hover:text-black/80"
             >
-              Rematch
+              Ended by mistake? Undo last set
             </button>
-            <button
-              type="button"
-              onClick={onNewGame}
-              className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white"
-            >
-              New game
-            </button>
-          </div>
-        )}
-        {showUndo && (
-          <button
-            type="button"
-            onClick={onUndoSet}
-            className="mt-4 text-xs font-medium text-black/50 underline underline-offset-2 hover:text-black/80"
-          >
-            Ended by mistake? Undo last set
-          </button>
-        )}
-      </div>
-    </div>
+          )}
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
   );
 }
 
@@ -812,54 +742,47 @@ function ShareModal({
   theme: LocalTheme;
 }) {
   const surface = theme === 'dark' ? 'bg-zinc-900 text-white' : 'bg-white text-black';
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  useDialogFocusTrap(panelRef, onClose);
+  // Controlled Radix Dialog: parent owns `shareOpen` and only mounts this while
+  // open, so `open` is fixed true and any Radix-driven close (Escape / backdrop
+  // click) routes through `onClose`. Radix supplies the focus trap + return-focus
+  // to the Share trigger + role/aria (replaces the hand-rolled useDialogFocusTrap).
   return (
-    <div
-      className="absolute inset-0 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="scoreboard-share-title"
-        className={`rounded-shape-md w-full max-w-lg ${surface} p-6 shadow-2xl`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="scoreboard-share-title" className="text-lg font-semibold">
-          Remote control link
-        </h2>
-        <p className="mt-1 text-sm opacity-70">
-          Open this URL on any phone — taps there update this scoreboard live.
-        </p>
-        <div className="mt-4 rounded-md border border-current/15 bg-current/5 p-3 font-mono text-sm break-all">
-          {url}
-        </div>
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCopy}
-            className="rounded-md border border-current/20 px-4 py-2 text-sm font-medium"
-          >
-            Copy link
-          </button>
-          <button
-            type="button"
-            onClick={onShare}
-            className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white"
-          >
-            Share
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-4 py-2 text-sm font-medium opacity-70"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+    <RadixDialog.Root open modal onOpenChange={(next) => !next && onClose()}>
+      <RadixDialog.Portal>
+        <RadixDialog.Overlay className="md-dialog-overlay fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
+        <RadixDialog.Content
+          className={`md-dialog-motion rounded-shape-md fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 ${surface} p-6 shadow-2xl`}
+        >
+          <RadixDialog.Title className="text-lg font-semibold">
+            Remote control link
+          </RadixDialog.Title>
+          <RadixDialog.Description className="mt-1 text-sm opacity-70">
+            Open this URL on any phone — taps there update this scoreboard live.
+          </RadixDialog.Description>
+          <div className="mt-4 rounded-md border border-current/15 bg-current/5 p-3 font-mono text-sm break-all">
+            {url}
+          </div>
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={onCopy}
+              className="rounded-md border border-current/20 px-4 py-2 text-sm font-medium"
+            >
+              Copy link
+            </button>
+            <button
+              type="button"
+              onClick={onShare}
+              className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Share
+            </button>
+            <RadixDialog.Close className="rounded-md px-4 py-2 text-sm font-medium opacity-70">
+              Close
+            </RadixDialog.Close>
+          </div>
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
   );
 }
