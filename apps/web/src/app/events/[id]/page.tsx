@@ -28,6 +28,7 @@ import { OffPlatformUpsell } from './_components/off-platform-upsell';
 import { EventWhenSpotsSection } from './_components/event-when-spots-section';
 import { EventSubpageLink } from './_components/event-subpage-link';
 import { EventManageBanner } from './_components/event-manage-banner';
+import { EventSectionNav, type EventSectionNavItem } from './_components/event-section-nav';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 import { HeroImage } from '@/components/hero-image';
 import { RoomChatPanel } from '@/components/room-chat-panel';
@@ -103,6 +104,21 @@ function pickQuery(
 // which would otherwise fall through to a DB query and surface as a 500
 // ("invalid input syntax for type uuid"). Reject early with a 404 instead.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Candidate anchors for the in-page jump nav (EV-4), in page order. The nav is
+// a client component that auto-discovers which of these actually rendered —
+// Players (open play) vs. Teams (tournament) are mutually exclusive, chat
+// self-gates to members, About is absent when there's no description/rules — so
+// listing all six here is safe; only present anchors become chips.
+const SECTION_NAV_ITEMS: ReadonlyArray<EventSectionNavItem> = [
+  { id: 'about', label: 'About' },
+  { id: 'where', label: 'Where' },
+  { id: 'hosts', label: 'Hosts' },
+  { id: 'attendees', label: 'Players' },
+  { id: 'chat', label: 'Chat' },
+  { id: 'teams', label: 'Teams' },
+  { id: 'media', label: 'Media' },
+];
 
 export default async function EventDetailPage(props: {
   params: Promise<{ id: string }>;
@@ -303,18 +319,28 @@ export default async function EventDetailPage(props: {
         <PassPanel eventId={event.id} />
       </Suspense>
 
-      {event.description && (
-        <section>
-          <h2 className="text-fg mb-2 text-lg font-semibold">Description</h2>
-          <p className="text-fg/90 whitespace-pre-wrap">{event.description}</p>
-        </section>
-      )}
+      {/* In-page jump nav (EV-4) — introduces the below-the-fold region and
+          pins to the top as the reader scrolls into it, so returning users can
+          jump straight to the roster / chat instead of scrolling the long
+          engagement tail. Self-discovers which sections rendered. */}
+      <EventSectionNav items={SECTION_NAV_ITEMS} />
 
-      {event.rules && (
-        <section>
-          <h2 className="text-fg mb-2 text-lg font-semibold">Rules</h2>
-          <p className="text-fg/90 whitespace-pre-wrap">{event.rules}</p>
-        </section>
+      {(event.description || event.rules) && (
+        <div id="about" className="scroll-mt-20 space-y-8">
+          {event.description && (
+            <section>
+              <h2 className="text-fg mb-2 text-lg font-semibold">Description</h2>
+              <p className="text-fg/90 whitespace-pre-wrap">{event.description}</p>
+            </section>
+          )}
+
+          {event.rules && (
+            <section>
+              <h2 className="text-fg mb-2 text-lg font-semibold">Rules</h2>
+              <p className="text-fg/90 whitespace-pre-wrap">{event.rules}</p>
+            </section>
+          )}
+        </div>
       )}
 
       {event.type === 'tournament' && (
@@ -335,20 +361,24 @@ export default async function EventDetailPage(props: {
         />
       )}
 
-      <EventLocationSection event={event} />
+      <div id="where" className="scroll-mt-20">
+        <EventLocationSection event={event} />
+      </div>
 
-      <HostsSection
-        eventId={event.id}
-        primaryHostUser={event.primaryHostUser}
-        primaryHostGroup={event.primaryHostGroup}
-        coHostUsers={event.coHostUsers}
-        coHostGroups={event.coHostGroups}
-        canManage={event.canManage}
-        viewerHostableGroups={event.viewerHostableGroups}
-        returnPath={returnPath}
-        showCoHostControls={false}
-        {...(primaryHostUserSocial ? { primaryHostUserSocial } : {})}
-      />
+      <div id="hosts" className="scroll-mt-20">
+        <HostsSection
+          eventId={event.id}
+          primaryHostUser={event.primaryHostUser}
+          primaryHostGroup={event.primaryHostGroup}
+          coHostUsers={event.coHostUsers}
+          coHostGroups={event.coHostGroups}
+          canManage={event.canManage}
+          viewerHostableGroups={event.viewerHostableGroups}
+          returnPath={returnPath}
+          showCoHostControls={false}
+          {...(primaryHostUserSocial ? { primaryHostUserSocial } : {})}
+        />
+      </div>
 
       <AttendeesPanel
         event={event}
@@ -369,6 +399,7 @@ export default async function EventDetailPage(props: {
         contextId={event.id}
         label="Event chat"
         participants={chatParticipants}
+        anchorId="chat"
       />
 
       {event.type === 'tournament' && !event.paymentsOffPlatform && !isExternal && (
@@ -389,11 +420,13 @@ export default async function EventDetailPage(props: {
         />
       )}
 
-      <EventMediaLink
-        eventId={event.id}
-        totalCount={mediaSummary.totalCount}
-        liveCount={mediaSummary.liveCount}
-      />
+      <div id="media" className="scroll-mt-20">
+        <EventMediaLink
+          eventId={event.id}
+          totalCount={mediaSummary.totalCount}
+          liveCount={mediaSummary.liveCount}
+        />
+      </div>
 
       <EventBadgesEarnSection badges={eventBadges.filter((b) => b.grantRule === 'on_attend')} />
 

@@ -12,14 +12,15 @@ from a share link, while keeping the page useful for hosts and attendees.
 > manage banner) and the host console moved to `/manage`. Findings tagged
 > **EV-1 … EV-9** below.
 >
-> **Fixed (quad-green, uncommitted):** EV-1 (league CTA), EV-2 (stale `/edit`
-> link → `/manage`), EV-3 (sticky-CTA `inert` a11y), EV-8 (token bleed — bordered
-> neutral buttons → `neutralButtonClass`, validation `text-secondary` →
-> `text-md-error`, fuchsia theme chip made dark-aware), EV-9 (render-map
-> refreshed). **Remaining backlog — 1 P2 · 3 P3:** EV-4 (section sprawl), EV-5
+> **Fixed (quad-green, uncommitted):** **bundle 1** — EV-1 (league CTA), EV-2
+> (stale `/edit` link → `/manage`), EV-3 (sticky-CTA `inert` a11y), EV-8 (token
+> bleed — bordered neutral buttons → `neutralButtonClass`, validation
+> `text-secondary` → `text-md-error`, fuchsia theme chip made dark-aware), EV-9
+> (render-map refreshed). **bundle 2** — EV-4 (section sprawl → sticky
+> auto-discovering in-page jump nav). **Remaining backlog — 0 P2 · 3 P3:** EV-5
 > (redundant bracket/schedule CTAs), EV-6 (sticky CTA non-action once
 > registered), EV-7 (team-event "Spots" framing — verify first). See the
-> remediation log at the foot of this section.
+> remediation logs at the foot of this section.
 
 ## 2026-06-09 re-audit — findings (EV-1 … EV-9)
 
@@ -34,6 +35,17 @@ from a share link, while keeping the page useful for hosts and attendees.
 | EV-6 | P3  | Streamline       | Sticky mobile CTA persists "You're in — view details" once registered — a non-action.       |
 | EV-7 | P3  | Gap (verify)     | "Spots" cell + hero use per-player framing on team events (tournament/league).              |
 | EV-8 | P3  | M3 / token bleed | `text-secondary` validation error, hard-coded fuchsia chip, hand-rolled neutral buttons.    |
+
+**Remediation log — 2026-06-09 (bundle 2):** EV-4 — sticky in-page jump nav.
+Quad-green, uncommitted. New
+[event-section-nav.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-section-nav.tsx)
+(client; `useSyncExternalStore` + `MutationObserver` DOM discovery). Wired in
+[page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) with `#about` /
+`#where` / `#hosts` / `#media` anchor wrappers + `SECTION_NAV_ITEMS`;
+`scroll-mt-20` added to the `#attendees` / `#teams` sections; `RoomChatPanel`
+gained an optional `anchorId` (applied only when the panel is visible, so a
+non-member leaves no dead `#chat` anchor). Deferred within EV-4: grouping the
+passive bottom tail (Tip/Badges/Waiver/Sponsor) — minor nice-to-have.
 
 **Remediation log — 2026-06-09 (bundle 1):** EV-1, EV-2, EV-3, EV-8, EV-9
 fixed; quad-green (`pnpm typecheck && lint && test && build`), uncommitted.
@@ -90,7 +102,26 @@ inside an `aria-hidden` subtree is a WCAG 4.1.2 / 2.4.3 violation. **Fix:** when
 `visibility:hidden` / `display:none`) so the element leaves both the a11y tree
 and the tab order. Cross-ref [accessibility.md](accessibility.md) C7.
 
-### EV-4 (P2) — Page section sprawl; secondary content is an undifferentiated tail
+### EV-4 (P2) ✅ FIXED 2026-06-09 (bundle 2) — Page section sprawl; secondary content is an undifferentiated tail
+
+**Fix shipped:** a sticky, auto-discovering in-page jump nav
+([event-section-nav.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-section-nav.tsx))
+sits where the below-the-fold content begins (after the signup panel) and pins
+to the viewport top as the reader scrolls into it (the site header isn't
+sticky, so `top-0` needs no offset). It links the destinations people actually
+hunt for — **About · Where · Hosts · Players/Teams · Chat · Media** — so a
+returning attendee reaches the roster or chat in one click instead of scrolling
+the engagement tail. Because most of these sections self-gate to null (chat for
+non-members, Players vs. Teams by type, About when there's no description), the
+nav discovers what actually rendered via `useSyncExternalStore` over a
+`MutationObserver` (AGENTS pattern 5 — no set-state-in-effect) and re-scans when
+the async chat panel settles, so a chip never points at a missing anchor.
+**Deliberately left:** the passive bottom cards (Tip, Badges, Waiver, Sponsor)
+stay un-nav'd and un-grouped — they're one-time/passive, not "hunt-for"
+destinations; collapsing them behind `<details>` (the audit's option (b)) is a
+minor nice-to-have, not done. _Original finding:_
+
+### EV-4 (original finding) — Page section sprawl; secondary content is an undifferentiated tail
 
 The page now renders ~16 visible sections in a flat vertical stack (see the
 refreshed map below). Everything after the signup panel — Description, Rules,

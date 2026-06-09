@@ -117,7 +117,7 @@ export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisio
   const groupByDivision = divisions.length > 1;
 
   return (
-    <section id="teams">
+    <section id="teams" className="scroll-mt-20">
       <h2 className="text-fg mb-3 text-lg font-semibold">
         Teams registered <span className="text-muted text-sm font-normal">({total})</span>
       </h2>
