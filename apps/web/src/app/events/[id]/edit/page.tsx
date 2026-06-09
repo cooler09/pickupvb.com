@@ -10,6 +10,7 @@ import EditEventForm from './edit-event-form';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { SponsorPanel } from './sponsor-panel';
 import { EventBadgesPanel } from './event-badges-panel';
+import { EventWaiverPanel } from './event-waiver-panel';
 import { HeroImagePanel } from '@/components/hero-image-panel';
 import Link from 'next/link';
 import type { Route } from 'next';
@@ -158,6 +159,9 @@ export default async function EditEventPage(props: {
   const payoutFlash = pickQuery(searchParams, 'payout');
   const payoutMsg = pickQuery(searchParams, 'payout_msg');
 
+  const waiverFlash = pickQuery(searchParams, 'waiver');
+  const waiverMsg = pickQuery(searchParams, 'waiver_msg');
+
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <header className="space-y-1">
@@ -247,6 +251,13 @@ export default async function EditEventPage(props: {
           canUseBadges={viewerHasProBenefits || badgeAccessPaid}
           {...(badgeFlash ? { badgeFlash } : {})}
           {...(badgeMsg ? { badgeMsg } : {})}
+        />
+
+        <EventWaiverPanel
+          eventId={id}
+          returnPath={`/events/${id}`}
+          {...(waiverFlash ? { flashCode: waiverFlash } : {})}
+          {...(waiverMsg ? { flashMsg: waiverMsg } : {})}
         />
 
         {event.type === 'open_play' && viewerHasProBenefits && (

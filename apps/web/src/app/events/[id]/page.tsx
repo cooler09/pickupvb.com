@@ -20,6 +20,7 @@ import { EventSignupArea } from './_components/event-signup-area';
 import { PassPanel } from './_components/pass-panel';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
+import { EventWaiverSection } from './_components/event-waiver-section';
 import { EventBadgesEarnSection } from './_components/event-badges-earn-section';
 import { EventMediaLink } from './_components/event-media-link';
 import { OffPlatformUpsell } from './_components/off-platform-upsell';
@@ -149,6 +150,10 @@ export default async function EventDetailPage(props: {
     mediaSummary,
     cta,
   } = vm;
+
+  // Waiver flash (O-9) — extracted so the conditional-spread narrows it to a
+  // string (exactOptionalPropertyTypes).
+  const waiverFlash = pickQuery(searchParams, 'waiver');
 
   // Registered count per division (roster teams + ad-hoc / walk-in entries),
   // mirroring the public roster grouping, so the divisions comparison list can
@@ -384,6 +389,8 @@ export default async function EventDetailPage(props: {
       />
 
       <EventBadgesEarnSection badges={eventBadges.filter((b) => b.grantRule === 'on_attend')} />
+
+      <EventWaiverSection eventId={event.id} {...(waiverFlash ? { flashCode: waiverFlash } : {})} />
 
       <EventSponsorSection sponsor={sponsor} />
 

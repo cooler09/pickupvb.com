@@ -104,6 +104,31 @@ cancel/complete go through the aggregate so invariants stay enforced
 
 ---
 
+### Waiver acknowledgement + signature tracking
+
+**Not a legal-waiver substitute** — hosts who need one have their own (insurer /
+sanctioning body / DocuSign) and often collect signatures in person. This is a
+free-for-any-host, **soft** (never blocks sign-up) tool to surface the rules /
+their real waiver and track who's acknowledged it:
+
+- **Author** (`event_waivers`, versioned, mask-at-write — any host, from the edit
+  panel): a **link to your own waiver** (`external_url`) and/or pasted rules
+  `body` (at least one).
+- **Attendees acknowledge online** — click-wrap (type name + agree) on the event
+  page ([event-waiver-section.tsx](../apps/web/src/app/events/%5Bid%5D/_components/event-waiver-section.tsx))
+  → `waiver_signatures` (`method='self'`, self-RLS, one per event+user, upserted;
+  a body edit bumps the version and prompts re-sign).
+- **Host records in-person signatures** at their discretion — a free-text name
+  → `waiver_signatures` (`method='in_person'`, `user_id` null, `recorded_by` =
+  host, admin client). The edit panel lists all signatures (Online / In person +
+  date) with remove.
+- **Soft by design:** touches no join/checkout path. Monetization O-9 — shipped
+  **free** 2026-06-08 (the maintainer chose not to paywall a safety tool).
+  Deferred (possible premium hooks): hard-gating sign-up on a signature,
+  team/tournament (captain-vs-player) waivers, signed-PDF export.
+
+---
+
 ## 3. Visibility & discovery
 
 `Visibility` enum gates who can see/find an event:

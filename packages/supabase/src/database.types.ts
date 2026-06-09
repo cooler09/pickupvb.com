@@ -1598,6 +1598,92 @@ export type Database = {
           },
         ];
       };
+      event_waivers: {
+        Row: {
+          body: string | null;
+          created_at: string;
+          event_id: string;
+          external_url: string | null;
+          title: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          body?: string | null;
+          created_at?: string;
+          event_id: string;
+          external_url?: string | null;
+          title: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          body?: string | null;
+          created_at?: string;
+          event_id?: string;
+          external_url?: string | null;
+          title?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_waivers_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      waiver_signatures: {
+        Row: {
+          event_id: string;
+          id: string;
+          method: string;
+          recorded_by_user_id: string | null;
+          signed_at: string;
+          signed_name: string;
+          user_id: string | null;
+          waiver_version: number;
+        };
+        Insert: {
+          event_id: string;
+          id?: string;
+          method?: string;
+          recorded_by_user_id?: string | null;
+          signed_at?: string;
+          signed_name: string;
+          user_id?: string | null;
+          waiver_version: number;
+        };
+        Update: {
+          event_id?: string;
+          id?: string;
+          method?: string;
+          recorded_by_user_id?: string | null;
+          signed_at?: string;
+          signed_name?: string;
+          user_id?: string | null;
+          waiver_version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'waiver_signatures_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'waiver_signatures_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       events: {
         Row: {
           accepts_pass_credits: boolean;

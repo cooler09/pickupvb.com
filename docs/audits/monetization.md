@@ -357,14 +357,26 @@ takes precedence over credits), buyer `/profile/passes` (cancel), pricing copy.
 **Deferred:** annual interval; credit-refill variant; membership income in the
 earnings page / tax CSV; buyer-paid platform fee.
 
-#### O-8 / O-9 (catalogued, not started) — white-label event branding · waiver e-sign
+#### O-9 — Per-event waiver acknowledgement + signature tracking — ✅ Shipped 2026-06-08 (free, soft)
 
-Surfaced in the 2026-06-08 opportunity review and recorded so they aren't lost:
-**O-8** — Pro-host custom event-page branding (logo/colors), a low-cost vanity
-perk that doesn't touch the attendee's wallet; **O-9** — per-event waiver /
-liability e-sign (Pro capability or à-la-carte unlock like the sponsor/badge
-slots), a real organized-tournament need. Both are net-new feature builds, not
-quota tweaks. Not yet scoped.
+**Reality-checked + reframed:** hosts who care about liability already have their
+own waiver (insurer / sanctioning body / DocuSign) and often collect signatures
+in person — so this is **not** a legal-waiver substitute. It's a free-for-any-host,
+**soft** (never blocks sign-up) tool to (a) **link the host's own waiver**
+(`event_waivers.external_url`) and/or paste rules text, with an online click-wrap
+**acknowledgement** (`waiver_signatures method='self'`, self-RLS, versioned), and
+(b) let the host **manually track who signed in person** at their discretion
+(`method='in_person'`, free-text name, `recorded_by` = host, admin client) — the
+edit panel lists all signatures (Online / In person) with remove. **Not
+monetized** (the maintainer chose not to paywall a safety tool). Migration
+`20261005000000_event_waivers.sql`. **Deferred (possible premium hooks):**
+hard-gating registration on a signature, team/tournament (captain-vs-player)
+waivers, signed-PDF export.
+
+#### O-8 (catalogued, not started) — white-label event branding
+
+Pro-host custom event-page branding (logo/colors), a low-cost vanity perk that
+doesn't touch the attendee's wallet. Net-new feature build; not yet scoped.
 
 ### Reaffirmed — the engine and the guardrails still hold
 
@@ -1166,6 +1178,22 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — O-9 shipped: waiver acknowledgement + signature tracking (free + soft; uncommitted, migration deploy-gated).**
+  Reality-checked after a maintainer note (hosts have their own waivers + collect
+  in person), so **reframed**: not a legal substitute. Free for any host, **soft**
+  (never blocks registration — touches no payment/registration path). Host links
+  their own waiver (`event_waivers.external_url`) and/or pastes rules text;
+  attendees click-wrap **acknowledge** online (`waiver_signatures method='self'`,
+  self-RLS, versioned); host **manually records in-person signers** by name
+  (`method='in_person'`, free-text, admin client) and sees the full list with
+  remove. **Not monetized** (maintainer's call — don't paywall safety). New:
+  migration `20261005000000_event_waivers.sql`, `lib/waivers.ts`,
+  `edit/waiver-actions.ts` + `event-waiver-panel.tsx`, `waiver-actions.ts` +
+  `_components/event-waiver-section.tsx` (injected on the event page). No ADR
+  (small, free, non-architectural). Quad-green. Deferred (possible premium
+  hooks): hard-gate, team waivers, signed-PDF export. **Open: O-5 (SMS/Twilio),
+  O-8 (white-label).**
 
 - **2026-06-08 — O-2a/b/c shipped: the deferred Club perks ([ADR 0038 follow-up](../adr/0038-group-payouts-club-tier.md), uncommitted; migration deploy-gated).**
   - **O-2a (multi-admin Pro):** new `user_has_club_benefits` RPC (migration
