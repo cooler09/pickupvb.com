@@ -1,14 +1,150 @@
 # Events Page UX Audit
 
-_Last updated: 2026-05-28_
+_Last updated: 2026-06-09_
 
 Audit of [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx).
 Goal: prioritize the most important information and CTAs for visitors landing
 from a share link, while keeping the page useful for hosts and attendees.
 
-> **Status:** Quick-win bundle + larger-changes bundle both shipped
-> (2026-05-18). Remaining open items live in the "Won't-do / explicit
-> deferrals" section.
+> **Status (2026-06-09 re-audit):** Open backlog — **0 P1 · 3 P2 · 6 P3**.
+> The 2026-05-18 → 2026-05-28 bundles still hold; this pass re-walked the page
+> after ~8 sections were appended since (Pass panel, Event chat, Teams, Tip,
+> Media, Badges, Waiver, Sponsor, hero image, manage banner) and the host
+> console moved to `/manage`. New findings tagged **EV-1 … EV-9** below. None
+> are ship-blocking. The biggest themes: a league CTA-label bug (EV-1), page
+> section sprawl with no grouping (EV-4), and a stale render-order map in this
+> very doc (EV-9, fixed in this edit).
+
+## 2026-06-09 re-audit — findings (EV-1 … EV-9)
+
+| ID   | Sev | Theme            | One-line                                                                                    |
+| ---- | --- | ---------------- | ------------------------------------------------------------------------------------------- |
+| EV-1 | P2  | Bug / CTA        | Leagues fall through `buildCta` → hero+sticky read "RSVP"/"Buy ticket" (not "Register").    |
+| EV-4 | P2  | IA / streamline  | ~16 flat stacked sections; secondary content has no grouping/anchors — long scroll tail.    |
+| EV-9 | P2  | Doc hygiene      | "Render order (current)" map in this file was ~8 sections stale. Refreshed below.           |
+| EV-2 | P3  | Stale link       | `EventClosedState` "Manage event" → `/edit`; canonical host console is now `/manage`.       |
+| EV-3 | P3  | A11y             | `EventStickyCta` hides via `opacity-0`+`aria-hidden` but link stays focusable in tab order. |
+| EV-5 | P3  | Redundancy       | Started tournament shows 3 "Open bracket" controls (hero + closed-state + subpage card).    |
+| EV-6 | P3  | Streamline       | Sticky mobile CTA persists "You're in — view details" once registered — a non-action.       |
+| EV-7 | P3  | Gap (verify)     | "Spots" cell + hero use per-player framing on team events (tournament/league).              |
+| EV-8 | P3  | M3 / token bleed | `text-secondary` validation error, hard-coded fuchsia chip, hand-rolled neutral buttons.    |
+
+### EV-1 (P2) — League hero/sticky CTA is mislabeled (and missing once started)
+
+[`buildCta`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L726-L767)
+has branches for `external`, `tournament`, and `open_play` but **no `league`
+branch**. An upcoming league therefore falls through to the tail
+(`paid ? 'Buy ticket' : 'RSVP'`), so the hero **and** the mirrored
+[mobile sticky bar](../../apps/web/src/app/events/%5Bid%5D/_components/event-sticky-cta.tsx)
+read "RSVP" / "Buy ticket" while the inline panel below says **"Register your
+team for the season."** Worse, once the season starts (`!signupsOpen`) the
+function returns `null`, so an in-progress league has **no hero CTA at all**
+even though the page still wants to point at the schedule.
+**Fix:** add a league branch — `{ kind:'anchor', hash:'#signup', label:'Register' }`
+while `signupsOpen`, and `{ kind:'internal', href:` `` `/events/${id}/schedule` `` `, label:'View schedule' }`
+once `hasStarted || status==='completed'` (mirroring the tournament/bracket branch).
+
+### EV-2 (P3) — "Manage event" closed-state link points at the old `/edit` target
+
+[event-closed-state.tsx#L80-L87](../../apps/web/src/app/events/%5Bid%5D/_components/event-closed-state.tsx#L80-L87)
+renders a host-only "Manage event" button linking to `/events/{id}/edit`. Since
+the host console landed, the canonical entry is `/events/{id}/manage` — that's
+where [`EventManageBanner`](../../apps/web/src/app/events/%5Bid%5D/_components/event-manage-banner.tsx)
+sends hosts, and the hero comment notes "Host management… lives on the dedicated
+/manage dashboard." This one button still drops the host on the raw edit form.
+**Fix:** point it at `/events/{id}/manage` (or relabel to "Edit details" if the
+edit form is genuinely the intent).
+
+### EV-3 (P3) — Sticky CTA keeps a focusable link inside an `aria-hidden` subtree
+
+[event-sticky-cta.tsx#L41-L69](../../apps/web/src/app/events/%5Bid%5D/_components/event-sticky-cta.tsx#L41-L69)
+hides the bar with `opacity-0` and sets `aria-hidden={hidden}` on the wrapper,
+but the inner `<Link>/<a>` keeps `pointer-events-auto` and stays in the tab
+order. A keyboard user can focus an invisible button, and a focusable node
+inside an `aria-hidden` subtree is a WCAG 4.1.2 / 2.4.3 violation. **Fix:** when
+`hidden`, also apply the `hidden` attribute / `inert` (or swap `opacity` for
+`visibility:hidden` / `display:none`) so the element leaves both the a11y tree
+and the tab order. Cross-ref [accessibility.md](accessibility.md) C7.
+
+### EV-4 (P2) — Page section sprawl; secondary content is an undifferentiated tail
+
+The page now renders ~16 visible sections in a flat vertical stack (see the
+refreshed map below). Everything after the signup panel — Description, Rules,
+sub-page link, Location, Hosts, Attendees, **Event chat**, Teams, **Tip jar**,
+**Media**, **Badges**, **Waiver**, **Sponsor** — is appended with no grouping or
+in-page nav. A returning attendee hunting for chat or the roster, or a host
+checking media, scrolls past a long monetization/engagement tail every time.
+**Fix (incremental):** (a) group the post-RSVP content and add a light
+section-nav or tabs ("Details · Players/Teams · Chat · Media"); or at minimum
+(b) collapse the low-frequency tail sections (Tip, Media, Badges, Waiver,
+Sponsor) behind `<details>` the way [`SignupSection`](../../apps/web/src/app/events/%5Bid%5D/_components/signup-section.tsx)
+already does, and re-order so the high-traffic returning-user destinations
+(chat, roster) aren't buried beneath one-time sections. Page composition:
+[page.tsx#L298-L409](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L298-L409).
+
+### EV-5 (P3) — Redundant "view bracket / schedule" affordances on closed events
+
+On a started/completed **tournament** the page surfaces the destination three
+times: the hero CTA "Open bracket", the
+[`EventClosedState`](../../apps/web/src/app/events/%5Bid%5D/_components/event-closed-state.tsx#L61-L79)
+"View bracket", and the standalone
+[`EventSubpageLink`](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L320-L336)
+"Open bracket" card. Leagues show "View schedule" (closed-state) + "Open
+schedule" (subpage) — two. **Fix:** suppress the standalone subpage card once
+the closed-state already carries the same CTA (or fold the subpage link into the
+closed-state), so there's one obvious next click.
+
+### EV-6 (P3) — Mobile sticky CTA is a non-action once the viewer is registered
+
+When `isAttending`, [`buildCta`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L757-L758)
+returns "You're in — view details" (anchor to `#signup`), and
+[`EventStickyCta`](../../apps/web/src/app/events/%5Bid%5D/_components/event-sticky-cta.tsx)
+mirrors it — so a signed-up mobile user gets a persistent bottom bar whose only
+job is to scroll to the (now-collapsed) panel. **Fix:** suppress the sticky bar
+for already-registered viewers, or repoint it at a real next action ("Open event
+chat" / "View roster").
+
+### EV-7 (P3, verify) — "Spots" framing assumes individual attendees on team events
+
+[`EventWhenSpotsSection`](../../apps/web/src/app/events/%5Bid%5D/_components/event-when-spots-section.tsx#L57-L70)
+and the hero spots chip render capacity as players ("N open · M signed up" /
+"N spots left"). For tournaments/leagues, registration is by **team** and
+event-level `capacity` is usually null → the Spots cell reads **"Unlimited"**
+even when the (single) division has a team cap; and if a host sets an event-level
+capacity it reads "X open · **0 signed up**" (player framing for a team event).
+Single-division team events never reach
+[`DivisionsSection`](../../apps/web/src/app/events/%5Bid%5D/_components/divisions-section.tsx#L68)
+(`length <= 1` returns null), which already knows how to say "registered / cap
+teams". **Fix:** for `teamRegistrationMode != null` events, surface division
+team-capacity in the Spots cell (or hide the per-player framing) and reconcile
+with `DivisionsSection`. _Verify against a real single-division tournament before
+implementing — behaviour depends on whether the host set event-level capacity._
+
+### EV-8 (P3) — Token bleed against AGENTS pattern 11 / 17
+
+Event-page components still carry raw-palette / hand-rolled strings:
+
+- **Validation error uses `text-secondary`** instead of `text-md-error` —
+  [tip-jar.tsx#L115](../../apps/web/src/app/events/%5Bid%5D/_components/tip-jar.tsx#L115).
+- **Theme-tag chip hard-codes `bg-fuchsia-100 text-fuchsia-900` with no dark
+  variant** → a fixed light chip on dark surfaces —
+  [event-meta-section.tsx#L82-L84](../../apps/web/src/app/events/%5Bid%5D/_components/event-meta-section.tsx#L82-L84).
+  (Decorative, so no ratchet, but unlike the sanctioned scoreboard team colors
+  this one has zero dark handling.)
+- **Neutral buttons hand-rolled** as `rounded-md border px-… text-… font-medium`
+  instead of `neutralButtonClass` —
+  [rsvp-panel.tsx#L73,L104](../../apps/web/src/app/events/%5Bid%5D/_components/rsvp-panel.tsx#L73),
+  [position-rsvp-panel.tsx#L74,L123](../../apps/web/src/app/events/%5Bid%5D/_components/position-rsvp-panel.tsx#L74),
+  [event-closed-state.tsx#L83](../../apps/web/src/app/events/%5Bid%5D/_components/event-closed-state.tsx#L83),
+  [tip-jar.tsx#L79,L91,L109](../../apps/web/src/app/events/%5Bid%5D/_components/tip-jar.tsx#L79).
+  (`rsvp-panel` already imports `neutralButtonClass` for "Leave waitlist" — the
+  others in the same file just weren't migrated.)
+
+### EV-9 (P2) — Stale render-order map (fixed in this edit)
+
+The "Render order (current)" block below was last updated 2026-05-28 and was
+missing the Pass panel, Event chat, Teams, Tip, Media, Badges, Waiver, Sponsor,
+hero image, and manage banner. Refreshed map follows.
 
 > **Status update (2026-05-28, Bundle 128):** Walk-in team form converted
 > from inline `<details>` to a modal dialog at all three call sites
@@ -160,45 +296,54 @@ from a share link, while keeping the page useful for hosts and attendees.
 > [architecture audit](architecture.md) P1 regression and the
 > [performance audit](performance.md) new P1 #0 (`Date.now()` in render at
 > [page.tsx#L115](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L115)).
-> Both belong in the next page-diet pass.## Render order (current)
+> Both belong in the next page-diet pass.## Render order (current — refreshed 2026-06-09)
+
+Host-management controls moved off this page to the dedicated
+`/events/[id]/manage` console (reached via the `EventManageBanner` strip); the
+hero no longer carries an Edit button. Source:
+[page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx).
 
 ```
+EventStructuredData (JSON-LD, head-only)
 Back link
-Flash alerts (created / tip)
+EventManageBanner            (host/co-host only → /manage)
+EventFlashBanners            (created / tip / cohost flash params)
+OffPlatformUpsell            (host + paymentsOffPlatform + not dismissed)
+HeroImage
 
 EventHero
-  ├─ Tags row
+  ├─ Tags row + Share link (Edit removed → /manage)
   ├─ Title
-  ├─ Sub-line: date · city · spots · price
-  ├─ Closing-soon pill (when registration closes ≤72h)
-  ├─ Primary CTA (RSVP / Buy / Register / Open bracket / View attendees)
-  └─ Secondary: Share, Edit (host)
+  ├─ Sub-line: date · city · spots
+  ├─ "Live now" pill (active stream) · Closing-soon pill (≤72h)
+  └─ Primary CTA + price chip
 
-When / Spots grid
-EventMetaSection (dl: series · fundraiser · sanctioning · closes · payment notes)
-ExternalRegistrationCard (when external)
-DivisionsSection
+EventWhenSpotsSection        (When/Season · Spots)
+EventMetaSection             (dl: series · fundraiser · sanctioning · closes · payment notes)
+DivisionsSection             (2+ divisions only)
 
-Signup (id="signup")
-  - open_play: PaidTicketPanel | PositionRsvpPanel | RsvpPanel
-  - tournament: TournamentRegistrationTabs (Register team / Free agent)
+EventSignupArea (id="signup")
+  - external:    ExternalRegistrationCard
+  - open_play:   PaidTicketPanel | PositionRsvpPanel | RsvpPanel (+ waitlist)
+  - tournament:  TournamentRegisterPanel (ad-hoc + roster + free-agent)
+  - league:      TournamentRegisterPanel (roster + free-agent)
+  - else:        EventClosedState (cancelled / completed / hasStarted pivot)
 
-EventClosedState (cancelled / completed / hasStarted pivot)
-
+PassPanel                    (Suspense; gated host-pass read)
 Description
 Rules
-Bracket card (tournament)
-
-Where (address + map + osm link)
-Hosts
-Host tools <details> (host-only)
-  ├─ HostDivisionsManager
-  └─ HostBroadcastPanel
-Teams registered (tournament, id="teams")
-Players signed up (open_play, id="attendees")
-Tip jar (non-hosts)
-
-EventStickyCta (mobile-only, hides when #signup is in view)
+EventSubpageLink             (Bracket — tournament / Schedule — league)
+EventLocationSection         (address + lazy map + OSM link)
+HostsSection
+AttendeesPanel               (open_play, on-platform; id="attendees", paged via apage)
+RoomChatPanel                (event chat; members only, self-hides for non-members)
+TeamsRegisteredSection       (tournament, on-platform; id="teams")
+TipJar                       (non-hosts)
+EventMediaLink               (photo/video sub-page; "live" badge)
+EventBadgesEarnSection       (on_attend badges)
+EventWaiverSection           (Suspense; click-wrap sign, soft/non-blocking)
+EventSponsorSection
+EventStickyCta               (mobile-only; hides when #signup is in view)
 ```
 
 ## Quick wins shipped (2026-05-18, first bundle)
