@@ -8,7 +8,7 @@ Full read of the host/captain division-bracket workspace
 **UX/UI** lens (bugs, gaps, streamlining, a11y, M3/stale-code) — distinct from
 the TT-\* correctness/parity backlog below, which is fully closed. **15 findings
 UX-1 … UX-15 (5 P2 · 10 P3)** in the new "Division bracket page — UX/UI
-deep-dive" section below (UX-15 surfaced while fixing UX-2). **Three bundles
+deep-dive" section below (UX-15 surfaced while fixing UX-2). **Four bundles
 shipped 2026-06-10 (uncommitted), all quad-green:**
 
 - **Bundle 1:** UX-1 (host spectator-copy flash), UX-3 + UX-4 (the two a11y
@@ -18,10 +18,11 @@ shipped 2026-06-10 (uncommitted), all quad-green:**
 - **Bundle 3:** UX-8 (green → success role), UX-10 (host status badge), UX-11
   (champion banner), UX-12 (empty-state CTAs), UX-13 (pending feedback) +
   `pickLatestMatchId` dedup.
+- **Bundle 4:** UX-15 (host-gated event-bracket **delete** — also the supported
+  "change format after create": delete → re-pick; + 3 handler tests).
 
-See the remediation log. **12 of 15 fixed.** Remaining: **UX-15** (P2 —
-event-bracket delete / format-change) and **UX-14** (P3 — deferred, tree-
-connector rework needs a live preview).
+See the remediation log. **14 of 15 fixed.** Only **UX-14** remains (P3 —
+deferred; the tree-connector rework needs a live preview).
 
 **Status update (2026-06-05) — bracket-tool deep-dive (standalone vs. division).**
 Full written audit of the bracket engine + both delivery surfaces (event/division
@@ -455,20 +456,26 @@ something that can't happen here.
 their own affordances — the draft "Discard" and the live board's "Reset
 bracket"). Surfaced the real adjacent gap as **UX-15**.
 
-### UX-15 — No way to change format or delete an event bracket after create · **P2 (uncovered via UX-2)**
+### UX-15 — No way to change format or delete an event bracket after create · **P2 (uncovered via UX-2)** · ✅ FIXED 2026-06-10
 
 While fixing UX-2 it became clear that once an event bracket exists (status
-`setup`), there is **no path to change its format or remove it**: `reset` keeps
+`setup`), there was **no path to change its format or remove it**: `reset` keeps
 `format` and `status='setup'`, the format picker lives only in `NoBracketView`
-(rendered only when **no** bracket exists), and there is no event-bracket delete
+(rendered only when **no** bracket exists), and there was no event-bracket delete
 (standalone brackets got one in TT-12; event brackets did not). The old "Discard"
-button gave a false impression of this. The
-[NoBracketView copy](../../apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx#L24-L26)
-("change the format by resetting") is itself inaccurate for the same reason.
-**Fix:** add an owner-gated `DeleteBracketCommand` for event scope (mirror
-`DeleteStandaloneBracketCommand`) **or** allow `reset` to also accept a new
-format / return to a no-bracket state, and correct the NoBracketView copy.
-Bigger than a label tweak — tracked as its own P2.
+button gave a false impression of this, and the
+[NoBracketView copy](../../apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx)
+("change the format by resetting") was inaccurate for the same reason.
+**Fix shipped:** a host-gated event-scope **delete** (the simpler, fuller fix —
+delete then re-pick a format covers "change format" too, reusing the whole create
+flow + its validation). New `DeleteBracketCommand` / `DeleteBracketHandler`
+(`EventBracketStructuralHandler`, `loadHost` gate) reusing the `deleteBracket`
+repo port TT-12 added; `deleteBracket` action + `bracket_deleted` notice; an
+optional event-only `delete` on `BoundBracketActions` driving a shared
+[`DeleteBracketDanger`](../../apps/web/src/app/events/[id]/bracket/_components/delete-bracket-danger.tsx)
+two-step danger zone in `SetupView` + `DraftWorkspace` (standalone keeps its
+page-level delete, so the zone doesn't double up). NoBracketView copy corrected.
+3 handler tests. See the remediation log.
 
 ### UX-3 — Score-entry inputs have no accessible label · **P2 (a11y)** · ✅ FIXED 2026-06-10
 
@@ -596,6 +603,48 @@ connector offsets, or an SVG connector layer instead of border insets).
 ---
 
 ## Remediation log
+
+### 2026-06-10 — Division-bracket-page UX bundle 4 (UX-15 — event-bracket delete / change-format)
+
+The P2 capability gap UX-2 surfaced. Verify chain green (typecheck / lint / test
+— application 152 — / build).
+
+- **Domain/app — host-gated delete.** New `DeleteBracketCommand` +
+  `DeleteBracketHandler`
+  ([bracket.handler.ts](../../packages/application/src/commands/bracket.handler.ts))
+  on `EventBracketStructuralHandler` — resolves the division's bracket via the
+  `loadHost` gate, then calls the `deleteBracket` repo port (the FK-cascade TT-12
+  already built for standalone). Not routed through `runMutation` (nothing left
+  to `save`). Wired in [handlers.ts](../../apps/web/src/lib/handlers.ts).
+- **Web — action + binding.** `deleteBracket(eventId, divisionId)` flash-param
+  action + `bracket_deleted` notice
+  ([actions.ts](../../apps/web/src/app/events/[id]/bracket/actions.ts),
+  [labels.ts](../../apps/web/src/app/events/[id]/bracket/_components/labels.ts)).
+  `BoundBracketActions` gained an **optional, event-only** `delete`
+  ([bracket-action-binding.ts](../../apps/web/src/app/events/[id]/bracket/_components/bracket-action-binding.ts))
+  — standalone brackets stay `undefined` (they keep their TT-12 page-level
+  delete), so the shared zone never double-renders.
+- **UI — shared danger zone.** New two-step
+  [`DeleteBracketDanger`](../../apps/web/src/app/events/[id]/bracket/_components/delete-bracket-danger.tsx)
+  (mirrors the board's Reset disclosure, `errorButtonClass` confirm,
+  `pendingChildren="Deleting…"`) rendered in
+  [setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx)
+  and
+  [draft-workspace.tsx](../../apps/web/src/app/events/[id]/bracket/_components/draft-workspace.tsx)
+  when `a.delete` is present. Delete → division returns to `NoBracketView` (the
+  format picker), which is also how a host changes format. The inaccurate
+  "change format by resetting"
+  [copy](../../apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx)
+  was corrected.
+- **Tests.** 3 `DeleteBracketHandler` cases
+  ([bracket.handler.test.ts](../../packages/application/src/commands/bracket.handler.test.ts)):
+  host deletes (repo cascade, no `save`), non-host → `UnauthorizedError` (no
+  delete), unknown division → `NotFoundError`.
+
+Scope note: delete is surfaced on the **pre-live** screens (setup / draft). From
+active/completed the host reaches it via Reset (active→setup) or Reopen
+(completed→active→reset→setup); a direct active/completed delete is a possible
+follow-up (the command supports any state).
 
 ### 2026-06-10 — Division-bracket-page UX bundle 3 (UX-8, UX-10, UX-11, UX-12, UX-13; UX-14 deferred)
 

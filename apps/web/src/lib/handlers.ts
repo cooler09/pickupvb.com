@@ -88,6 +88,7 @@ import {
   RenameAdHocTeamRegistrationHandler,
   ReportCommunityListingHandler,
   ResetBracketHandler,
+  DeleteBracketHandler,
   ResetMatchHandler,
   ReorderPoolMatchesHandler,
   PublishBracketHandler,
@@ -268,6 +269,7 @@ export const handlers = {
   generateBracket: new GenerateBracketHandler(eventRepo, bracketRepo, analytics),
   generatePlayoff: new GeneratePlayoffHandler(eventRepo, bracketRepo, analytics),
   resetBracket: new ResetBracketHandler(eventRepo, bracketRepo, analytics),
+  deleteBracket: new DeleteBracketHandler(eventRepo, bracketRepo, analytics),
   reorderPoolMatches: new ReorderPoolMatchesHandler(eventRepo, bracketRepo, analytics),
   // ADR 0032 — host-gated structural edits to the draft / live bracket. All
   // run on the admin-client bracketRepo (host already authorized in the

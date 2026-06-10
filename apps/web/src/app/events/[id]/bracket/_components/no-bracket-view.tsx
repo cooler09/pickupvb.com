@@ -27,7 +27,7 @@ export function NoBracketView(props: {
         <h2 className="text-fg text-lg font-semibold">Create bracket</h2>
         <p className="text-muted text-sm">
           Walk through the steps — confirm teams, pick a format, set match length — then generate.
-          You can change the format (by resetting) before any matches are played.
+          To switch formats later, delete the bracket from its setup screen and start over.
         </p>
       </div>
       {/* The stepper opens on a "Teams" step where the host confirms the

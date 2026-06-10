@@ -6,6 +6,7 @@ import { FormModal } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
 import { bindBracketActions, eventScope } from './bracket-action-binding';
 import { BracketViewSkeleton } from './bracket-view-skeleton';
+import { DeleteBracketDanger } from './delete-bracket-danger';
 import { FORMAT_LABEL, type BracketScope, type TeamLite } from './labels';
 import { SeedingList } from './seeding-list';
 import { WalkInTeamForm } from './walk-in-team-form';
@@ -172,6 +173,14 @@ export function SetupView(props: {
           )}
         </FormModal>
       </div>
+
+      {/* Delete / start-over (UX-15). Event scope only — standalone keeps its
+          own page-level delete (TT-12), so `a.delete` is undefined there. */}
+      {a.delete && (
+        <div className="border-border-base/60 border-t pt-4">
+          <DeleteBracketDanger deleteAction={a.delete} />
+        </div>
+      )}
     </section>
   );
 }

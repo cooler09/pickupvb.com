@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import {
   AddMatchCommand,
   CreateBracketCommand,
+  DeleteBracketCommand,
   EditMatchCommand,
   GenerateBracketCommand,
   GeneratePlayoffCommand,
@@ -288,6 +289,25 @@ export async function resetBracket(eventId: string, divisionId: string): Promise
   }
   revalidate(eventId);
   back(eventId, divisionId, 'reset');
+}
+
+/**
+ * Delete the division's bracket entirely (UX-15) — cascades seeding / schedule /
+ * results. Returns the division to the "no bracket" state, where the host can
+ * re-pick a format (the supported way to change format after create) or simply
+ * leave it removed. Host-gated in the handler.
+ */
+export async function deleteBracket(eventId: string, divisionId: string): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.deleteBracket.execute(new DeleteBracketCommand(divisionId, user.id));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'bracket_deleted');
 }
 
 // ---- Draft editing (ADR 0032) ---------------------------------------------

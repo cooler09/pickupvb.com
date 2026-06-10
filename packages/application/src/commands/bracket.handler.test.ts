@@ -18,6 +18,8 @@ import {
 import {
   CreateBracketCommand,
   CreateBracketHandler,
+  DeleteBracketCommand,
+  DeleteBracketHandler,
   EditMatchCommand,
   EditMatchHandler,
   PublishBracketCommand,
@@ -187,6 +189,7 @@ function hostEvents(hostId = HOST): EventWriteStore {
 class HostBracketRepo implements BracketRepository {
   saveCount = 0;
   saved: Bracket | null = null;
+  deletedIds: string[] = [];
   private idN = 0;
 
   constructor(private readonly bracket: Bracket | null) {}
@@ -213,7 +216,9 @@ class HostBracketRepo implements BracketRepository {
   async saveAsMatchActor(): Promise<void> {
     throw new Error('host-gated structural edits must use save(), not saveAsMatchActor');
   }
-  async deleteBracket(): Promise<void> {}
+  async deleteBracket(id: BracketId): Promise<void> {
+    this.deletedIds.push(String(id));
+  }
   async listRegisteredTeams(): Promise<BracketTeamLite[]> {
     return [];
   }
@@ -286,6 +291,36 @@ describe('Host-gated structural handlers (ADR 0032)', () => {
         new PublishBracketCommand(String(DIVISION_ID), HOST),
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('DeleteBracketHandler deletes the division bracket via the host gate (UX-15)', async () => {
+    const repo = new HostBracketRepo(draftElim4());
+    await new DeleteBracketHandler(hostEvents(), repo).execute(
+      new DeleteBracketCommand(String(DIVISION_ID), HOST),
+    );
+    expect(repo.deletedIds).toEqual([String(BRACKET_ID)]);
+    // Delete is a repo cascade, not an aggregate save.
+    expect(repo.saveCount).toBe(0);
+  });
+
+  it('DeleteBracketHandler rejects a non-host and does not delete', async () => {
+    const repo = new HostBracketRepo(draftElim4());
+    await expect(
+      new DeleteBracketHandler(hostEvents(), repo).execute(
+        new DeleteBracketCommand(String(DIVISION_ID), 'intruder'),
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(repo.deletedIds).toEqual([]);
+  });
+
+  it('DeleteBracketHandler throws NotFoundError when the division has no bracket', async () => {
+    const repo = new HostBracketRepo(null);
+    await expect(
+      new DeleteBracketHandler(hostEvents(), repo).execute(
+        new DeleteBracketCommand(String(DIVISION_ID), HOST),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(repo.deletedIds).toEqual([]);
   });
 
   it('EditMatchHandler applies a patch (court + per-match bestOf) and persists', async () => {

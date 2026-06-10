@@ -11,6 +11,7 @@ import {
 } from '@/components/primary-button';
 import { AddMatchButton } from './add-match-button';
 import { bindBracketActions } from './bracket-action-binding';
+import { DeleteBracketDanger } from './delete-bracket-danger';
 import { FORMAT_LABEL, type BracketScope, type TeamLite } from './labels';
 import { MatchEditor } from './match-editor';
 
@@ -193,6 +194,13 @@ export function DraftWorkspace(props: {
           renderMatchRow={renderMatchRow}
           addMatch={editableSchedule ? <AddMatchButton scope={scope} teams={teams} /> : null}
         />
+      )}
+
+      {/* Delete / start-over (UX-15) — event scope only (see binding). */}
+      {a.delete && (
+        <div className="border-border-base/60 border-t pt-4">
+          <DeleteBracketDanger deleteAction={a.delete} />
+        </div>
       )}
     </section>
   );
