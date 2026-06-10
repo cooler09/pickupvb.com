@@ -13,8 +13,10 @@ import { SocialLinks } from '@/components/social-links';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { PlayerViewerActions } from './_components/player-viewer-actions';
+import { PlaysWith, loadPlaysWith } from './_components/plays-with';
 import { ProfileVideoGrid } from '@/components/profile-video-grid';
 import { BadgeShelf } from '@/components/badge-shelf';
+import { HeroImage } from '@/components/hero-image';
 import { loadPublicBadges } from '@/lib/badges';
 
 /**
@@ -71,7 +73,7 @@ export default async function PlayerProfilePage(props: {
 
   // Hosted events (upcoming + past split at SQL) + pro / admin badges are independent.
   const now = new Date();
-  const [upcoming, past, isProHost, isAdmin, videos, publicBadges] = await Promise.all([
+  const [upcoming, past, isProHost, isAdmin, videos, publicBadges, playsWith] = await Promise.all([
     // RLS handles visibility — anon viewers only see public events.
     loadVisibleHostedEvents(supabase, profile.id, { startsAfter: now }),
     loadVisibleHostedEvents(supabase, profile.id, { startsBefore: now }),
@@ -83,10 +85,15 @@ export default async function PlayerProfilePage(props: {
     // Public trophy case — read from the user_badges_public view (anon-granted,
     // hidden badges already filtered), so it stays ISR-cacheable too.
     loadPublicBadges(supabase, profile.id),
+    // Community context — groups + teams (PUB-7). Anon-safe (RLS `using (true)`).
+    loadPlaysWith(supabase, profile.id),
   ]);
 
   const returnPath = `/players/${profile.handle}`;
   const name = playerName(profile.displayName);
+  // ISO timestamps are `YYYY-…`, so the year is a pure string slice (no `new
+  // Date()` in render — React Compiler purity, AGENTS pattern #4).
+  const memberSinceYear = profile.createdAt ? profile.createdAt.slice(0, 4) : null;
 
   const positions = [profile.primaryPosition, profile.secondaryPosition, profile.tertiaryPosition]
     .filter((p): p is string => !!p)
@@ -100,6 +107,13 @@ export default async function PlayerProfilePage(props: {
           { name, path: `/players/${profile.handle}` },
         ]}
       />
+
+      {/* Hero banner — only when the player uploaded one (most haven't). The
+          default court art is reserved for venue-like surfaces (events/groups);
+          a person's card stays clean unless they opt into a banner. */}
+      {profile.heroImageUrl && (
+        <HeroImage url={profile.heroImageUrl} alt={`${name}'s banner`} priority />
+      )}
 
       {/* ── Identity card ─────────────────────────────────────── */}
       <header className="border-border-base bg-md-surface-container rounded-shape-sm border p-5">
@@ -129,6 +143,9 @@ export default async function PlayerProfilePage(props: {
             <p className="text-muted text-sm">{profile.homeCity ?? 'No home city set'}</p>
             {positions.length > 0 && (
               <p className="text-muted mt-1 text-xs">{positions.join(' · ')}</p>
+            )}
+            {memberSinceYear && (
+              <p className="text-muted mt-1 text-xs">Member since {memberSinceYear}</p>
             )}
             <SocialLinks
               className="mt-3"
@@ -166,6 +183,13 @@ export default async function PlayerProfilePage(props: {
         }))}
         heading={`${name}'s badges`}
       />
+
+      {/* Community context — the groups this player belongs to and the teams
+          they're rostered on (PUB-7). Each sub-section self-hides when empty,
+          and the whole block renders nothing for a player with no public
+          memberships, so a non-host profile gains substance without ever
+          showing a hollow placeholder. */}
+      <PlaysWith groups={playsWith.groups} teams={playsWith.teams} />
 
       {/* "Hosting" — events this player is hosting. The section is host-scoped,
           so it's hidden entirely for the (majority) non-host player rather than

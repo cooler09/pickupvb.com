@@ -60,7 +60,7 @@ function toCard(row: CardRow): ProfileCard {
 }
 
 const PLAYER_COLUMNS =
-  'id, handle, display_name, avatar_url, home_city, show_pro_badge, ' +
+  'id, handle, display_name, avatar_url, hero_image_url, created_at, home_city, show_pro_badge, ' +
   'primary_position, secondary_position, tertiary_position, ' +
   'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url';
 
@@ -69,6 +69,8 @@ type PlayerRow = {
   handle: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  hero_image_url: string | null;
+  created_at: string | null;
   home_city: string | null;
   show_pro_badge: boolean | null;
   primary_position: string | null;
@@ -100,6 +102,8 @@ function toPlayer(row: PlayerRow): PlayerProfile {
     handle: row.handle ?? '',
     displayName: row.display_name ?? 'Player',
     avatarUrl: row.avatar_url,
+    heroImageUrl: row.hero_image_url,
+    createdAt: row.created_at,
     homeCity: row.home_city,
     showProBadge: row.show_pro_badge,
     primaryPosition: row.primary_position,

@@ -131,6 +131,10 @@ export interface PlayerProfile {
   handle: string;
   displayName: string;
   avatarUrl: string | null;
+  /** Wide banner shown atop the public profile (null = no banner uploaded). */
+  heroImageUrl: string | null;
+  /** Account creation timestamp (ISO) — drives the "Member since {year}" line. */
+  createdAt: string | null;
   homeCity: string | null;
   showProBadge: boolean | null;
   primaryPosition: string | null;
