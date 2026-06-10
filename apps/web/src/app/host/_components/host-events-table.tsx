@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { LocalDateTime } from '@/components/local-datetime';
 import type { HostedEventRow } from '@/components/hosted-events-list';
+import { EventActionsMenu } from './event-actions-menu';
 
 /** Signed-up / capacity summary for a row, or just the count when uncapped. */
 function capacityLabel(e: HostedEventRow): string {
@@ -20,10 +21,13 @@ export function HostEventsTable({
   heading,
   events,
   emptyText,
+  upcoming,
 }: {
   heading: string;
   events: ReadonlyArray<HostedEventRow>;
   emptyText: string;
+  /** True for the upcoming list — gates the menu's message/cancel actions. */
+  upcoming: boolean;
 }) {
   return (
     <section className="border-border-base bg-md-surface-container rounded-shape-sm border p-5 sm:p-6">
@@ -69,13 +73,22 @@ export function HostEventsTable({
                     <LocalDateTime iso={e.starts_at} variant="dateShort" timeZone={e.time_zone} />
                   </td>
                   <td className="py-2 pr-4 tabular-nums">{capacityLabel(e)}</td>
-                  <td className="py-2 pr-0 text-right">
-                    <Link
-                      href={`/events/${e.id}/manage` as Route}
-                      className="text-primary hover:underline"
-                    >
-                      Manage
-                    </Link>
+                  <td className="py-2 pr-0">
+                    <div className="flex items-center justify-end gap-1">
+                      <Link
+                        href={`/events/${e.id}/manage` as Route}
+                        className="text-primary hover:underline"
+                      >
+                        Manage
+                      </Link>
+                      <EventActionsMenu
+                        eventId={e.id}
+                        title={e.title}
+                        isUpcoming={upcoming}
+                        isCancelled={e.status === 'cancelled'}
+                        attendeeCount={e.attendee_count}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}

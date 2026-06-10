@@ -1,11 +1,15 @@
 import { redirect } from 'next/navigation';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
-import { isAnonymousUser } from '@/lib/server-auth';
+import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { hasProBenefits } from '@/lib/admin';
 import { hostPaidEventCount30d, FREE_PAID_EVENT_CAP_30D } from '@/lib/pro';
+import { loadEventDetail } from '@/app/events/[id]/_loaders/load-event-detail';
+import { buildDuplicatePrefill } from './_loaders/build-duplicate-prefill';
 import NewEventForm from './new-event-form';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -86,6 +90,32 @@ export default async function NewEventPage(props: {
   const templateValues = selectedTemplate?.payload ?? undefined;
   const templateStatus = pickQuery(searchParams, 'template_status');
 
+  // "Host again" — prefill from a past event the host manages (?from=<eventId>).
+  // Only descriptive fields carry over (no date, no pricing); see
+  // `buildDuplicatePrefill`. Gated on `canManage`, so a host can only duplicate
+  // their own events.
+  const fromId = pickQuery(searchParams, 'from');
+  let duplicateValues: Record<string, string> | undefined;
+  let duplicateTitle: string | undefined;
+  if (fromId && UUID_RE.test(fromId)) {
+    try {
+      const viewer = await getViewer();
+      const { event } = await loadEventDetail(fromId, viewer);
+      if (event.canManage) {
+        duplicateValues = buildDuplicatePrefill(event);
+        duplicateTitle = event.title;
+      }
+    } catch {
+      // Unknown / not-visible source event (loadEventDetail may `notFound()`):
+      // degrade to a blank form rather than 404-ing the create page.
+    }
+  }
+
+  // Duplicate prefill takes precedence over a selected template (a host won't
+  // have both `?from=` and `?template=`).
+  const prefillValues = duplicateValues ?? templateValues;
+  const formKey = duplicateValues ? `from-${fromId}` : (selectedTemplateId ?? 'no-template');
+
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <header className="space-y-1">
@@ -94,6 +124,12 @@ export default async function NewEventPage(props: {
           Set up your pickup session, tournament, or league. You can edit any of this later.
         </p>
       </header>
+      {duplicateTitle && (
+        <div className="border-md-success/30 bg-md-success-container text-md-on-success-container rounded-shape-sm border p-3 text-sm">
+          Duplicating <span className="font-semibold">{duplicateTitle}</span> — set a new date and
+          review the details, then publish.
+        </div>
+      )}
       <NewEventForm
         // Remount when the applied template changes so `useFormState`
         // re-seeds its initialState from the new `templateValues`. React's
@@ -101,7 +137,7 @@ export default async function NewEventPage(props: {
         // App Router preserves client components across same-route soft
         // navigations — without this key, applying a template via the GET
         // submit (?template=<id>) leaves the form fields blank.
-        key={selectedTemplateId ?? 'no-template'}
+        key={formKey}
         hostableGroups={hostableGroups}
         canCollectPayments={canCollectPayments}
         templates={templates}
@@ -109,7 +145,7 @@ export default async function NewEventPage(props: {
         atPaidEventCap={atPaidEventCap}
         {...(templateStatus ? { templateStatus } : {})}
         {...(selectedTemplateId ? { selectedTemplateId } : {})}
-        {...(templateValues ? { templateValues } : {})}
+        {...(prefillValues ? { templateValues: prefillValues } : {})}
       />
     </section>
   );

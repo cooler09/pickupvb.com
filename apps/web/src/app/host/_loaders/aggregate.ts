@@ -150,6 +150,7 @@ export type AttentionItem = {
   title: string;
   kind: AttentionKind;
   startsAt: string;
+  attendeeCount: number;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -192,7 +193,15 @@ export function needsAttention(
       }
     }
 
-    if (kind) items.push({ id: e.id, title: e.title, kind, startsAt: e.starts_at });
+    if (kind) {
+      items.push({
+        id: e.id,
+        title: e.title,
+        kind,
+        startsAt: e.starts_at,
+        attendeeCount: e.attendee_count,
+      });
+    }
   }
 
   items.sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());

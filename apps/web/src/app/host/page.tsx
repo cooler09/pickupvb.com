@@ -107,12 +107,14 @@ export default async function HostDashboardPage() {
         heading="Upcoming events"
         events={upcomingPreview}
         emptyText="No upcoming events. Schedule your next one to keep players coming back."
+        upcoming
       />
 
       <HostEventsTable
         heading="Recent events"
         events={recentPreview}
         emptyText="Your past events will show here once you've hosted."
+        upcoming={false}
       />
 
       {hasMoreEvents && (

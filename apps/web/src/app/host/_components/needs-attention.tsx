@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { LocalDateTime } from '@/components/local-datetime';
 import { neutralButtonClass } from '@/components/primary-button';
+import { EventActionsMenu } from './event-actions-menu';
 import type { AttentionItem, AttentionKind } from '../_loaders/aggregate';
 
 /** Per-kind copy + the action a host should take. */
@@ -73,6 +74,13 @@ export function NeedsAttention({ items }: { items: ReadonlyArray<AttentionItem> 
                 <Link href={meta.to(item.id)} className={`${neutralButtonClass('sm')} shrink-0`}>
                   {meta.cta}
                 </Link>
+                <EventActionsMenu
+                  eventId={item.id}
+                  title={item.title}
+                  isUpcoming
+                  isCancelled={false}
+                  attendeeCount={item.attendeeCount}
+                />
               </li>
             );
           })}
