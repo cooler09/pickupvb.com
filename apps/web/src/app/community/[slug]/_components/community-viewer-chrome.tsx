@@ -15,6 +15,10 @@ import {
 type ViewerState =
   | { phase: 'loading' }
   | { phase: 'anon' }
+  // Real session confirmed, viewer-chrome server action in flight. Distinct from
+  // `loading` so we reserve space for a signed-in viewer's action panel without
+  // flashing a skeleton at the anonymous majority (audit CU-9).
+  | { phase: 'authed-loading' }
   | { phase: 'ready'; model: CommunityViewerChromeModel | null };
 
 const ViewerContext = createContext<ViewerState>({ phase: 'loading' });
@@ -49,6 +53,7 @@ export function CommunityViewerProvider({
         if (!cancelled) setState({ phase: 'anon' });
         return;
       }
+      if (!cancelled) setState({ phase: 'authed-loading' });
       const model = await getCommunityViewerChrome(slug);
       if (!cancelled) setState({ phase: 'ready', model });
     }
@@ -85,9 +90,22 @@ export function CommunityViewerAlerts() {
   );
 }
 
+/** Reserved-space placeholder for the action panel while a signed-in viewer's
+ *  chrome loads, so the strip fades in instead of shifting the page (CU-9). */
+function ActionPanelSkeleton() {
+  return (
+    <div className="border-border-base bg-md-surface-container rounded-md border p-4" aria-hidden>
+      <div className="bg-fg/10 h-4 w-32 animate-pulse rounded" />
+      <div className="bg-fg/10 mt-2 h-3 w-3/4 animate-pulse rounded" />
+      <div className="bg-fg/10 mt-3 h-8 w-28 animate-pulse rounded" />
+    </div>
+  );
+}
+
 /** Bottom-of-page action panels (claim / report / manage). */
 export function CommunityViewerActions() {
   const state = useViewer();
+  if (state.phase === 'authed-loading') return <ActionPanelSkeleton />;
   if (state.phase !== 'ready' || !state.model) return null;
   const { detail, showClaimSection, eligibleEvents, claimableEvents } = state.model;
   return (
@@ -115,7 +133,9 @@ export function CommunityViewerActions() {
  */
 export function CommunityRestrictedView() {
   const state = useViewer();
-  if (state.phase === 'loading') return null;
+  // Wait out both pre-resolution phases — during `authed-loading` there is no
+  // model yet, so falling through would briefly flash the "not available" notice.
+  if (state.phase === 'loading' || state.phase === 'authed-loading') return null;
   if (state.phase === 'anon' || !state.model) {
     return (
       <p className="bg-highlight/30 text-muted rounded-md p-6 text-center text-sm">

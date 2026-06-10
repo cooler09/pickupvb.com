@@ -26,9 +26,9 @@ is the UX complement to — not a duplicate of:**
 - [m3-alignment.md](m3-alignment.md) — `rounded-md` / `bg-highlight` on this
   page are the audit's deferred decorative items, **out of scope here.**
 
-> **Status (2026-06-10): initial UX audit — 0 P1 · 3 P2 · 7 P3.**
+> **Status (2026-06-10): ✅ initial UX audit fully remediated — 0 P1 · 3 P2 ·
+> 7 P3, all 10 fixed quad-green (uncommitted).**
 >
-> **Remediation update — 2026-06-10 (quad-green, uncommitted): 6 of 10 fixed.**
 > Bundle 1 (feedback/stale): **CU-1** the `submitted` flash now renders a real
 > success banner; **CU-2** Delete uses a `ConfirmSubmitButton` modal (the
 > misleading "Something went wrong" path is gone); **CU-3** the dead `claimed`
@@ -38,9 +38,13 @@ is the UX complement to — not a duplicate of:**
 > `parseCommunityListingForm` helper — the submit form gained the edit form's
 > card layout, progressive address disclosure, and sticky mobile CTA, and
 > **CU-4** (`new Date()` in render) is resolved via a lazy `useState` floor.
-> **Still open (P3): CU-6** (filter Apply / no clear-filters), **CU-7** (result
-> count), **CU-9** (action-panel pop-in skeleton), **CU-10** (filter selects →
-> `fieldInputClass`). See the remediation log.
+> Bundle 3 (directory + detail polish): **CU-7** result count in the heading;
+> **CU-6** a "Clear filters" affordance (next to the form + in the filtered
+> empty states) — auto-submit was deliberately **not** added, to stay consistent
+> with `/players` `/groups` `/teams`, which all keep an explicit submit button;
+> **CU-10** the filter selects moved onto `fieldInputClass`; **CU-9** the
+> signed-in action panel now reserves space via a skeleton (new `authed-loading`
+> phase so the anonymous majority never see a flash). See the remediation log.
 
 ---
 
@@ -252,4 +256,27 @@ the 3 standing warnings are the unrelated scoreboard-remote effect).
   form components dropped from ~300/~360 LOC to ~33/~40, and the two actions from
   ~136/~142 to ~50 each.
 
-**Still open:** CU-6, CU-7, CU-9, CU-10 (all P3).
+### 2026-06-10 (later) — directory + detail polish (quad-green, uncommitted)
+
+`pnpm typecheck && pnpm lint && pnpm test && pnpm build` all pass.
+
+- **CU-7** — the `/community` heading now carries a count
+  (`Community listings · {total}`, rendered `120+` at the fetch-window ceiling),
+  matching `/players` ([page.tsx](../../apps/web/src/app/community/page.tsx)).
+- **CU-6** — a "Clear filters" link renders next to the filter form and inside
+  the filtered (non-location) empty states when any of surface/format/skill is
+  active; it drops the three dropdowns but preserves the tab + any active
+  location (which keeps its own "Clear location"). Auto-submit was **not**
+  added — `/players` `/groups` `/teams` all keep an explicit submit button, so a
+  community-only auto-submit would be the inconsistency, not the fix.
+- **CU-10** — the three filter `<select>`s now use `fieldInputClass`; the Apply
+  button moved from a hand-tuned `h-[34px]` to the standard `primaryButtonClass('md')`
+  to match the taller fields (also clears a stale canonical-class lint hint).
+- **CU-9** — `CommunityViewerProvider` gained an `authed-loading` phase (set once
+  a real session is confirmed, before the chrome server action resolves);
+  `CommunityViewerActions` renders an `ActionPanelSkeleton` during it, and
+  `CommunityRestrictedView` waits it out so it can't flash "not available". The
+  anonymous majority resolve straight to `anon` and never see the skeleton
+  ([community-viewer-chrome.tsx](../../apps/web/src/app/community/[slug]/_components/community-viewer-chrome.tsx)).
+
+**All 10 findings (CU-1…CU-10) resolved.**
