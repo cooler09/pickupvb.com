@@ -30,8 +30,16 @@ export type MatchSide = 'A' | 'B';
 export interface LiveMatchConfig {
   teamA: string;
   teamB: string;
-  /** Points needed to win a set (e.g. 25 for volleyball, 11 for pickleball). */
+  /** Points needed to win a set (e.g. 25 for volleyball, 11 for pickleball).
+   *  The uniform fallback used when {@link targetScores} doesn't cover a set. */
   targetScore: number;
+  /**
+   * Per-set point targets (e.g. `[25, 25, 15]` for a best-of-3 where the
+   * deciding set is played to 15). When present and non-empty it wins over the
+   * uniform {@link targetScore}; a set past the array's end reuses the last
+   * entry. Omitted entirely for a uniform match — see {@link targetForSet}.
+   */
+  targetScores?: ReadonlyArray<number>;
   /** Must win by this many points (e.g. 2). */
   winBy: number;
   /** Best of N sets — first to ceil(N/2) sets wins the match. Use 1 for one-off games. */
@@ -81,6 +89,30 @@ export function setsToWin(bestOf: number): number {
   return Math.floor(bestOf / 2) + 1;
 }
 
+/**
+ * The 1-indexed set currently being played: completed sets + 1. While a set is
+ * in progress this is that set's number; right after the deciding `commitSet`
+ * it points one past the last set (harmless — the match is already won).
+ */
+export function currentSetNumber(s: LiveMatchScore): number {
+  return s.setsA + s.setsB + 1;
+}
+
+/**
+ * Points needed to win set `setNumber` (1-indexed). When per-set
+ * {@link LiveMatchConfig.targetScores} is present and non-empty it wins, with a
+ * set past the array's end reusing the last entry (mirrors the bracket's
+ * `effectiveSetTargetScore`); otherwise the uniform {@link LiveMatchConfig.targetScore}.
+ */
+export function targetForSet(config: LiveMatchConfig, setNumber: number): number {
+  const arr = config.targetScores;
+  if (arr && arr.length > 0) {
+    const idx = Math.min(Math.max(setNumber, 1), arr.length) - 1;
+    return arr[idx] ?? config.targetScore;
+  }
+  return config.targetScore;
+}
+
 export function matchWinner(s: LiveMatchScore): MatchSide | null {
   const need = setsToWin(s.config.bestOf);
   if (s.setsA >= need) return 'A';
@@ -88,11 +120,16 @@ export function matchWinner(s: LiveMatchScore): MatchSide | null {
   return null;
 }
 
-/** True when the current set score satisfies target + win-by for `side`. */
+/**
+ * True when the current set score satisfies its target + win-by for `side`.
+ * The target is resolved for the set currently in play ({@link currentSetNumber}),
+ * so per-set targets like `[25, 25, 15]` clinch the deciding set at 15.
+ */
 export function isSetWon(s: LiveMatchScore, side: MatchSide): boolean {
   const own = side === 'A' ? s.scoreA : s.scoreB;
   const opp = side === 'A' ? s.scoreB : s.scoreA;
-  return own >= s.config.targetScore && own - opp >= s.config.winBy;
+  const target = targetForSet(s.config, currentSetNumber(s));
+  return own >= target && own - opp >= s.config.winBy;
 }
 
 export function increment(

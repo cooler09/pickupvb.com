@@ -16,18 +16,36 @@ function single(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+/**
+ * Per-set targets (the `ts` param, e.g. `ts=25,25,15`) — launched from a
+ * bracket match whose sets are played to different totals. Each entry is
+ * clamped to the same 1–99 range as the uniform target; bad/empty tokens are
+ * dropped, and an entirely unusable list yields `undefined` (→ uniform target).
+ */
+function parseTargetScores(raw: string | undefined): number[] | undefined {
+  if (!raw) return undefined;
+  const nums = raw
+    .split(',')
+    .map((p) => Number(p.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .map((n) => Math.min(99, Math.max(1, Math.floor(n))));
+  return nums.length > 0 ? nums : undefined;
+}
+
 function parseConfig(params: SearchParams): ScoreboardConfig {
   const num = (raw: string | undefined, fallback: number, min: number, max: number): number => {
     const n = Number(raw);
     if (!Number.isFinite(n)) return fallback;
     return Math.min(max, Math.max(min, Math.floor(n)));
   };
+  const targetScores = parseTargetScores(single(params['ts']));
   return {
     teamA: (single(params['ta']) || DEFAULT_CONFIG.teamA).slice(0, 30),
     teamB: (single(params['tb']) || DEFAULT_CONFIG.teamB).slice(0, 30),
     targetScore: num(single(params['t']), DEFAULT_CONFIG.targetScore, 1, 99),
     winBy: num(single(params['wb']), DEFAULT_CONFIG.winBy, 1, 10),
     bestOf: num(single(params['bo']), DEFAULT_CONFIG.bestOf, 1, 9),
+    ...(targetScores ? { targetScores } : {}),
   };
 }
 

@@ -8,12 +8,14 @@ import { useScoreboardSync } from '../../_lib/use-scoreboard-sync.js';
 import { clearState } from '../../_lib/storage.js';
 import {
   commitSet,
+  currentSetNumber,
   increment,
   isSetWon,
   matchWinner,
   resetMatch,
   setsToWin,
   swapSides,
+  targetForSet,
   undoLastSet,
   type ScoreboardConfig,
   type ScoreboardState,
@@ -566,14 +568,22 @@ function BottomBar({
       state.setHistory.length > 0 ? state.setHistory.map((h) => `${h.a}-${h.b}`).join(' · ') : '—',
     [state.setHistory],
   );
+  // Per-set targets (e.g. [25, 25, 15]) show the live set's own total plus the
+  // full sequence; a uniform match keeps the plain "First to N".
+  const perSetTargets = state.config.targetScores;
+  const hasPerSet = !!perSetTargets && perSetTargets.length > 1;
+  const setNumber = currentSetNumber(state);
+  const liveTarget = targetForSet(state.config, setNumber);
   return (
     <footer
       className={`flex flex-wrap items-center justify-between gap-3 border-t ${border} px-4 py-2 text-xs ${subtle}`}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span>
-          First to {state.config.targetScore} (win by {state.config.winBy})
+          {hasPerSet ? `Set ${setNumber} — first to ${liveTarget}` : `First to ${liveTarget}`} (win
+          by {state.config.winBy})
         </span>
+        {hasPerSet && perSetTargets && <span>Targets: {perSetTargets.join(' · ')}</span>}
         <span>
           Best of {state.config.bestOf} · first to {need} sets
         </span>

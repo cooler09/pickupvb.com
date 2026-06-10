@@ -75,6 +75,21 @@ export function MatchCard(props: {
   const lengthDiffersFromDefault =
     matchBestOf !== props.bestOf || matchTargetScore !== (props.targetScore ?? null);
 
+  // The live scoreboard honours per-set targets (e.g. [25, 25, 15]), so resolve
+  // each set's effective target (per-match override → playoff → pool → global,
+  // ADR 0032) for the match's full length. `effectiveSetTargetScore` only
+  // returns null when no target is configured anywhere — and then for every
+  // set — so the array is either fully resolved or empty; a partial mix can't
+  // occur. Pass the array only when the targets genuinely vary across sets,
+  // otherwise the single `targetScore` (set 1) is enough.
+  const setTargets = Array.from({ length: matchBestOf }, (_, i) =>
+    effectiveSetTargetScore(m, i + 1, targetDefaults),
+  );
+  const liveTargetScore = setTargets[0] ?? null;
+  const resolvedSetTargets = setTargets.every((t): t is number => t != null) ? setTargets : null;
+  const liveTargetScores =
+    resolvedSetTargets && new Set(resolvedSetTargets).size > 1 ? resolvedSetTargets : null;
+
   const setsToShow = Math.max(matchBestOf, m.sets.length + 1);
 
   return (
@@ -133,6 +148,8 @@ export function MatchCard(props: {
             teamA={teamA.name}
             teamB={teamB.name}
             bestOf={matchBestOf}
+            {...(liveTargetScore != null ? { targetScore: liveTargetScore } : {})}
+            {...(liveTargetScores ? { targetScores: liveTargetScores } : {})}
             {...(scope.kind === 'standalone'
               ? { bracketId: scope.bracketId, returnPath: `/brackets/${scope.bracketId}` }
               : {
