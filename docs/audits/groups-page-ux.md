@@ -16,9 +16,11 @@ _Last updated: 2026-06-10_
 > vocab (`fieldInputClass` / `field()`); the directory follow button uses
 > `neutralButtonClass`; the manager sub-page h1s align on `text-headline-sm`;
 > the member-row action cluster wraps on mobile; and a dead `ok` state field
-> was dropped. **1 open — GD-4** (a product call: clarify follow≠membership vs.
-> build a real join-request flow). No data-loss or auth holes found. Findings
-> in
+> was dropped. **GD-4 closed wontfix** (2026-06-10 maintainer call): no public
+> join-request flow — it would hand popular clubs an unbounded approval queue;
+> membership stays organizer-curated, Follow is the public affordance.
+> **0 findings open** — the detail-surface pass is fully resolved. No data-loss
+> or auth holes found. Findings in
 > "[Findings — detail, members, edit & billing](#findings--group-detail-member-management-edit--billing-2026-06-10)";
 > what shipped is in the
 > [member-feedback](#2026-06-10--gd-1-gd-2-gd-3-gd-7-gd-9-bundle-member-feedback--polish),
@@ -263,7 +265,7 @@ param to a default-selected option in
 selector (validate it's in `hostableGroups`). **P2** — friction on the primary
 host action and the club-monetization path.
 
-#### GD-4 — No "request to join" path for players — only Follow · **P3** (product)
+#### GD-4 — No "request to join" path for players — only Follow · **P3** (product) · 🚫 closed-wontfix 2026-06-10
 
 The detail page offers non-members exactly one affordance: **Follow**
 ([group-viewer-actions.tsx#L89-L113](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx#L89-L113)).
@@ -273,9 +275,19 @@ never signals it: a visitor sees "Follow," may read it as "join," and a player w
 genuinely wants _in_ has no path and no explanation. **Options:** (a) cheapest —
 clarifying copy near the follow button ("Following keeps you posted; ask an
 organizer to add you to the roster"); (b) a lightweight **join-request** (a
-`group_join_requests` row + an owner/admin inbox affordance). **P3 / product
-decision** — flagged for a call, not a code bug. Recommend (a) now, (b) only if
-self-serve club growth becomes a goal.
+`group_join_requests` row + an owner/admin inbox affordance).
+
+**Resolution (2026-06-10) — wontfix the request flow; membership stays
+organizer-curated.** Maintainer call: a public "request to join" (option b) would
+hand a popular club an **unbounded approval queue** — organizers would be pushed
+to either rubber-stamp strangers or look unresponsive, and the queue is exactly
+the kind of recurring obligation the product shouldn't manufacture for a host.
+**Follow** already delivers what the public actually wants ("keep me posted on
+this club") with zero organizer workload, so it stays the only public affordance;
+managers add members directly. Option (a)'s clarifying microcopy is **deferred,
+not adopted** — "+ Follow" is a well-understood social primitive and the curated
+model is the norm for clubs, so a hint risks clutter for little gain. Revisit only
+if support/UX signal shows players are actually confusing Follow with membership.
 
 ### C. Consistency / convention drift (stale code)
 
