@@ -6,18 +6,21 @@ _Last updated: 2026-06-10_
 > groups surface** — detail (`/groups/[id]`), member-management
 > (`/members`), edit, billing (`/billing`), and analytics. The 2026-06-01
 > directory pass (G-1…G-5) stays ✅ closed below. New detail-surface pass:
-> **0 P1 · 3 P2 · 7 P3**. **5 fixed same day, quad-green (GD-1, GD-2, GD-3,
-> GD-7, GD-9):** member-management failures now surface via flash-param
+> **0 P1 · 3 P2 · 7 P3**. **6 fixed same day, quad-green (GD-1, GD-2, GD-3,
+> GD-5, GD-7, GD-9):** member-management failures now surface via flash-param
 > `<Alert>` (last-owner / already-member / unauthorized no longer a silent
 > no-op); the directory shows a "Group deleted" banner; the group's "Host an
-> event" CTA preselects the club (`?host_group=<slug>`); the directory
-> follow button uses `neutralButtonClass`; and a dead `ok` state field was
-> dropped. **5 open** (GD-4, GD-5, GD-6, GD-8, GD-10) — `requireGroupManager`
-> dedup (×4), member-form field vocab, host h1 size, join-request product
-> call, and member-row mobile wrap. No data-loss or auth holes found.
-> Findings + fixes in
+> event" CTA preselects the club (`?host_group=<slug>`); the four-way
+> slug→group + owner/admin gate is collapsed into one `requireGroupManager`
+> page helper; the directory follow button uses `neutralButtonClass`; and a
+> dead `ok` state field was dropped. **4 open** (GD-4, GD-6, GD-8, GD-10) —
+> join-request product call, member-form field vocab, host h1 size, and
+> member-row mobile wrap. No data-loss or auth holes found. Findings + fixes
+> in
 > "[Findings — detail, members, edit & billing](#findings--group-detail-member-management-edit--billing-2026-06-10)";
-> what shipped is in the [remediation log](#2026-06-10--gd-1-gd-2-gd-3-gd-7-gd-9-bundle-member-feedback--polish).
+> what shipped is in the
+> [remediation](#2026-06-10--gd-1-gd-2-gd-3-gd-7-gd-9-bundle-member-feedback--polish)
+> [log](#2026-06-10--gd-5-bundle-shared-requiregroupmanager-gate).
 
 UX/UI evaluation of the **groups directory**
 ([apps/web/src/app/groups/page.tsx](../../apps/web/src/app/groups/page.tsx)) —
@@ -272,7 +275,7 @@ self-serve club growth becomes a goal.
 
 ### C. Consistency / convention drift (stale code)
 
-#### GD-5 — slug→group + owner/admin gate reimplemented **four** ways · **P2**
+#### GD-5 — slug→group + owner/admin gate reimplemented **four** ways · **P2** · ✅ resolved 2026-06-10
 
 The same "resolve `[id]` slug → group, gate to owner/admin, else redirect" logic
 exists in four shapes:
@@ -359,6 +362,37 @@ into a single menu. **P3** — mobile polish.
 
 ## Remediation log
 
+### 2026-06-10 — GD-5 bundle (shared `requireGroupManager` gate)
+
+Collapsed the four copies of the slug→group + owner/admin gate into one
+server-only page helper,
+[`requireGroupManager(slug, nextPath)`](../../apps/web/src/app/groups/[id]/_lib/require-group-manager.ts).
+It resolves the `[id]` slug → `GroupDetail` via the read-model adapter
+(`findDetailBySlug` + `findViewerRole`), then short-circuits: `redirect` to
+`/login?next=<nextPath>` when signed out, `notFound()` on an unknown slug, or
+`redirect('/groups/<slug>')` when the viewer isn't a manager. It returns the
+React-cached `supabase` client + the `groupQueries` adapter alongside
+`{ group, role, userId }`, so the members page reuses them for `listMembers`
+rather than re-constructing.
+
+- **edit + members pages** dropped their inline gate (and the now-unused
+  `getServerSupabase` / `SupabaseGroupQueryRepository` / `notFound` / `redirect`
+  imports); the **billing + analytics pages** dropped their inline **raw**
+  `groups` + `group_members` queries entirely — they now read a typed
+  `GroupDetail` instead of an ad-hoc `{ id, name }` cast.
+- **Scope note:** the billing **actions**' own `requireGroupManager`
+  ([billing/actions.ts](../../apps/web/src/app/groups/[id]/billing/actions.ts))
+  is intentionally left as a separate helper — it runs in a `'use server'`
+  action context (uses `requireRealUser`, the anon-blocking primitive) and
+  returns `{ groupId, email }` for Stripe, a different shape and auth posture
+  than a page render. The drift that mattered (the four **page** copies, two via
+  read-model + two inline raw) is closed.
+- **Gotcha:** typing the helper's `nextPath` as `Route` rejected the callers'
+  templated `` `/groups/${string}/edit` `` (typedRoutes won't match a dynamic
+  segment hole to the route param in argument position); typed it `string` and
+  cast once inside at the login `redirect`. Verified `pnpm typecheck && lint &&
+test && build` (all green; touched files add zero lint warnings).
+
 ### 2026-06-10 — GD-1 / GD-2 / GD-3 / GD-7 / GD-9 bundle (member feedback + polish)
 
 Shipped the high-leverage, low-risk subset of the detail-surface pass the same
@@ -393,9 +427,9 @@ renders a`MEMBER_FLASH` `<Alert>` (warning for last-owner / already-member /
   [delete-group-panel.tsx](../../apps/web/src/app/groups/[id]/edit/delete-group-panel.tsx)
   and [delete-actions.ts](../../apps/web/src/app/groups/[id]/edit/delete-actions.ts).
 
-**Still open:** GD-4 (join-request product call), GD-5 (`requireGroupManager`
-dedup ×4), GD-6 (member-form field vocab), GD-8 (host-page h1 size), GD-10
-(member-row mobile wrap).
+**Still open:** GD-4 (join-request product call), GD-6 (member-form field
+vocab), GD-8 (host-page h1 size), GD-10 (member-row mobile wrap). _(GD-5 landed
+the same day — see the entry above.)_
 
 ### 2026-06-01 — G-1…G-5 bundle (counts + follow + vocab + shared card)
 

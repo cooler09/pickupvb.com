@@ -1,7 +1,5 @@
-import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { getServerSupabase } from '@/lib/supabase';
 import { isStripeConfigured } from '@/lib/stripe';
 import { CLUB_MONTHLY_PRICE_CENTS, isClubGroup, getGroupSubscription } from '@/lib/club';
 import { getGroupStripeAccountStatus } from '@/lib/group-stripe-account';
@@ -9,6 +7,7 @@ import { primaryButtonClass, neutralButtonClass } from '@/components/primary-but
 import { SubmitButton } from '@/components/submit-button';
 import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
 import { Alert } from '@/components/alert';
+import { requireGroupManager } from '../_lib/require-group-manager';
 import {
   startClubCheckout,
   getClubBillingPortalUrl,
@@ -37,31 +36,9 @@ export default async function GroupBillingPage(props: {
   const { id: slug } = await props.params;
   const { club: flash, onboarding } = await props.searchParams;
 
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/groups/${slug}/billing`);
-
-  const { data: groupRow } = await supabase
-    .from('groups')
-    .select('id, name')
-    .eq('slug', slug)
-    .maybeSingle();
-  if (!groupRow) notFound();
-  const group = groupRow as { id: string; name: string };
+  const { group } = await requireGroupManager(slug, `/groups/${slug}/billing`);
   const groupId = group.id;
   const groupName = group.name;
-
-  // Owner/admin gate.
-  const { data: roleRow } = await supabase
-    .from('group_members')
-    .select('role')
-    .eq('group_id', groupId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const role = (roleRow as { role: string } | null)?.role;
-  if (role !== 'owner' && role !== 'admin') redirect(`/groups/${slug}`);
 
   const stripeReady = isStripeConfigured();
   const [club, sub, acct] = await Promise.all([

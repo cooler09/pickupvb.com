@@ -1,11 +1,9 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
-import { getServerSupabase } from '@/lib/supabase';
 import { Pagination } from '@/components/pagination';
 import { Alert, type AlertVariant } from '@/components/alert';
 import { AddMemberForm } from './_components/add-member-form';
 import { MemberRowItem, type MemberListItem } from './_components/member-row-item';
+import { requireGroupManager } from '../_lib/require-group-manager';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -35,24 +33,15 @@ export default async function GroupMembersPage(props: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ page?: string; member?: string }>;
 }) {
-  const params = await props.params;
+  const { id: slug } = await props.params;
   const searchParams = await props.searchParams;
   const page = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
   const flash = searchParams.member ? MEMBER_FLASH[searchParams.member] : undefined;
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/groups/${params.id}/members`);
 
-  const groupQueries = new SupabaseGroupQueryRepository(supabase);
-  const group = await groupQueries.findDetailBySlug(params.id);
-  if (!group) notFound();
-
-  const myRole = await groupQueries.findViewerRole(group.id, user.id);
-  if (myRole !== 'owner' && myRole !== 'admin') {
-    redirect(`/groups/${group.slug}`);
-  }
+  const { groupQueries, group, role, userId } = await requireGroupManager(
+    slug,
+    `/groups/${slug}/members`,
+  );
 
   const memberCards = await groupQueries.listMembers(group.id);
   const members: MemberListItem[] = memberCards.map((m) => ({
@@ -69,7 +58,7 @@ export default async function GroupMembersPage(props: {
   }));
 
   const returnPath = `/groups/${group.slug}/members`;
-  const viewerIsOwner = myRole === 'owner';
+  const viewerIsOwner = role === 'owner';
 
   // Keep the full `members` list for the exclude set + count; only page the
   // rendered rows so a large group doesn't render every member at once.
@@ -103,7 +92,7 @@ export default async function GroupMembersPage(props: {
               key={m.userId}
               groupId={group.id}
               member={m}
-              isSelf={m.userId === user.id}
+              isSelf={m.userId === userId}
               viewerIsOwner={viewerIsOwner}
               returnPath={returnPath}
             />

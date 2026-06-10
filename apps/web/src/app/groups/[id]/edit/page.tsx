@@ -1,28 +1,13 @@
-import { notFound, redirect } from 'next/navigation';
-import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
-import { getServerSupabase } from '@/lib/supabase';
 import EditGroupForm from './edit-group-form';
 import { GroupAvatarPanel } from '@/components/group-avatar-panel';
 import { DeleteGroupPanel } from './delete-group-panel';
+import { requireGroupManager } from '../_lib/require-group-manager';
 
 export const dynamic = 'force-dynamic';
 
 export default async function EditGroupPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/groups/${params.id}/edit`);
-
-  const groupQueries = new SupabaseGroupQueryRepository(supabase);
-  const group = await groupQueries.findDetailBySlug(params.id);
-  if (!group) notFound();
-
-  const role = await groupQueries.findViewerRole(group.id, user.id);
-  if (role !== 'owner' && role !== 'admin') {
-    redirect(`/groups/${group.slug}`);
-  }
+  const { id: slug } = await props.params;
+  const { group, role, userId } = await requireGroupManager(slug, `/groups/${slug}/edit`);
 
   return (
     <section className="mx-auto max-w-xl space-y-6 py-4">
@@ -32,7 +17,7 @@ export default async function EditGroupPage(props: { params: Promise<{ id: strin
       <EditGroupForm group={group} />
       <GroupAvatarPanel
         groupId={group.id}
-        userId={user.id}
+        userId={userId}
         currentUrl={group.avatarUrl}
         initials={group.name.slice(0, 2).toUpperCase()}
         returnPath={`/groups/${group.slug}`}
