@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
-import { SupabaseProfileRepository, SupabaseMediaPostRepository } from '@pickupvb/infrastructure';
+import { SupabaseMediaPostRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
+import { getPlayerByHandle } from './_loaders/load-player';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { playerName, playerInitials } from '@/lib/player-name';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
@@ -33,23 +34,23 @@ const PAST_EVENTS_PER_PAGE = 10;
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const profiles = new SupabaseProfileRepository(createSupabaseAnonClient());
-  const card = await profiles.findCardByHandle(params.id);
-  if (!card) return { title: 'Player' };
-  const name = card.displayName || 'Player';
-  const description = `${name}${card.homeCity ? ` of ${card.homeCity}` : ''} — volleyball player on PickupVB.`;
+  // Shares the page's `React.cache`-memoized read (PUB-12) — one query, not two.
+  const profile = await getPlayerByHandle(params.id);
+  if (!profile) return { title: 'Player' };
+  const name = profile.displayName || 'Player';
+  const description = `${name}${profile.homeCity ? ` of ${profile.homeCity}` : ''} — volleyball player on PickupVB.`;
   return {
     title: name,
     description,
-    alternates: { canonical: `/players/${card.handle}` },
+    alternates: { canonical: `/players/${profile.handle}` },
     // Honor the discovery opt-out: a `discoverable = false` player stays
     // reachable by direct link but is de-indexed (and dropped from the
     // sitemap) so "stay private" isn't crawled. Default (null/true) indexes.
-    ...(card.discoverable === false ? { robots: { index: false, follow: false } } : {}),
+    ...(profile.discoverable === false ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       title: `${name} · PickupVB`,
       description,
-      url: `/players/${card.handle}`,
+      url: `/players/${profile.handle}`,
       type: 'profile',
     },
   };
@@ -68,7 +69,9 @@ export default async function PlayerProfilePage(props: {
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
   const supabase = createSupabaseAnonClient();
 
-  const profile = await new SupabaseProfileRepository(supabase).findPlayerByHandle(params.id);
+  // Memoized read shared with `generateMetadata` (PUB-12); the `supabase` client
+  // above still drives the independent side-loads below.
+  const profile = await getPlayerByHandle(params.id);
   if (!profile) notFound();
 
   // Hosted events (upcoming + past split at SQL) + pro / admin badges are independent.

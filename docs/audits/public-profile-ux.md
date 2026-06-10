@@ -22,9 +22,15 @@ is [profile-page-ux.md](profile-page-ux.md).
 > already intact). **PUB-9 (P3) ✅** avatar `width/height` 72 → 80 to match the
 > rendered `h-20 w-20` box (matching the hub) and **PUB-10 (P3) ✅** the public
 > card now omits the home-city line when unset instead of echoing "No home city
-> set" to visitors — both fixed same day, quad-green. **Still open** (P3):
-> **PUB-11** no block/report affordance; **PUB-12** the profile row is read up
-> to 3× per render. See **Findings** below. _(Minor, not numbered: `ShareLink`'s
+> set" to visitors. **PUB-11 (P3) ◑** the `⋯` overflow menu now offers
+> **Block / Unblock** (reuses `blockUser` / `unblockUser`; Message hides when
+> blocked) — **Report deferred** (no profile-report backend or admin queue
+> exists; new machinery, not an entry point). **PUB-12 (P3) ✅** the
+> handle→profile read is now `React.cache`-memoized and **shared by
+> `generateMetadata` + the page** (one query, not two), with `discoverable`
+> threaded onto `PlayerProfile` so metadata drops its own `findCardByHandle`.
+> All quad-green. **Only open item:** PUB-11's deferred Report half. See
+> **Findings** below. _(Minor, not numbered: `ShareLink`'s
 > trigger hand-rolls the neutral-button classes instead of `neutralButtonClass`
 > — shared component, cross-cutting.)_
 
@@ -281,30 +287,66 @@ private hub, which is owner-facing.) **Fixed:** the public card omits the
 home-city line entirely when `homeCity` is null, rather than echoing
 owner-state copy ([page.tsx](../../apps/web/src/app/players/[id]/page.tsx)).
 
-### PUB-11 — No block/report affordance for a signed-in viewer · **P3** · ⛔ open
+### PUB-11 — No block/report affordance for a signed-in viewer · **P3** · ✅ Block shipped 2026-06-10 · ⛔ Report deferred
 
-`PlayerViewerActions` offers only follow / message / share
-([player-viewer-actions.tsx#L148-L181](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx#L148-L181)).
-Blocking only exists inside a chat thread, so to block someone a viewer must
-first open a DM with them. The public profile is the natural place to **report
-or block** a player you've never messaged. **Fix:** add an overflow (`⋯`) menu
-on the `other` viewer state with "Report" and "Block" (the block edge + chat
-`forbidden` gate already exist; this is a new entry point, not new machinery).
+`PlayerViewerActions` offered only follow / message / share. Blocking only
+existed inside a chat thread, so to block someone a viewer had to first open a
+DM with them. The public profile is the natural place to **block** a player
+you've never messaged.
 
-### PUB-12 — The profile row is read up to 3× per render · **P3** · ⛔ open (carried from PUB-3)
+**Block — fixed (2026-06-10).** Added a `⋯` overflow menu (Radix `DropdownMenu`,
+same pattern as `host/_components/event-actions-menu.tsx`) on the `other` viewer
+state with **Block / Unblock**, reusing the existing `blockUser` / `unblockUser`
+chat actions ([player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx)).
+The hydration effect now reads `user_blocks` (owner-scoped RLS) alongside
+`friendships` to seed the toggle; optimistic with rollback + toast on failure.
+When blocked, the **Message** button is hidden (a blocked pair can't DM —
+RLS `is_blocked_pair` — so offering it would guarantee a `forbidden`).
+
+**Report — deferred (needs backend, not "just an entry point").** The audit
+originally lumped Report in as a free addition, but unlike Block it has **no
+machinery**: reports today are per-content (`media_post_reports`,
+`message_reports`) — there is no profile-report table, no `ReportProfileCommand`,
+and no admin moderation queue (admin is `community-import`-only). A "Report
+player" button would either go nowhere or require a new table + domain command +
+handler + an admin review surface — disproportionate for a P3 with nothing to
+consume the reports. Tracked as a follow-up; see below.
+
+### PUB-12 — The profile row is read up to 3× per render · **P3** · ✅ fixed 2026-06-10 (carried from PUB-3)
 
 `generateMetadata` (`findCardByHandle`), the page (`findPlayerByHandle`), and
-the OG route (`findCardByHandle`) each issue their own `profiles_public` query
+the OG route (`findCardByHandle`) each issued their own `profiles_public` query
 for the same handle. ISR masks the cost, but metadata + the page run in the
-**same request** and could share a `React.cache`-wrapped read; the OG route is a
-separate render and stays independent. **Fix:** memoize the handle→profile read
-with `React.cache` so a cache MISS render fires one query instead of two.
-(Carried forward from PUB-3, which fixed only the OG client, not the
-fan-out.)
+**same request**. **Fixed:** new
+[\_loaders/load-player.ts](../../apps/web/src/app/players/[id]/_loaders/load-player.ts)
+wraps the handle→profile read in `React.cache`, and **both** `generateMetadata`
+and the page now call `getPlayerByHandle` — so a cache-MISS render fires one
+query instead of two. `discoverable` was threaded onto `PlayerProfile` /
+`PLAYER_COLUMNS` so metadata reads the noindex flag off the shared row rather
+than its own `findCardByHandle`. The OG route is a separate render and keeps its
+own (independent) read, as before.
 
 ---
 
 ## Remediation log
+
+### 2026-06-10 — PUB-11 (Block) + PUB-12 shipped
+
+Third same-day bundle on this surface. Verified `pnpm typecheck && pnpm lint &&
+pnpm test && pnpm build` (all green).
+
+- **PUB-11 ◑** — added a `⋯` overflow menu (Radix `DropdownMenu`) on the `other`
+  viewer state with **Block / Unblock**, reusing `blockUser` / `unblockUser`.
+  The hydration effect reads `user_blocks` alongside `friendships`; optimistic +
+  toast on failure; Message hides when blocked (blocked pairs can't DM). The
+  **Report** half is deferred — it has no backend (per-content reports only, no
+  profile-report table, no admin queue) and would be new machinery, not an entry
+  point.
+- **PUB-12 ✅** — `getPlayerByHandle` (`React.cache`, new
+  [\_loaders/load-player.ts](../../apps/web/src/app/players/[id]/_loaders/load-player.ts))
+  is now shared by `generateMetadata` and the page, collapsing two identical
+  `profiles_public` reads into one per render. `discoverable` threaded onto
+  `PlayerProfile` so metadata no longer needs its own `findCardByHandle`.
 
 ### 2026-06-10 — Re-audit; headline PUB-7 + PUB-8 bundle shipped
 

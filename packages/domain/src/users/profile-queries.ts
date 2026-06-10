@@ -135,6 +135,8 @@ export interface PlayerProfile {
   heroImageUrl: string | null;
   /** Account creation timestamp (ISO) — drives the "Member since {year}" line. */
   createdAt: string | null;
+  /** Discovery opt-out — `false` de-indexes the page (PUB-2). Null/true indexes. */
+  discoverable: boolean | null;
   homeCity: string | null;
   showProBadge: boolean | null;
   primaryPosition: string | null;

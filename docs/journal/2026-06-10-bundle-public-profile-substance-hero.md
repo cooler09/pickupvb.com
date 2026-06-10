@@ -81,14 +81,34 @@ Two quick P3s in the same identity card, shipped right after the headline pair
   than echoing "No home city set" (owner-instruction copy) to a stranger
   viewing someone else's profile.
 
+## Follow-on same day (PUB-11 Block + PUB-12)
+
+- **PUB-11 ◑** — added a `⋯` overflow menu (Radix `DropdownMenu`, the
+  `event-actions-menu.tsx` pattern) with **Block / Unblock**, reusing the
+  existing `blockUser` / `unblockUser` chat actions. The hydration effect reads
+  `user_blocks` (owner-scoped RLS) next to `friendships` to seed the toggle;
+  optimistic + toast on failure; the **Message** button hides when blocked
+  (a blocked pair can't DM — RLS `is_blocked_pair`). **Report deferred:** unlike
+  Block it's _not_ an entry point — there's no profile-report table, command, or
+  admin queue (reports today are per-content only), so a real "Report player"
+  needs new backend disproportionate to a P3. The user chose Block-now /
+  Report-later.
+- **PUB-12 ✅** — `getPlayerByHandle` (`React.cache`,
+  [\_loaders/load-player.ts](../../apps/web/src/app/players/[id]/_loaders/load-player.ts))
+  is now shared by `generateMetadata` + the page, so a cache-MISS render fires
+  one `profiles_public` query instead of two. Needed `discoverable` on
+  `PlayerProfile` / `PLAYER_COLUMNS` so metadata reads the noindex flag off the
+  shared row rather than its own `findCardByHandle`. The OG route is a separate
+  render and keeps its independent read.
+
 ## Follow-ups (still open on this surface)
 
-- **PUB-11 (P3)** — no block/report affordance for a signed-in viewer.
-- **PUB-12 (P3)** — the profile row is read up to 3× per render
-  (metadata / page / OG); wrap in `React.cache`.
-- **e2e** — the new membership block + banner aren't covered by Playwright;
-  the real "does it render for a member" check is deploy-gated (not authored
-  red, per the repo's unrun-spec warning).
+- **PUB-11 Report half (P3)** — a "Report player" entry point needs a
+  `profile_reports` table + `ReportProfileCommand`/handler + an admin review
+  surface; deferred until there's somewhere to consume the reports.
+- **e2e** — the new membership block, banner, and block menu aren't covered by
+  Playwright; the real "does it render / does block take" check is deploy-gated
+  (not authored red, per the repo's unrun-spec warning).
 
 Verified `pnpm typecheck && pnpm lint && pnpm test && pnpm build` — all green
 (375 tests, 0 lint errors). Working tree left dirty for the maintainer to
