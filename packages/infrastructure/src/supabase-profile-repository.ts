@@ -146,7 +146,7 @@ export class SupabaseProfileRepository implements ProfileQueries {
 
   async searchDirectory({
     nameLike,
-    cityLike,
+    position,
     near,
     limit,
     offset,
@@ -164,8 +164,13 @@ export class SupabaseProfileRepository implements ProfileQueries {
     if (nameLike) {
       query = query.ilike('display_name', `%${escapeLike(nameLike)}%`);
     }
-    if (cityLike) {
-      query = query.ilike('home_city', `%${escapeLike(cityLike)}%`);
+    if (position) {
+      // PL-7 position filter: match any of the three position slots. `position`
+      // is a validated enum token (the page checks it against POSITION_LABEL),
+      // so it's safe to interpolate into the PostgREST `or` filter.
+      query = query.or(
+        `primary_position.eq.${position},secondary_position.eq.${position},tertiary_position.eq.${position}`,
+      );
     }
     if (near) {
       // Bounding box from the radius: ~111.32 km per degree of latitude;

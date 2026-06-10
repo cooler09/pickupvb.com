@@ -1,6 +1,28 @@
 # Players Directory UX Audit
 
-_Last updated: 2026-06-01_
+_Last updated: 2026-06-10_
+
+> **Status (2026-06-10) — re-audit:** Fresh persona-lens pass over the directory
+> now that PL-1…PL-5 have shipped (PL-5 geo is **live** — migration applied, types
+> regenerated, plus the `profiles_public_round_coords` + `profiles_discoverable`
+> follow-ups). **No P1, no data/auth holes** — the page is still
+> `profiles_public`-correct, `discoverable`-gated, ISR-cacheable, and paginated.
+> New findings: **1 P2 · 4 P3**. **PL-6, PL-7, PL-10 shipped same day, quad-green;
+> PL-8 + PL-9 remain open.** **PL-7** (P2) — the directory is now **filterable by
+> position** (the headline recruiting signal PL-1 added to the cards): a position
+> `<select>` in the filter row, threaded through `ProfileDirectoryQuery.position`
+> to a `.or(...)` over the three position slots, no migration. **PL-6** — the
+> directory's "✓ Following" button now uses `neutralButtonClass` (matching the
+> detail page / AGENTS pattern 11 — was the exact **GD-7** drift). **PL-10** — the
+> dead `cityLike` directory-query param was removed (its slot is now `position`).
+> **Still open: PL-8** the filter row shows **two ambiguous "Search" buttons** and
+> the name input is placeholder-only (no label / `role="search"`); **PL-9** the
+> filtered empty-state says "widen your radius" but there's **no radius control**
+> (radius is hard-coded 40 km). See
+> "[Re-audit findings (2026-06-10)](#re-audit-findings-2026-06-10)". The
+> `/players/[id]` **detail** page is a separate surface
+> ([public-profile-ux.md](public-profile-ux.md), all resolved); its re-audit
+> surfaced nothing new beyond the already-deferred "member of groups/teams" row.
 
 UX/UI evaluation of the **players directory**
 ([apps/web/src/app/players/page.tsx](../../apps/web/src/app/players/page.tsx)) —
@@ -210,6 +232,117 @@ profiles geo stack mirroring the events near-me UX:
 
 ---
 
+## Re-audit findings (2026-06-10)
+
+Second persona-lens pass after PL-1…PL-5 shipped. Same lens: does each card carry
+the decision signal, and can the page **act** on it? The cards now do (PL-1
+positions, PL-2 follow, PL-5 distance); these findings are about the **filter
+controls** that turn the signal into a result, plus convergence/stale-code drift.
+None are ship-blocking.
+
+### A. Acting on intent
+
+#### PL-7 — Can't filter the directory by **position**, the headline recruiting signal · **P2** (re-audit headline) · ✅ resolved 2026-06-10
+
+PL-1 put position chips on every card precisely because _"who plays setter near
+me"_ is the team-captain persona's **key signal** — yet the page offers only a
+**name** filter and a **location** filter
+([page.tsx#L76-L100](../../apps/web/src/app/players/page.tsx#L76-L100)). A captain
+recruiting a setter still has to eyeball every card across every page; the page's
+own subhead ("…add to your team…"
+[page.tsx#L72-L74](../../apps/web/src/app/players/page.tsx#L72-L74)) can't be acted
+on at scale. This is the natural follow-on to PL-1: the data is **already** there —
+`profiles_public` exposes `primary/secondary/tertiary_position` and `ProfileCard`
+carries `positions`
+([supabase-profile-repository.ts#L31-L60](../../packages/infrastructure/src/supabase-profile-repository.ts#L31-L60))
+— so a filter is a query-param + WHERE addition, **no migration**.
+
+**Recommended fix:** add a `position` searchParam rendered as a `<select>` of
+`POSITION_LABEL` keys in the filter row; thread `position?` onto
+`ProfileDirectoryQuery`
+([profile-queries.ts#L95-L107](../../packages/domain/src/users/profile-queries.ts#L95-L107))
+and in `searchDirectory` match any of the three slots —
+`.or('primary_position.eq.<v>,secondary_position.eq.<v>,tertiary_position.eq.<v>')`
+([supabase-profile-repository.ts#L147-L197](../../packages/infrastructure/src/supabase-profile-repository.ts#L147-L197)).
+Preserve it across name/location submits like the other params (hidden input in
+the name form + `URLSearchParams` in `NearMeButton`/`LocationSearch`). **P2** —
+the directory's stated primary job (recruiting) is unactionable without it; graded
+the same as PL-1, which was the "cards carry no signal" headline.
+
+### B. Consistency / convention drift (stale code)
+
+#### PL-6 — Directory "✓ Following" button uses `secondaryButtonClass`, not `neutralButtonClass` · **P3** (GD-7 analog) · ✅ resolved 2026-06-10
+
+The per-card `FollowButton`'s followed state paints with `secondaryButtonClass('sm')`
+([players-follow.tsx#L135-L137](../../apps/web/src/app/players/_components/players-follow.tsx#L135-L137)),
+but AGENTS **pattern 11** is explicit: the neutral-bordered "✓ Following" look is
+`neutralButtonClass`, **not** the primary-tinted `secondaryButtonClass`. The
+detail page's `PlayerViewerActions` already uses `neutralButtonClass('sm')` for the
+identical state
+([player-viewer-actions.tsx#L150-L159](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx#L150-L159)),
+so the same "Following" button renders **two different ways** on the directory vs.
+the profile it links to. This is the exact **GD-7** finding closed for groups on
+2026-06-10 — the players directory carries the identical, still-unfixed drift.
+**Fix:** switch line 136 to `neutralButtonClass('sm')` and drop the now-unused
+`secondaryButtonClass` import. **P3** — cosmetic, cross-surface inconsistency.
+
+#### PL-10 — `cityLike` directory-query param is dead code · **P3** (stale) · ✅ resolved 2026-06-10
+
+`ProfileDirectoryQuery.cityLike`
+([profile-queries.ts#L99](../../packages/domain/src/users/profile-queries.ts#L99))
+and its `searchDirectory` branch
+([supabase-profile-repository.ts#L167-L169](../../packages/infrastructure/src/supabase-profile-repository.ts#L167-L169))
+implement a `home_city` substring filter, but **no caller passes it** — PL-5
+replaced the city text input with geo near-me, leaving the param vestigial. The
+only `searchDirectory` consumer
+([page.tsx#L57-L62](../../apps/web/src/app/players/page.tsx#L57-L62)) sends
+`nameLike` + `near`. A supported-looking-but-unreachable filter is a maintenance
+trap. **Fix:** drop `cityLike` from the query interface and the repo branch (and
+its `escapeLike` line); if it's intentionally reserved, say so in a comment.
+**P3** — trivial stale-code removal.
+
+### C. Filter-control polish
+
+#### PL-8 — Two ambiguous "Search" buttons in the filter row; name input is placeholder-only · **P3**
+
+The filter row renders the **name** form's Search button (`primaryButtonClass()`,
+[page.tsx#L94-L96](../../apps/web/src/app/players/page.tsx#L94-L96)) immediately
+beside the **LocationSearch** form's Search button (`secondaryButtonClass('sm')`,
+[location-search.tsx#L56-L58](../../apps/web/src/app/events/location-search.tsx#L56-L58))
+— two buttons labeled **"Search"** doing different things (name `ilike` vs.
+geocode-a-city). A user can't tell them apart, and typing a city into the name box
+returns nothing (it only `ilike`s `display_name`,
+[supabase-profile-repository.ts#L164-L166](../../packages/infrastructure/src/supabase-profile-repository.ts#L164-L166)).
+Separately, the name `<input>` is **placeholder-only**
+([page.tsx#L78-L84](../../apps/web/src/app/players/page.tsx#L78-L84)) — no
+`<label>`/`aria-label`, and the `<form>` lacks `role="search"`, while LocationSearch
+has **both** ([location-search.tsx#L47-L53](../../apps/web/src/app/events/location-search.tsx#L47-L53))
+— an a11y + consistency gap (cross-ref [accessibility.md](accessibility.md)).
+**Fix:** (a) give the name input `aria-label="Search players by name"` and the form
+`role="search"`; (b) disambiguate the location control (label its button by purpose,
+or fold name + location + the PL-7 position select into one labeled filter group).
+Optionally also `ilike` `handle` so a known `@handle` resolves. **P3.**
+
+#### PL-9 — Empty state says "widen your radius" but there's no radius control · **P3**
+
+The near-me radius is hard-coded to 40 km
+(`Number.parseFloat(searchParams.radiusKm ?? '') || 40`,
+[page.tsx#L52](../../apps/web/src/app/players/page.tsx#L52)) and the only location
+affordance is **"Clear"** ([page.tsx#L101-L108](../../apps/web/src/app/players/page.tsx#L101-L108)).
+Yet the filtered empty state instructs _"Try a different name, **widen your radius**,
+or clear the search"_ ([page.tsx#L111-L115](../../apps/web/src/app/players/page.tsx#L111-L115))
+— a **dead instruction**, since the radius is only changeable by hand-editing the
+URL. `/events` already exposes a "Radius (km)" `<select>` when a location is active
+([event-filter-form.tsx#L171-L177](../../apps/web/src/app/events/_components/event-filter-form.tsx#L171-L177)).
+This compounds PL-5's known coverage gap (profiles without geocoded coords never
+match a near-me filter, no backfill), so near-me already returns a thin set —
+giving no way to widen it is the wrong default. **Fix:** add a small radius
+`<select>` (e.g. 10 / 25 / 40 / 80 km) beside the "within N km · Clear" line when
+`hasLocation`, mirroring the events filter form; or, if a fixed radius is intended,
+drop "widen your radius" from the empty-state copy. **P3.**
+
+---
+
 ## Out of scope
 
 - **`/players/[id]`** (the public player profile the cards link to, and the
@@ -217,6 +350,37 @@ profiles geo stack mirroring the events near-me UX:
   own UX audit if/when we get there. This file covers the **directory** only.
 
 ## Remediation log
+
+### 2026-06-10 — PL-6 / PL-10 cleanup + PL-7 position filter
+
+Shipped the cleanup bundle (PL-6 + PL-10) and the PL-7 feature pass together.
+Verified `pnpm typecheck && lint && test && build` (all green; touched files add
+zero lint warnings; 375 web tests pass). PL-8 + PL-9 left open.
+
+- **PL-6 ✅** — the per-card `FollowButton`'s followed state now uses
+  `neutralButtonClass('sm')` (was `secondaryButtonClass('sm')`), matching the
+  detail page's `PlayerViewerActions` and AGENTS pattern 11; dropped the unused
+  `secondaryButtonClass` import.
+  [players-follow.tsx](../../apps/web/src/app/players/_components/players-follow.tsx).
+- **PL-10 ✅** — removed the dead `cityLike` from `ProfileDirectoryQuery`
+  ([profile-queries.ts](../../packages/domain/src/users/profile-queries.ts)) and
+  its `home_city` `ilike` branch + destructure in
+  [supabase-profile-repository.ts](../../packages/infrastructure/src/supabase-profile-repository.ts).
+  No caller passed it after PL-5; the freed slot is now `position` (PL-7).
+- **PL-7 ✅** — directory is now filterable by playing position. New optional
+  `ProfileDirectoryQuery.position`
+  ([profile-queries.ts](../../packages/domain/src/users/profile-queries.ts));
+  `searchDirectory` matches any of the three slots via
+  `.or('primary_position.eq.<v>,secondary_position.eq.<v>,tertiary_position.eq.<v>')`
+  ([supabase-profile-repository.ts](../../packages/infrastructure/src/supabase-profile-repository.ts)).
+  The page parses a `position` searchParam, **validates it against
+  `POSITION_LABEL`** before passing it (the token is interpolated into the
+  PostgREST `or`), renders an "Any position" + six-option `<select>` inside the
+  GET name-form (so one Search submits name + position), and preserves it across
+  the clear-location link + pagination. `NearMeButton` / `LocationSearch` already
+  carry it through (`URLSearchParams`). No migration — the position columns were
+  already on `profiles_public` (PL-1).
+  [players/page.tsx](../../apps/web/src/app/players/page.tsx).
 
 ### 2026-06-01 — PL-1…PL-4 bundle (card enrichment + follow + vocab + count)
 

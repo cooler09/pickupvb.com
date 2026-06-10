@@ -95,8 +95,12 @@ export interface ProfileSearchQuery {
 export interface ProfileDirectoryQuery {
   /** Case-insensitive substring match on display name (raw text; adapter escapes). */
   nameLike?: string;
-  /** Case-insensitive substring match on home city (raw text; adapter escapes). */
-  cityLike?: string;
+  /**
+   * Position filter (PL-7): restrict to profiles that list this position in any
+   * of their primary/secondary/tertiary slots. A validated position enum token
+   * (e.g. `setter`) — the caller checks it against the known set before passing.
+   */
+  position?: string;
   /**
    * Proximity filter (PL-5): restrict to profiles whose geocoded home location
    * falls within `radiusKm` of the center (a bounding-box approximation), with
