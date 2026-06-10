@@ -122,8 +122,8 @@ export default async function PlayerProfilePage(props: {
             <Image
               src={profile.avatarUrl}
               alt={`${name}'s profile photo`}
-              width={72}
-              height={72}
+              width={80}
+              height={80}
               className="h-20 w-20 shrink-0 rounded-full object-cover"
             />
           ) : (
@@ -140,7 +140,9 @@ export default async function PlayerProfilePage(props: {
               {isAdmin && <AdminBadge />}
               {isProHost && <ProBadge />}
             </div>
-            <p className="text-muted text-sm">{profile.homeCity ?? 'No home city set'}</p>
+            {/* Omit rather than echo owner-state copy ("…set") to a stranger
+                viewing someone else's card (PUB-10). */}
+            {profile.homeCity && <p className="text-muted text-sm">{profile.homeCity}</p>}
             {positions.length > 0 && (
               <p className="text-muted mt-1 text-xs">{positions.join(' · ')}</p>
             )}

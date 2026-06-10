@@ -19,8 +19,10 @@ is [profile-page-ux.md](profile-page-ux.md).
 > `HeroImagePanel` on the editor + a `<HeroImage>` band atop `/players/[id]`
 > (the orphan-sweep already covered `profiles`, so **no migration** was needed;
 > the write path through `SetProfileHeroImageHandler` → `hero_image_url` was
-> already intact). **Still open** (P3): **PUB-9** avatar `width/height={72}` ≠
-> rendered 80px; **PUB-10** "No home city set" owner copy shown to visitors;
+> already intact). **PUB-9 (P3) ✅** avatar `width/height` 72 → 80 to match the
+> rendered `h-20 w-20` box (matching the hub) and **PUB-10 (P3) ✅** the public
+> card now omits the home-city line when unset instead of echoing "No home city
+> set" to visitors — both fixed same day, quad-green. **Still open** (P3):
 > **PUB-11** no block/report affordance; **PUB-12** the profile row is read up
 > to 3× per render. See **Findings** below. _(Minor, not numbered: `ShareLink`'s
 > trigger hand-rolls the neutral-button classes instead of `neutralButtonClass`
@@ -256,7 +258,7 @@ userId`, same `returnPath` rule as the avatar. `hero_image_url` was threaded
 
 The "remove it" path is therefore moot — the half-feature is now a whole one.
 
-### PUB-9 — Avatar intrinsic size (72) doesn't match its rendered size (80px) · **P3** · ⛔ open
+### PUB-9 — Avatar intrinsic size (72) doesn't match its rendered size (80px) · **P3** · ✅ fixed 2026-06-10
 
 [page.tsx#L107-L114](../../apps/web/src/app/players/[id]/page.tsx#L107-L114)
 passes `width={72} height={72}` to `next/image` but renders it at
@@ -265,17 +267,19 @@ for the 72px intrinsic, so the browser upscales to 80 (and on retina requests
 2×72 = 144 to fill a 160-device-px box) → a faintly soft avatar. The private
 hub gets this right — `width={80} height={80}` for the same `h-20 w-20`
 slot ([profile-hub-sections.tsx#L40-L46](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx#L40-L46)).
-**Fix:** set `width={80} height={80}` (or larger, e.g. 160, for crisp retina)
-to match the rendered box.
+**Fixed:** `width={80} height={80}` to match the rendered box (matching the
+hub's value, so Next's srcset handles DPR)
+([page.tsx](../../apps/web/src/app/players/[id]/page.tsx)).
 
-### PUB-10 — "No home city set" is owner copy shown to every visitor · **P3** · ⛔ open
+### PUB-10 — "No home city set" is owner copy shown to every visitor · **P3** · ✅ fixed 2026-06-10
 
 [page.tsx#L129](../../apps/web/src/app/players/[id]/page.tsx#L129) renders
 `{profile.homeCity ?? 'No home city set'}`. On a **third-party** profile the
 fallback reads as an instruction to _you_ ("…set") about _someone else's_
 missing field — awkward on a card a stranger is viewing. (It's fine on the
-private hub, which is owner-facing.) **Fix:** omit the line entirely when
-`homeCity` is null on the public page, rather than echoing owner-state copy.
+private hub, which is owner-facing.) **Fixed:** the public card omits the
+home-city line entirely when `homeCity` is null, rather than echoing
+owner-state copy ([page.tsx](../../apps/web/src/app/players/[id]/page.tsx)).
 
 ### PUB-11 — No block/report affordance for a signed-in viewer · **P3** · ⛔ open
 
@@ -322,8 +326,11 @@ Verified `pnpm typecheck && pnpm lint && pnpm test && pnpm build` (all green —
   selected into `PLAYER_COLUMNS` and a `<HeroImage>` band rendered atop
   `/players/[id]` when set. The write path + the orphan-sweep `profiles`
   branch were already in place, so **no migration** and no new backend.
-- **Still open (P3):** PUB-9 (avatar size 72 vs 80), PUB-10 (owner copy),
-  PUB-11 (block/report), PUB-12 (3× row read).
+- **PUB-9 ✅** — avatar `width/height` 72 → 80 to match the rendered `h-20 w-20`
+  box (the hub's value), so Next's srcset serves the right resolution.
+- **PUB-10 ✅** — the public card omits the home-city line when unset instead of
+  rendering "No home city set" (owner copy) to a stranger.
+- **Still open (P3):** PUB-11 (block/report), PUB-12 (3× row read).
 
 ### 2026-06-08 — First audit; both P2 fixed same day
 

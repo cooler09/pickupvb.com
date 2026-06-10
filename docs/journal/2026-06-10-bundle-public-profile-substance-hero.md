@@ -69,10 +69,20 @@ userId`), and `hero_image_url` selected into `PLAYER_COLUMNS` + a
   it's a real schema + editor + moderation increment, not a same-bundle relabel.
   Deferred inside PUB-7.
 
+## Follow-on same day (PUB-9 + PUB-10)
+
+Two quick P3s in the same identity card, shipped right after the headline pair
+(quad-green):
+
+- **PUB-9 ✅** — avatar `width/height` 72 → 80 to match the rendered `h-20 w-20`
+  (80px) box, so Next's optimizer/srcset serves the right resolution instead of
+  upscaling a 72px intrinsic. Matches the private hub's value.
+- **PUB-10 ✅** — the public card now omits the home-city line when unset rather
+  than echoing "No home city set" (owner-instruction copy) to a stranger
+  viewing someone else's profile.
+
 ## Follow-ups (still open on this surface)
 
-- **PUB-9 (P3)** — avatar `width/height={72}` vs rendered `h-20 w-20` (80px).
-- **PUB-10 (P3)** — "No home city set" owner copy shown to every visitor.
 - **PUB-11 (P3)** — no block/report affordance for a signed-in viewer.
 - **PUB-12 (P3)** — the profile row is read up to 3× per render
   (metadata / page / OG); wrap in `React.cache`.
