@@ -114,7 +114,10 @@ export function GroupViewerActions({
       <ShareLink path={`/groups/${groupSlug}`} title={groupName} />
       {state.canManage && (
         <>
-          <Link href={'/events/new' as Route} className={`${secondaryButtonClass('sm')} ml-auto`}>
+          <Link
+            href={`/events/new?host_group=${groupSlug}` as Route}
+            className={`${secondaryButtonClass('sm')} ml-auto`}
+          >
             Host an event
           </Link>
           <Link href={`/groups/${groupSlug}/edit` as Route} className={neutralButtonClass('sm')}>

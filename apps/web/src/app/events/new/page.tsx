@@ -51,6 +51,13 @@ export default async function NewEventPage(props: {
   );
   const hostableGroups = manageableGroups.map((g) => ({ id: g.id, name: g.name }));
 
+  // Preselect a host group when arriving from that group's "Host an event" CTA
+  // (?host_group=<slug>) — but only if the viewer actually manages it (GD-3).
+  const hostGroupSlug = pickQuery(searchParams, 'host_group');
+  const preselectedGroup = hostGroupSlug
+    ? manageableGroups.find((g) => g.slug === hostGroupSlug)
+    : undefined;
+
   // Stripe payout readiness drives whether on-platform payment controls
   // are rendered at all. `getHostStripeAccount` returns the connected
   // account id only when `charges_enabled` is true.
@@ -112,8 +119,12 @@ export default async function NewEventPage(props: {
   }
 
   // Duplicate prefill takes precedence over a selected template (a host won't
-  // have both `?from=` and `?template=`).
-  const prefillValues = duplicateValues ?? templateValues;
+  // have both `?from=` and `?template=`). A `?host_group=` preselect (GD-3) is
+  // additive — it merges its `hostGroupId` onto whichever prefill applies.
+  const basePrefill = duplicateValues ?? templateValues;
+  const prefillValues = preselectedGroup
+    ? { ...(basePrefill ?? {}), hostGroupId: preselectedGroup.id }
+    : basePrefill;
   const formKey = duplicateValues ? `from-${fromId}` : (selectedTemplateId ?? 'no-template');
 
   return (

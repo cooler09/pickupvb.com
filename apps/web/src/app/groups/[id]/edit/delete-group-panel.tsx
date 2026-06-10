@@ -10,7 +10,7 @@ import {
 import { deleteGroupAction } from './delete-actions';
 import { useAlertReveal } from '@/components/use-alert-reveal';
 
-type State = { error?: string; ok?: boolean };
+type State = { error?: string };
 const initialState: State = {};
 
 /**

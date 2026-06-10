@@ -7,7 +7,7 @@ import { ConflictError, NotFoundError, UnauthorizedError } from '@pickupvb/domai
 import { requireRealUser } from '@/lib/server-auth';
 import { getGroupHandlers } from '@/lib/handlers';
 
-type State = { error?: string; ok?: boolean };
+type State = { error?: string };
 
 /**
  * Soft-delete a group. Owner-only (ADR 0021 — enforced by `Group.assertCanDelete`).

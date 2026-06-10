@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { followGroup, unfollowGroup } from '@/app/groups/follow-actions';
-import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
+import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
 
 /**
  * Follow-from-the-directory support for `/groups` (G-2) — the groups twin of
@@ -131,7 +131,7 @@ export function GroupFollowButton({ groupId }: { groupId: string }) {
       // `relative z-10` lifts the button above the card's stretched-link
       // overlay so it captures its own click instead of navigating.
       className={`relative z-10 shrink-0 ${
-        isFollowing ? secondaryButtonClass('sm') : primaryButtonClass('sm')
+        isFollowing ? neutralButtonClass('sm') : primaryButtonClass('sm')
       }`}
     >
       {isFollowing ? '✓ Following' : '+ Follow'}
