@@ -4363,6 +4363,7 @@ export type Database = {
           last_read_at: string;
           preview: string;
           preview_sender_id: string;
+          preview_sender_name: string;
           title: string;
         }[];
       };

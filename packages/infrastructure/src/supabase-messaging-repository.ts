@@ -317,6 +317,7 @@ type InboxRpcRow = {
   is_unread: boolean;
   preview: string | null;
   preview_sender_id: string | null;
+  preview_sender_name: string | null;
 };
 
 function rowToInbox(row: InboxRpcRow): InboxItem {
@@ -331,6 +332,7 @@ function rowToInbox(row: InboxRpcRow): InboxItem {
     isUnread: row.is_unread,
     preview: row.preview,
     previewSenderId: row.preview_sender_id,
+    previewSenderName: row.preview_sender_name,
   };
 }
 

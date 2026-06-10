@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { UserId } from '@pickupvb/domain';
 import { ListMessagesQuery, MarkConversationReadCommand } from '@pickupvb/application';
 import { SupabaseProfileRepository, SupabaseUserBlockRepository } from '@pickupvb/infrastructure';
@@ -15,7 +16,22 @@ export const metadata = {
 
 const PAGE_SIZE = 30;
 
-type ConversationRow = { id: string; kind: 'team' | 'event' | 'group' | 'dm' };
+/** Viewport-relative list height for the full-page thread, so it isn't a tiny
+ * box in an empty column like the embedded context-page panels (audit MU-2). */
+const THREAD_LIST_HEIGHT = 'max-h-[65vh] min-h-[20rem]';
+
+/** Orientation sub-label under a room thread's title (audit MU-1). */
+const ROOM_KIND_LABEL: Record<'team' | 'event' | 'group', string> = {
+  team: 'Team chat',
+  event: 'Event chat',
+  group: 'Group chat',
+};
+
+type ConversationRow = {
+  id: string;
+  kind: 'team' | 'event' | 'group' | 'dm';
+  context_id: string | null;
+};
 
 export default async function ConversationPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -25,7 +41,7 @@ export default async function ConversationPage(props: { params: Promise<{ id: st
   // RLS returns the row only if the viewer can access it — otherwise 404.
   const { data: convData } = await supabase
     .from('conversations')
-    .select('id, kind')
+    .select('id, kind, context_id')
     .eq('id', id)
     .maybeSingle();
   const conv = convData as ConversationRow | null;
@@ -47,6 +63,43 @@ export default async function ConversationPage(props: { params: Promise<{ id: st
   const viewerName = cards.get(user.id)?.displayName ?? 'You';
   const otherCard = otherId ? (cards.get(otherId) ?? null) : null;
 
+  // Resolve a room's title + a link back to its context (team / group / event).
+  // A room thread opened directly — the chat notification deep-links rooms to
+  // `/messages/{id}`, not the context page — otherwise renders the generic
+  // heading "Conversation" with no name and no way back (audit MU-1).
+  let roomTitle: string | null = null;
+  let roomHref: Route | null = null;
+  if (conv.kind !== 'dm' && conv.context_id) {
+    if (conv.kind === 'team') {
+      const { data } = await supabase
+        .from('teams')
+        .select('name, slug')
+        .eq('id', conv.context_id)
+        .maybeSingle();
+      const row = data as { name: string; slug: string } | null;
+      roomTitle = row?.name ?? null;
+      roomHref = row?.slug ? (`/teams/${row.slug}` as Route) : null;
+    } else if (conv.kind === 'group') {
+      const { data } = await supabase
+        .from('groups')
+        .select('name, slug')
+        .eq('id', conv.context_id)
+        .maybeSingle();
+      const row = data as { name: string; slug: string } | null;
+      roomTitle = row?.name ?? null;
+      roomHref = row?.slug ? (`/groups/${row.slug}` as Route) : null;
+    } else {
+      const { data } = await supabase
+        .from('events')
+        .select('title')
+        .eq('id', conv.context_id)
+        .maybeSingle();
+      const row = data as { title: string } | null;
+      roomTitle = row?.title ?? null;
+      roomHref = `/events/${conv.context_id}` as Route;
+    }
+  }
+
   const { listMessages, markConversationRead } = await getChatHandlers();
   const page = await listMessages.execute(new ListMessagesQuery(id, PAGE_SIZE));
   await markConversationRead.execute(new MarkConversationReadCommand(id, user.id));
@@ -63,7 +116,7 @@ export default async function ConversationPage(props: { params: Promise<{ id: st
     ...(otherCard ? [{ id: otherCard.id, name: otherCard.displayName }] : []),
   ];
   const heading =
-    otherCard?.displayName ?? (conv.kind === 'dm' ? 'Direct message' : 'Conversation');
+    otherCard?.displayName ?? roomTitle ?? (conv.kind === 'dm' ? 'Direct message' : 'Conversation');
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 py-4">
@@ -85,12 +138,27 @@ export default async function ConversationPage(props: { params: Promise<{ id: st
           initialMessages={page.messages}
           initialHasMore={page.hasMore}
           initialNextBefore={page.nextBefore}
+          listHeightClass={THREAD_LIST_HEIGHT}
         />
       ) : (
         // Room conversation, or a DM whose counterpart was deleted — no block
         // relationship to manage.
         <>
-          <h1 className="text-title-lg truncate font-bold">{heading}</h1>
+          <div className="space-y-0.5">
+            {roomHref ? (
+              <Link
+                href={roomHref}
+                className="text-title-lg block truncate font-bold hover:underline"
+              >
+                {heading}
+              </Link>
+            ) : (
+              <h1 className="text-title-lg truncate font-bold">{heading}</h1>
+            )}
+            {conv.kind !== 'dm' && (
+              <p className="text-muted text-xs">{ROOM_KIND_LABEL[conv.kind]}</p>
+            )}
+          </div>
           <ConversationView
             conversationId={id}
             viewerId={user.id}
@@ -99,6 +167,7 @@ export default async function ConversationPage(props: { params: Promise<{ id: st
             initialHasMore={page.hasMore}
             initialNextBefore={page.nextBefore}
             participants={participants}
+            listHeightClass={THREAD_LIST_HEIGHT}
           />
         </>
       )}

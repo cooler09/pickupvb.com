@@ -75,6 +75,10 @@ export interface InboxItem {
   isUnread: boolean;
   preview: string | null;
   previewSenderId: string | null;
+  /** Display name of the latest message's sender — used to prefix room previews
+   * with who spoke (DMs don't need it; the title is the person). `null` for an
+   * empty conversation or a since-deleted sender. */
+  previewSenderName: string | null;
 }
 
 /**

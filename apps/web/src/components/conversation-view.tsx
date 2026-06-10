@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -60,6 +61,11 @@ type Props = {
   /** DM only: the viewer has blocked the counterpart. Replaces the composer with
    * a banner so they don't type into a send that RLS will reject (audit M-9). */
   blocked?: boolean;
+  /** Tailwind height bounds for the scrolling message list. Defaults to the
+   * compact embedded-panel size (`max-h-96 min-h-48`) used on context pages; the
+   * full-page `/messages/[id]` thread passes a viewport-relative value so it isn't
+   * a tiny box in an empty column (audit MU-2). */
+  listHeightClass?: string;
 };
 
 type SenderCard = { name: string; avatar: string | null };
@@ -145,6 +151,7 @@ export function ConversationView({
   initialNextBefore,
   participants,
   blocked = false,
+  listHeightClass = 'max-h-96 min-h-48',
 }: Props) {
   const [messages, setMessages] = useState<MessageView[]>(initialMessages);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -510,7 +517,7 @@ export function ConversationView({
       <div
         ref={listRef}
         onScroll={onScroll}
-        className="flex max-h-96 min-h-48 flex-col gap-3 overflow-y-auto p-3"
+        className={`flex ${listHeightClass} flex-col gap-3 overflow-y-auto p-3`}
       >
         {hasMore && (
           <button
@@ -530,12 +537,22 @@ export function ConversationView({
           const displayName = m.senderName ?? 'Member';
           return (
             <div key={m.id} className="flex items-start gap-2">
-              <span
-                aria-hidden
-                className="bg-fg/10 text-fg/70 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-              >
-                {initials(displayName)}
-              </span>
+              {m.senderAvatarUrl ? (
+                <Image
+                  src={m.senderAvatarUrl}
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <span
+                  aria-hidden
+                  className="bg-fg/10 text-fg/70 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                >
+                  {initials(displayName)}
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
                   <span className="truncate text-sm font-medium">

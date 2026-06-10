@@ -21,6 +21,11 @@ const KIND_LABEL: Record<InboxItem['kind'], string> = {
   dm: 'Direct message',
 };
 
+/** First token of a display name — keeps room previews short ("Alex: …"). */
+function firstName(name: string): string {
+  return name.trim().split(/\s+/)[0] || name;
+}
+
 /** Where a conversation row links to. Rooms open on the context page that hosts
  * their chat (team / event / group); DMs open the dedicated thread at
  * `/messages/{id}`. Opening either advances the read cursor. Template literals
@@ -92,12 +97,17 @@ export default async function MessagesPage(props: {
           {pageItems.map((item) => {
             const href = inboxHref(item);
             const title = item.title ?? KIND_LABEL[item.kind];
+            // Prefix room previews with who spoke so a busy team/event/group
+            // thread shows "Alex: …", not a bare body (audit MU-4). DMs don't
+            // need it — the title is the person; the viewer's own line is "You:".
             const preview =
               item.preview === null
                 ? 'No messages yet'
                 : item.previewSenderId === user.id
                   ? `You: ${item.preview}`
-                  : item.preview;
+                  : item.kind !== 'dm' && item.previewSenderName
+                    ? `${firstName(item.previewSenderName)}: ${item.preview}`
+                    : item.preview;
             const inner = (
               <>
                 <div className="min-w-0 flex-1">
