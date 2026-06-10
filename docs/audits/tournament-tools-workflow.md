@@ -6,12 +6,18 @@ _Last updated: 2026-06-10_
 Full read of the host/captain division-bracket workspace
 (`/events/[id]/bracket?division=…`) and its shared `_components`, through a
 **UX/UI** lens (bugs, gaps, streamlining, a11y, M3/stale-code) — distinct from
-the TT-\* correctness/parity backlog below, which is fully closed. **14 findings
-UX-1 … UX-14 (4 P2 · 10 P3)** in the new "Division bracket page — UX/UI
-deep-dive" section below. **First bundle shipped 2026-06-10 (uncommitted):
-UX-1 (host spectator-copy flash), UX-3 + UX-4 (the two a11y gaps), UX-9
-(per-division tab status pills + shared `DivisionTabs`).** See the remediation
-log. Remaining UX backlog: UX-2, UX-5…8, UX-10…14 (1 P2 · 9 P3).
+the TT-\* correctness/parity backlog below, which is fully closed. **15 findings
+UX-1 … UX-15 (5 P2 · 10 P3)** in the new "Division bracket page — UX/UI
+deep-dive" section below (UX-15 surfaced while fixing UX-2). **Two bundles
+shipped 2026-06-10 (uncommitted), both quad-green:**
+
+- **Bundle 1:** UX-1 (host spectator-copy flash), UX-3 + UX-4 (the two a11y
+  gaps), UX-9 (per-division tab status pills + shared `DivisionTabs`).
+- **Bundle 2:** UX-2 (drop the no-op "Discard"), UX-5 (`errorButtonClass`), UX-6
+  (notice → `<Alert>`), UX-7 (h1 → `headline-lg`).
+
+See the remediation log. Remaining UX backlog: **UX-15** (P2 — event-bracket
+delete / format-change) + **UX-8, UX-10…14** (6 × P3).
 
 **Status update (2026-06-05) — bracket-tool deep-dive (standalone vs. division).**
 Full written audit of the bracket engine + both delivery surfaces (event/division
@@ -432,17 +438,33 @@ is confusing. The hook had no way to distinguish "resolved as spectator" from
 for the host-conditional text views until `resolved`, so spectator copy only
 ever shows to confirmed spectators.
 
-### UX-2 — "Discard" in setup is a near-no-op with a misleading label · **P2**
+### UX-2 — "Discard" in setup is a near-no-op with a misleading label · **P2** · ✅ FIXED 2026-06-10
 
-[setup-view.tsx#L98-L102](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx#L98-L102)
-labels the secondary action **Discard**, but it calls `reset`, and
+[setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx)
+labelled the secondary action **Discard**, but it called `reset`, and
 [`Bracket.reset()`](../../packages/domain/src/brackets/bracket.ts#L606-L613) only
 clears `_matches` and sets status→`setup`. In `setup` there are no matches yet
-**and seeds are not cleared**, so "Discard" does nothing visible except flash
-"Bracket reset to setup." There is no event-bracket delete, so the word promises
+**and seeds are not cleared**, so "Discard" did nothing visible except flash
+"Bracket reset to setup." There is no event-bracket delete, so the word promised
 something that can't happen here.
-**Fix:** relabel to "Clear seeding" and have it actually clear seeds, or drop the
-button in `setup` (it only makes sense in `draft`, where matches exist).
+**Fix shipped:** dropped the button in `setup` (the meaningful `reset` cases keep
+their own affordances — the draft "Discard" and the live board's "Reset
+bracket"). Surfaced the real adjacent gap as **UX-15**.
+
+### UX-15 — No way to change format or delete an event bracket after create · **P2 (uncovered via UX-2)**
+
+While fixing UX-2 it became clear that once an event bracket exists (status
+`setup`), there is **no path to change its format or remove it**: `reset` keeps
+`format` and `status='setup'`, the format picker lives only in `NoBracketView`
+(rendered only when **no** bracket exists), and there is no event-bracket delete
+(standalone brackets got one in TT-12; event brackets did not). The old "Discard"
+button gave a false impression of this. The
+[NoBracketView copy](../../apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx#L24-L26)
+("change the format by resetting") is itself inaccurate for the same reason.
+**Fix:** add an owner-gated `DeleteBracketCommand` for event scope (mirror
+`DeleteStandaloneBracketCommand`) **or** allow `reset` to also accept a new
+format / return to a no-bracket state, and correct the NoBracketView copy.
+Bigger than a label tweak — tracked as its own P2.
 
 ### UX-3 — Score-entry inputs have no accessible label · **P2 (a11y)** · ✅ FIXED 2026-06-10
 
@@ -464,7 +486,7 @@ A keyboard user arrowing through formats sees nothing move.
 **Fix:** add `has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary` to
 each label.
 
-### UX-5 — "Reset bracket" still hand-rolls `bg-red-600` · **P3**
+### UX-5 — "Reset bracket" still hand-rolls `bg-red-600` · **P3** · ✅ FIXED 2026-06-10
 
 [board-view.tsx#L262](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx#L262)
 uses `bg-red-600 … hover:bg-red-700` — the 2026-06-07 danger-zone migration moved
@@ -473,7 +495,7 @@ enclosing `<details>` already uses `border-md-error` tokens, so the raw-red
 button is internally inconsistent (AGENTS pattern 11).
 **Fix:** `import { errorButtonClass }` and apply `errorButtonClass('sm')`.
 
-### UX-6 — Status notice hand-rolls the alert surface instead of `<Alert>` · **P3**
+### UX-6 — Status notice hand-rolls the alert surface instead of `<Alert>` · **P3** · ✅ FIXED 2026-06-10
 
 [page.tsx#L175-L187](../../apps/web/src/app/events/[id]/bracket/page.tsx#L175-L187)
 hand-builds `border-md-success/30 bg-md-success/10 text-md-success`. AGENTS
@@ -481,7 +503,7 @@ pattern 17 routes status surfaces through
 [`<Alert variant>`](../../apps/web/src/components/alert.tsx).
 **Fix:** `<Alert variant={notice.tone}>…</Alert>`.
 
-### UX-7 — h1 is undersized for a page title · **P3**
+### UX-7 — h1 is undersized for a page title · **P3** · ✅ FIXED 2026-06-10
 
 Both [page.tsx#L124](../../apps/web/src/app/events/[id]/bracket/page.tsx#L124) and
 the watch twin use `text-headline-sm` (24/32 — the h2/h3 size); AGENTS pattern 16
@@ -564,6 +586,37 @@ card pulls its connector off-center. Known polish item; tracked.
 ---
 
 ## Remediation log
+
+### 2026-06-10 — Division-bracket-page UX bundle 2 (UX-2, UX-5, UX-6, UX-7)
+
+Quick correctness + M3/token cleanups off the UX deep-dive. Verify chain green
+(typecheck / lint / test / build).
+
+- **UX-2 — drop the no-op "Discard".** Removed the misleading secondary button
+  from the `setup` action card in
+  [setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx)
+  — in `setup` it called `reset`, which clears only matches (none exist yet) and
+  keeps seeds, so it just flashed "reset to setup." Generate is now the sole
+  action there; the meaningful `reset` cases keep their own controls (draft
+  "Discard", live "Reset bracket"). **Uncovered UX-15** (no format-change /
+  delete for an event bracket after create) — filed, not fixed here.
+- **UX-5 — `errorButtonClass`.** The live board's "Reset and re-seed" confirm
+  ([board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx))
+  swapped its hand-rolled `bg-red-600 … hover:bg-red-700 text-white` for
+  `errorButtonClass('sm')` (M3 `error` role, theme-correct in dark mode) — closes
+  the AGENTS-pattern-11 holdout flagged in the deep-dive.
+- **UX-6 — notice → `<Alert>`.** The flash-param status banner in
+  [page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx) now renders
+  `<Alert variant={notice.tone}>` (AGENTS pattern 17) instead of hand-rolled
+  `border-md-success/30 bg-md-success/10 …` — gains the icon + auto `role`
+  (status/alert) for free.
+- **UX-7 — h1 → `headline-lg`.** The page-title h1 on both
+  [page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx) and
+  [watch/page.tsx](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx)
+  moved `text-headline-sm` → `text-headline-lg` (AGENTS pattern 16 page-title
+  size).
+
+Remaining: **UX-15** (P2) + **UX-8, UX-10…14** (P3).
 
 ### 2026-06-10 — Division-bracket-page UX bundle 1 (UX-1, UX-3, UX-4, UX-9)
 

@@ -15,7 +15,7 @@ import { bindBracketActions, eventScope } from './bracket-action-binding';
 import type { BracketScope, TeamLite } from './labels';
 import { LiveHostTools } from './live-host-tools';
 import { SubmitButton } from '@/components/submit-button';
-import { primaryButtonClass } from '@/components/primary-button';
+import { errorButtonClass, primaryButtonClass } from '@/components/primary-button';
 import { TreeBracket } from './tree-bracket';
 
 /**
@@ -259,9 +259,7 @@ export function BoardView(props: {
                   Any entered match results will be discarded.
                 </p>
                 <form action={a.reset}>
-                  <SubmitButton className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700 disabled:opacity-50">
-                    Reset and re-seed
-                  </SubmitButton>
+                  <SubmitButton className={errorButtonClass('sm')}>Reset and re-seed</SubmitButton>
                 </form>
               </div>
             </details>

@@ -3,6 +3,7 @@ import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { DivisionId, EventId, NotFoundError } from '@pickupvb/domain';
+import { Alert } from '@/components/alert';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { assertEventVisibleOrNotFound } from '@/lib/event-visibility';
@@ -131,7 +132,7 @@ export default async function BracketPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-headline-sm font-bold">Bracket — {event.title}</h1>
+        <h1 className="text-fg text-headline-lg font-bold">Bracket — {event.title}</h1>
         {divisionSummary && <p className="text-fg/80 text-sm">{divisionSummary}</p>}
         <p className="text-muted text-sm">
           {registeredTeams.length} registered team
@@ -168,17 +169,10 @@ export default async function BracketPage(props: {
       />
 
       {notice && (
-        <div
-          role={notice.tone === 'success' ? 'status' : 'alert'}
-          className={`rounded border px-3 py-2 text-sm ${
-            notice.tone === 'success'
-              ? 'border-md-success/30 bg-md-success/10 text-md-success'
-              : 'border-md-error/30 bg-md-error/10 text-md-error'
-          }`}
-        >
+        <Alert variant={notice.tone}>
           {notice.text}
-          {noticeMsg && <span className="ml-1 opacity-80">— {noticeMsg}</span>}
-        </div>
+          {noticeMsg && <span className="opacity-80"> — {noticeMsg}</span>}
+        </Alert>
       )}
 
       <BracketWorkspace

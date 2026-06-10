@@ -95,18 +95,19 @@ export function SetupView(props: {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <form action={a.generate}>
-            <SubmitButton disabled={!canGenerate} className={primaryButtonClass('md')}>
-              Generate bracket
-            </SubmitButton>
-          </form>
-          <form action={a.reset}>
-            <SubmitButton className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-2 text-sm disabled:opacity-50">
-              Discard
-            </SubmitButton>
-          </form>
-        </div>
+        {/* Generate is the only action here. There is intentionally no
+            "Discard": in `setup` there are no generated matches yet and seeds
+            persist, so `reset` is a no-op that only flashed "reset to setup" —
+            the misleading affordance was removed (UX-2). The meaningful
+            post-generate cases keep their own controls (the draft "Discard" and
+            the live board's "Reset bracket"). Note: changing format or deleting
+            an event bracket after create is a separate gap (UX-15), not what
+            this button did. */}
+        <form action={a.generate}>
+          <SubmitButton disabled={!canGenerate} className={primaryButtonClass('md')}>
+            Generate bracket
+          </SubmitButton>
+        </form>
       </div>
 
       {(newlyAdded.length > 0 || droppedSeedCount > 0) && (
