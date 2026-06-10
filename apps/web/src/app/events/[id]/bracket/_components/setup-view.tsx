@@ -104,7 +104,11 @@ export function SetupView(props: {
             an event bracket after create is a separate gap (UX-15), not what
             this button did. */}
         <form action={a.generate}>
-          <SubmitButton disabled={!canGenerate} className={primaryButtonClass('md')}>
+          <SubmitButton
+            disabled={!canGenerate}
+            pendingChildren="Generating…"
+            className={primaryButtonClass('md')}
+          >
             Generate bracket
           </SubmitButton>
         </form>

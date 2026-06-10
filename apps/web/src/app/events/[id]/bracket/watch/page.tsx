@@ -10,6 +10,7 @@ import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '../_components/board-view';
+import { BracketStatusBadge } from '../_components/bracket-status-badge';
 import { DivisionTabs } from '../_components/division-tabs';
 import { LatestMatchTracker } from '../_components/latest-match-tracker';
 import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
@@ -182,18 +183,9 @@ export default async function BracketWatchPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-fg text-headline-lg font-bold">Live bracket — {event.title}</h1>
-          {bracket?.status === 'active' && (
-            <span className="bg-md-error/10 text-md-error rounded-full px-2 py-0.5 text-xs font-medium">
-              ● LIVE
-            </span>
-          )}
-          {bracket?.status === 'completed' && (
-            <span className="bg-md-success/10 text-md-success rounded-full px-2 py-0.5 text-xs font-medium">
-              Final
-            </span>
-          )}
+          <BracketStatusBadge status={bracket?.status} />
         </div>
         {divisionSummary && <p className="text-fg/80 text-sm">{divisionSummary}</p>}
         <p className="text-muted text-sm">

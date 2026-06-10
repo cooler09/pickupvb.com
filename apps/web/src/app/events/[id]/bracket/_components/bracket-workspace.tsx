@@ -79,6 +79,10 @@ export function BracketWorkspace(props: {
   // flashes a "the host hasn't…" message before their controls load (UX-1).
   const capsResolved = caps.resolved;
 
+  // Computed once and shared by the tracker + the board's highlight (was called
+  // twice).
+  const latestMatchId = bracket ? pickLatestMatchId(bracket.matches) : null;
+
   return (
     <>
       {!bracket && (
@@ -128,7 +132,7 @@ export function BracketWorkspace(props: {
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
         <LiveScoresProvider enabled={props.liveScoringEnabled} divisionId={divisionId}>
           <LatestMatchTracker
-            matchId={pickLatestMatchId(bracket.matches)}
+            matchId={latestMatchId}
             autoScroll={false}
             initialFocusId={props.focusId}
           />
@@ -149,7 +153,7 @@ export function BracketWorkspace(props: {
             viewerId={caps.viewerId}
             status={bracket.status}
             format={bracket.format}
-            highlightMatchId={props.focusId ?? pickLatestMatchId(bracket.matches)}
+            highlightMatchId={props.focusId ?? latestMatchId}
             liveScoringEnabled={props.liveScoringEnabled}
           />
         </LiveScoresProvider>

@@ -8,16 +8,20 @@ Full read of the host/captain division-bracket workspace
 **UX/UI** lens (bugs, gaps, streamlining, a11y, M3/stale-code) — distinct from
 the TT-\* correctness/parity backlog below, which is fully closed. **15 findings
 UX-1 … UX-15 (5 P2 · 10 P3)** in the new "Division bracket page — UX/UI
-deep-dive" section below (UX-15 surfaced while fixing UX-2). **Two bundles
-shipped 2026-06-10 (uncommitted), both quad-green:**
+deep-dive" section below (UX-15 surfaced while fixing UX-2). **Three bundles
+shipped 2026-06-10 (uncommitted), all quad-green:**
 
 - **Bundle 1:** UX-1 (host spectator-copy flash), UX-3 + UX-4 (the two a11y
   gaps), UX-9 (per-division tab status pills + shared `DivisionTabs`).
 - **Bundle 2:** UX-2 (drop the no-op "Discard"), UX-5 (`errorButtonClass`), UX-6
   (notice → `<Alert>`), UX-7 (h1 → `headline-lg`).
+- **Bundle 3:** UX-8 (green → success role), UX-10 (host status badge), UX-11
+  (champion banner), UX-12 (empty-state CTAs), UX-13 (pending feedback) +
+  `pickLatestMatchId` dedup.
 
-See the remediation log. Remaining UX backlog: **UX-15** (P2 — event-bracket
-delete / format-change) + **UX-8, UX-10…14** (6 × P3).
+See the remediation log. **12 of 15 fixed.** Remaining: **UX-15** (P2 —
+event-bracket delete / format-change) and **UX-14** (P3 — deferred, tree-
+connector rework needs a live preview).
 
 **Status update (2026-06-05) — bracket-tool deep-dive (standalone vs. division).**
 Full written audit of the bracket engine + both delivery surfaces (event/division
@@ -510,7 +514,7 @@ the watch twin use `text-headline-sm` (24/32 — the h2/h3 size); AGENTS pattern
 maps a **page-title h1** to `text-headline-lg` (32/40).
 **Fix:** `text-headline-lg` on both h1s.
 
-### UX-8 — Completed/winner highlight uses raw `green-500` · **P3 (judgment)**
+### UX-8 — Completed/winner highlight uses raw `green-500` · **P3 (judgment)** · ✅ FIXED 2026-06-10
 
 [match-card.tsx#L83](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx#L83)
 
@@ -534,7 +538,7 @@ improvement.
 status pill on each tab. Extract the duplicated nav (cleanup below) into a shared
 `DivisionTabs` so both surfaces get it.
 
-### UX-10 — No status badge on the host page (watch page has one) · **P3**
+### UX-10 — No status badge on the host page (watch page has one) · **P3** · ✅ FIXED 2026-06-10
 
 The spectator page shows a LIVE/Final pill
 ([watch/page.tsx#L178-L187](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx#L178-L187));
@@ -542,14 +546,14 @@ the host workspace shows nothing but BoardView's "In progress / Final results"
 subtext, and nothing in setup/draft. Parity gap.
 **Fix:** lift the same badge into the host header.
 
-### UX-11 — A completed bracket never celebrates the champion · **P3**
+### UX-11 — A completed bracket never celebrates the champion · **P3** · ✅ FIXED 2026-06-10
 
 On completion the winner is only the green-tinted team in the final card — no
 "🏆 Champion: Team X" banner on either surface.
 **Fix:** when `status === 'completed'`, render a champion banner above the board
 from the final match's `winnerEntryId`.
 
-### UX-12 — "Not a tournament" / "No divisions configured" are bare dead-ends · **P3**
+### UX-12 — "Not a tournament" / "No divisions configured" are bare dead-ends · **P3** · ✅ FIXED 2026-06-10
 
 [page.tsx#L45-L65](../../apps/web/src/app/events/[id]/bracket/page.tsx#L45-L65) —
 both states are gray text with only "← Back to event," no path to fix (a host on
@@ -557,7 +561,7 @@ both states are gray text with only "← Back to event," no path to fix (a host 
 **Fix:** add a host CTA to the event's edit/divisions screen; keep plain copy for
 spectators.
 
-### UX-13 — Long actions give no progress feedback · **P3**
+### UX-13 — Long actions give no progress feedback · **P3** · ✅ FIXED 2026-06-10
 
 [SubmitButton](../../apps/web/src/components/submit-button.tsx) disables on submit
 but only swaps text if passed `pendingChildren`, which no bracket form does —
@@ -565,19 +569,25 @@ Generate / Publish / Record-result just fade slightly.
 **Fix:** pass `pendingChildren` ("Generating…", "Publishing…") on the heavy
 actions.
 
-### UX-14 — TreeBracket connectors drift on expanded cards & double-elim losers · **P3**
+### UX-14 — TreeBracket connectors drift on expanded cards & double-elim losers · **P3** · ⏸ DEFERRED 2026-06-10
 
 Acknowledged in the component's own docstring
 ([tree-bracket.tsx#L29-L37](../../apps/web/src/app/events/[id]/bracket/_components/tree-bracket.tsx#L29-L37))
 — the 25%/75% inset assumes equal card heights, so an expanded "Enter result"
-card pulls its connector off-center. Known polish item; tracked.
+card pulls its connector off-center, and double-elim losers brackets (non-2:1
+round ratios) only read approximately.
+**Deferred (not fixed in the UX sweep):** unlike the other P3s this is a layout
+rework whose only proof is visual, across formats and the expanded/collapsed card
+states — the static verify chain can't validate it and the surface is
+deploy-gated, so a blind CSS change risks regressing more than it fixes. Do it
+with a live preview (consider measuring card heights / `ResizeObserver`-driven
+connector offsets, or an SVG connector layer instead of border insets).
 
 ### Cleanup notes (UX deep-dive)
 
 - **`pickLatestMatchId` computed twice** in
-  [bracket-workspace.tsx#L122](../../apps/web/src/app/events/[id]/bracket/_components/bracket-workspace.tsx#L122)
-  & [#L143](../../apps/web/src/app/events/[id]/bracket/_components/bracket-workspace.tsx#L143)
-  — hoist to one `const`.
+  [bracket-workspace.tsx](../../apps/web/src/app/events/[id]/bracket/_components/bracket-workspace.tsx)
+  — ✅ hoisted to one `const latestMatchId` (bundle 3).
 - **Header + division-nav markup duplicated** between
   [page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx) and
   [watch/page.tsx](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx) —
@@ -586,6 +596,53 @@ card pulls its connector off-center. Known polish item; tracked.
 ---
 
 ## Remediation log
+
+### 2026-06-10 — Division-bracket-page UX bundle 3 (UX-8, UX-10, UX-11, UX-12, UX-13; UX-14 deferred)
+
+The P3 sweep. Verify chain green (typecheck / lint / test / build).
+
+- **UX-8 — green → success role.** The completed-match card border/fill and the
+  winner-row highlight in
+  [match-card.tsx](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx)
+  moved `green-500/*` → `bg-md-success/*` (theme-correct in dark mode). The
+  compact inline "Save" button keeps its role tokens (`bg-primary
+text-primary-fg`) at the dense `text-xs` size — `primaryButtonClass` has no
+  compact variant and would bloat the per-set form, so it's left as a sanctioned
+  compact opt-out (it's role tokens, not raw palette; no lint violation).
+- **UX-10 — host status badge.** New shared
+  [`BracketStatusBadge`](../../apps/web/src/app/events/[id]/bracket/_components/bracket-status-badge.tsx)
+  (● LIVE / Final / Setup / Draft). Added next to the host
+  [page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx) h1 and swapped
+  in for the watch page's two inline spans — parity + dedup.
+- **UX-11 — champion banner.** A `🏆 Champion: <team>` banner renders above the
+  board once `status === 'completed'`
+  ([board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)).
+  New `pickChampionEntryId(matches, format)` resolves the winner of the deciding
+  match — the deepest `final` (playoff / grand final / DE reset) when present,
+  else the deepest completed match (single-elim final). **Round robin is
+  excluded** (no single deciding game; the standings helper needs a pool) and an
+  undecided final returns null, so the banner only shows when the champion is
+  unambiguous. Renders on the spectator board too (shared component).
+- **UX-12 — empty-state dead-ends.** The host
+  [page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx) "not a
+  tournament" / "no divisions yet" branches became centered cards; the
+  no-divisions card gained a **"Set up divisions"** CTA to `/events/[id]/edit`
+  (the edit page enforces its own auth; the state is host-reached in practice).
+- **UX-13 — pending feedback.** `pendingChildren` added to the heavy actions:
+  Generate bracket / Generate playoff / Reset and re-seed
+  ([setup-view](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx),
+  [board-view](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)),
+  Publish / Regenerate
+  ([draft-workspace](../../apps/web/src/app/events/[id]/bracket/_components/draft-workspace.tsx)),
+  and match-result Save
+  ([match-card](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx)).
+- **UX-14 — deferred** (see the finding): a visual layout rework the static
+  verify chain can't validate; do it with a live preview.
+- **Cleanup:** `pickLatestMatchId` is now computed once
+  ([bracket-workspace.tsx](../../apps/web/src/app/events/[id]/bracket/_components/bracket-workspace.tsx)).
+
+After this, the only open division-bracket UX items are **UX-14** (P3, deferred)
+and **UX-15** (P2, event-bracket delete / format-change).
 
 ### 2026-06-10 — Division-bracket-page UX bundle 2 (UX-2, UX-5, UX-6, UX-7)
 

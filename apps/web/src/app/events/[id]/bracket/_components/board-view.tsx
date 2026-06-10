@@ -71,6 +71,28 @@ export function pickLatestMatchId(matches: ReadonlyArray<Match>): string | null 
   return null;
 }
 
+/**
+ * The champion's entry id once a bracket is complete, for the celebratory banner
+ * (UX-11). The champion is the winner of the **deciding** match — the deepest
+ * `final` (the playoff / grand final / double-elim reset) when one exists, else
+ * the deepest completed match overall (a single-elim final). Round robin is
+ * excluded: it has no single deciding game (the last-played match isn't the
+ * winner), so we don't claim a champion there. Returns null when no champion can
+ * be determined, so the banner simply doesn't render.
+ */
+export function pickChampionEntryId(
+  matches: ReadonlyArray<Match>,
+  format: BracketFormat,
+): string | null {
+  if (format === 'round_robin') return null;
+  const decided = matches.filter((m) => m.status === 'completed' && m.winnerEntryId);
+  if (decided.length === 0) return null;
+  const finals = decided.filter((m) => m.bracketSide === 'final');
+  const pool = finals.length > 0 ? finals : decided;
+  const champ = [...pool].sort((a, b) => b.round - a.round || b.matchNumber - a.matchNumber)[0];
+  return champ?.winnerEntryId ? String(champ.winnerEntryId) : null;
+}
+
 export function BoardView(props: {
   /** Event path only — present for the live-scoring launcher. Standalone
    *  brackets (ADR 0025) omit these and pass `scope` instead. */
@@ -233,8 +255,22 @@ export function BoardView(props: {
     roundLabel: (r: number) => string = (r) => `Round ${r}`,
   ) => <TreeBracket matches={list} renderMatch={renderMatch} roundLabel={roundLabel} />;
 
+  // Celebrate the winner once the bracket completes (UX-11). Null for round
+  // robin or an as-yet-undecided final, in which case the banner doesn't render.
+  const championEntryId =
+    props.status === 'completed' ? pickChampionEntryId(props.matches, props.format) : null;
+  const championName = championEntryId ? (props.teamById.get(championEntryId)?.name ?? null) : null;
+
   return (
     <section className="space-y-6 scroll-smooth">
+      {championName && (
+        <div className="border-md-success/30 bg-md-success-container text-md-on-success-container rounded-shape-sm flex items-center gap-2 border p-3">
+          <span aria-hidden="true" className="text-lg">
+            🏆
+          </span>
+          <p className="font-semibold">Champion: {championName}</p>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <p className="text-muted text-sm">
           Best of {props.bestOf} • {props.status === 'completed' ? 'Final results' : 'In progress'}
@@ -259,7 +295,9 @@ export function BoardView(props: {
                   Any entered match results will be discarded.
                 </p>
                 <form action={a.reset}>
-                  <SubmitButton className={errorButtonClass('sm')}>Reset and re-seed</SubmitButton>
+                  <SubmitButton pendingChildren="Resetting…" className={errorButtonClass('sm')}>
+                    Reset and re-seed
+                  </SubmitButton>
                 </form>
               </div>
             </details>
@@ -297,7 +335,9 @@ export function BoardView(props: {
           {props.isHost ? (
             <form action={a.generatePlayoff} className="flex items-center justify-between gap-2">
               <span>Pool play is complete. Generate the playoff bracket?</span>
-              <SubmitButton className={primaryButtonClass()}>Generate playoff</SubmitButton>
+              <SubmitButton pendingChildren="Generating…" className={primaryButtonClass()}>
+                Generate playoff
+              </SubmitButton>
             </form>
           ) : (
             <span className="text-muted">

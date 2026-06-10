@@ -124,10 +124,14 @@ export function DraftWorkspace(props: {
           </div>
           <div className="flex flex-wrap gap-2">
             <form action={publish}>
-              <SubmitButton className={primaryButtonClass('md')}>Publish bracket</SubmitButton>
+              <SubmitButton pendingChildren="Publishing…" className={primaryButtonClass('md')}>
+                Publish bracket
+              </SubmitButton>
             </form>
             <form action={regenerate}>
-              <SubmitButton className={neutralButtonClass('md')}>Regenerate</SubmitButton>
+              <SubmitButton pendingChildren="Regenerating…" className={neutralButtonClass('md')}>
+                Regenerate
+              </SubmitButton>
             </form>
             <form action={reset}>
               <SubmitButton className={neutralButtonClass('md')}>Discard</SubmitButton>

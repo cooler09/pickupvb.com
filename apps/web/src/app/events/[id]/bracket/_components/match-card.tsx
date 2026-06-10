@@ -80,7 +80,9 @@ export function MatchCard(props: {
   return (
     <div
       className={`rounded-shape-sm border p-3 text-sm ${
-        m.status === 'completed' ? 'border-green-500/30 bg-green-500/5' : 'border-border-base bg-bg'
+        m.status === 'completed'
+          ? 'border-md-success/30 bg-md-success/5'
+          : 'border-border-base bg-bg'
       }`}
     >
       <div className="text-muted mb-2 flex items-center justify-between text-xs">
@@ -178,7 +180,10 @@ export function MatchCard(props: {
               );
             })}
             <div className="flex gap-2 pt-1">
-              <SubmitButton className="bg-primary text-primary-fg rounded px-2 py-0.5 text-xs disabled:opacity-50">
+              <SubmitButton
+                pendingChildren="Saving…"
+                className="bg-primary text-primary-fg rounded px-2 py-0.5 text-xs disabled:opacity-50"
+              >
                 Save
               </SubmitButton>
               {m.status === 'completed' && (
@@ -205,7 +210,7 @@ function TeamRow(props: {
   return (
     <li
       className={`flex items-center justify-between gap-2 rounded px-2 py-1 ${
-        props.isWinner ? 'text-fg bg-green-500/10 font-medium' : 'text-fg/80'
+        props.isWinner ? 'text-fg bg-md-success/10 font-medium' : 'text-fg/80'
       }`}
     >
       <span className="truncate">
