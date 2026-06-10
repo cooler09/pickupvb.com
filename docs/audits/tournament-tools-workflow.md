@@ -20,9 +20,11 @@ shipped 2026-06-10 (uncommitted), all quad-green:**
   `pickLatestMatchId` dedup.
 - **Bundle 4:** UX-15 (host-gated event-bracket **delete** — also the supported
   "change format after create": delete → re-pick; + 3 handler tests).
+- **Bundle 5:** UX-14 (measured SVG bracket connectors replacing the
+  equal-height CSS `]` connectors).
 
-See the remediation log. **14 of 15 fixed.** Only **UX-14** remains (P3 —
-deferred; the tree-connector rework needs a live preview).
+See the remediation log. **All 15 resolved** (UX-14's visual result still wants a
+live confirm — it's deploy-gated).
 
 **Status update (2026-06-05) — bracket-tool deep-dive (standalone vs. division).**
 Full written audit of the bracket engine + both delivery surfaces (event/division
@@ -576,19 +578,26 @@ Generate / Publish / Record-result just fade slightly.
 **Fix:** pass `pendingChildren` ("Generating…", "Publishing…") on the heavy
 actions.
 
-### UX-14 — TreeBracket connectors drift on expanded cards & double-elim losers · **P3** · ⏸ DEFERRED 2026-06-10
+### UX-14 — TreeBracket connectors drift on expanded cards & double-elim losers · **P3** · ✅ FIXED 2026-06-10
 
-Acknowledged in the component's own docstring
-([tree-bracket.tsx#L29-L37](../../apps/web/src/app/events/[id]/bracket/_components/tree-bracket.tsx#L29-L37))
-— the 25%/75% inset assumes equal card heights, so an expanded "Enter result"
-card pulls its connector off-center, and double-elim losers brackets (non-2:1
-round ratios) only read approximately.
-**Deferred (not fixed in the UX sweep):** unlike the other P3s this is a layout
-rework whose only proof is visual, across formats and the expanded/collapsed card
-states — the static verify chain can't validate it and the surface is
-deploy-gated, so a blind CSS change risks regressing more than it fixes. Do it
-with a live preview (consider measuring card heights / `ResizeObserver`-driven
-connector offsets, or an SVG connector layer instead of border insets).
+The old connectors were CSS `]` glyphs drawn with borders inset to 25%/75% — an
+**equal-card-height** assumption, so an expanded "Enter result" card pulled its
+connector off-center, and double-elim losers brackets (non-2:1 round ratios) only
+read approximately.
+**Fix shipped:** replaced them with a measured SVG layer
+([bracket-connectors.tsx](../../apps/web/src/app/events/[id]/bracket/_components/bracket-connectors.tsx)).
+`TreeBracket` derives the real winner edges from each match's `advancesToMatchId`
+(target-in-this-tree only — cross-bracket WB→LB feeds live in a sibling tree) and
+hands them to `<BracketConnectors>`, which traces an elbow path between the
+**actual measured** card rects (right edge → left edge), re-measuring on resize
+via a `ResizeObserver` on the container **and each card** (so a card's
+result-form expand/collapse re-routes its line). Exact for any field shape and
+any card height; renders behind the cards (`-z-10`, container `isolate`), ignores
+pointer events. Round robin (no advancement wiring) draws no connectors —
+correct, since it isn't a tree.
+**Caveat:** static quad-green, but the payoff is visual and the surface is
+deploy-gated — confirm with a live render across single-elim, double-elim
+(winners + losers + reset), and an expanded result form.
 
 ### Cleanup notes (UX deep-dive)
 
@@ -603,6 +612,29 @@ connector offsets, or an SVG connector layer instead of border insets).
 ---
 
 ## Remediation log
+
+### 2026-06-10 — Division-bracket-page UX bundle 5 (UX-14 — measured bracket connectors)
+
+The last open finding. Verify chain green (typecheck / lint / test / build);
+visual payoff is deploy-gated (see the caveat in UX-14).
+
+- **New measured SVG connector layer**
+  ([bracket-connectors.tsx](../../apps/web/src/app/events/[id]/bracket/_components/bracket-connectors.tsx))
+  — draws an elbow path from each match's right edge to the left edge of the
+  match its winner advances to, using the cards' real `getBoundingClientRect`
+  positions, re-measured on resize via a `ResizeObserver` over the container and
+  every card (catches the result-form expand/collapse height change). Behind the
+  cards (`-z-10`), `pointer-events-none`, theme-aware stroke (`text-border-base`).
+- **`TreeBracket` rewired**
+  ([tree-bracket.tsx](../../apps/web/src/app/events/[id]/bracket/_components/tree-bracket.tsx))
+  — derives `{ from, to }` edges from `advancesToMatchId` (target-in-this-tree
+  only) and renders the overlay; dropped the equal-height-assuming CSS `]`
+  border connectors + the `←` stubs + the pair-chunking. Stays a server
+  component (the overlay is the only `'use client'` island; edges are
+  serializable), so the watch page keeps SSR'ing the cards.
+
+That closes the division-bracket UX backlog — **UX-1 … UX-15 all resolved**
+(UX-14's visual result still wants a live confirm).
 
 ### 2026-06-10 — Division-bracket-page UX bundle 4 (UX-15 — event-bracket delete / change-format)
 

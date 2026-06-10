@@ -1,40 +1,21 @@
 import type { Match } from '@pickupvb/domain';
 import type { ReactNode } from 'react';
+import { BracketConnectors, type ConnectorEdge } from './bracket-connectors';
 
 /**
- * Tree-style bracket layout. Renders rounds left-to-right with classic
- * "bracket `]`" connectors between sibling pairs:
+ * Tree-style bracket layout. Renders rounds left-to-right as columns; matches
+ * within a round are spread with `justify-around` so a later round's cards sit
+ * near the vertical midpoint of their feeders.
  *
- *   M1 ─┐
- *       ├─ W1 ─┐
- *   M2 ─┘      │
- *              ├─ F
- *   M3 ─┐      │
- *       ├─ W2 ─┘
- *   M4 ─┘
+ * Connectors are drawn by {@link BracketConnectors} — a measured SVG layer that
+ * traces each match's `advancesToMatchId` edge from the real card positions
+ * (UX-14). This supersedes the previous CSS border-inset `]` connectors, which
+ * assumed equal card heights (an expanded result form knocked them off-center)
+ * and only approximated double-elim losers brackets. The SVG approach is exact
+ * for any field shape and any card height, and re-measures on resize.
  *
- * Layout strategy:
- *   * Each round column uses `justify-around` over a shared min-height so
- *     matches in later rounds vertically align with the midpoint of their
- *     two feeders, regardless of the exact match count per round.
- *   * Sibling pairs (consecutive matches with the same parent) are wrapped
- *     in a connector element whose right side draws the `]` glyph via
- *     borders inset to 25%/75% — the midpoints of the two stacked
- *     matches inside the pair.
- *   * Each non-first-round match gets a small `←` stub on its left edge so
- *     the connector visibly enters the match card from the right of the
- *     previous round.
- *
- * Caveats:
- *   * Designed for single-elimination bracket sides where each round has
- *     exactly half the matches of the previous one. For double-elim
- *     losers brackets (which alternate feed/play rounds with non-2:1
- *     ratios), the pair grouping is approximate but still reads as a
- *     tree. Polish is a follow-up.
- *   * MatchCard expands when the host edits a result; the inset
- *     midpoints (25% / 75%) assume roughly equal match heights, so an
- *     expanded card will pull its connector slightly off-center. The
- *     line still reaches the card — just not the exact midpoint.
+ * Round-robin (and any list without advancement wiring) simply renders the
+ * columns with no connectors — correct, since it isn't a tree.
  */
 export function TreeBracket(props: {
   matches: ReadonlyArray<Match>;
@@ -49,54 +30,35 @@ export function TreeBracket(props: {
   // has room to spread later rounds.
   const minHeightPx = Math.max(360, rounds[0]!.matches.length * 96);
 
+  // Winner-advances edges whose target is also in this tree (cross-bracket
+  // feeds — a winners match dropping a loser into the losers bracket — live in a
+  // different TreeBracket and can't be drawn here). Drives the SVG connectors.
+  const ids = new Set(props.matches.map((m) => String(m.id)));
+  const edges: ConnectorEdge[] = props.matches
+    .filter((m) => m.advancesToMatchId && ids.has(String(m.advancesToMatchId)))
+    .map((m) => ({ from: String(m.id), to: String(m.advancesToMatchId) }));
+
   return (
     <div className="overflow-x-auto pb-2">
-      <div className="flex items-stretch gap-4" style={{ minHeight: `${minHeightPx}px` }}>
-        {rounds.map((r, ri) => {
-          const isFirstRound = ri === 0;
-          const isLastRound = ri === rounds.length - 1;
-          const pairs = chunkPairs(r.matches);
-
-          return (
-            <div key={r.round} className="flex min-w-60 flex-col">
-              <h3 className="text-fg/80 mb-1 text-xs font-semibold tracking-wide uppercase">
-                {roundLabel(r.round)}
-              </h3>
-              <div className="flex flex-1 flex-col justify-around">
-                {pairs.map((pair, pi) => {
-                  const drawPairConnector = !isLastRound && pair.length === 2;
-                  return (
-                    <div
-                      key={pi}
-                      className={
-                        'relative flex flex-col justify-around gap-3 ' +
-                        (drawPairConnector ? 'pr-2' : '')
-                      }
-                    >
-                      {pair.map((m) => (
-                        <div key={m.id} className="relative">
-                          {!isFirstRound && (
-                            <span
-                              aria-hidden="true"
-                              className="border-border-base/60 pointer-events-none absolute top-1/2 -left-2 block w-2 border-t"
-                            />
-                          )}
-                          {props.renderMatch(m)}
-                        </div>
-                      ))}
-                      {drawPairConnector && (
-                        <span
-                          aria-hidden="true"
-                          className="border-border-base/60 pointer-events-none absolute top-1/4 -right-2 bottom-1/4 block w-2 border-y border-r"
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+      <div
+        className="relative isolate flex items-stretch gap-4"
+        style={{ minHeight: `${minHeightPx}px` }}
+      >
+        <BracketConnectors edges={edges} />
+        {rounds.map((r) => (
+          <div key={r.round} className="flex min-w-60 flex-col">
+            <h3 className="text-fg/80 mb-1 text-xs font-semibold tracking-wide uppercase">
+              {roundLabel(r.round)}
+            </h3>
+            <div className="flex flex-1 flex-col justify-around gap-3">
+              {r.matches.map((m) => (
+                <div key={m.id} className="relative">
+                  {props.renderMatch(m)}
+                </div>
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -118,12 +80,4 @@ function groupByRound(list: ReadonlyArray<Match>): { round: number; matches: Mat
         .slice()
         .sort((a, b) => a.matchNumber - b.matchNumber),
     }));
-}
-
-function chunkPairs<T>(items: ReadonlyArray<T>): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += 2) {
-    out.push(items.slice(i, i + 2));
-  }
-  return out;
 }
