@@ -166,6 +166,22 @@ export default async function BracketPage(props: {
           >
             {'Open public spectator view →'}
           </Link>
+          {/* Pro-host kiosk: chromeless, dark, full-screen for a gym TV / tablet
+              (tournament-displays slice A). New tab keeps this workspace open. */}
+          {liveScoringEnabled && (
+            <a
+              href={
+                event.divisions.length > 1
+                  ? `/events/${event.id}/bracket/watch?division=${selectedDivision.id}&display=1`
+                  : `/events/${event.id}/bracket/watch?display=1`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary text-xs hover:underline"
+            >
+              {'Display mode ↗'}
+            </a>
+          )}
           <ShareLink
             path={
               event.divisions.length > 1

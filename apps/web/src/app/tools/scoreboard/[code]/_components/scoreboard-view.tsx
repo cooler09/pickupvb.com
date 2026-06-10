@@ -23,6 +23,7 @@ import {
 } from '../../_lib/types.js';
 import type { MatchBinding } from '../../_lib/binding.js';
 import { useLiveFavicon } from '@/components/use-live-favicon';
+import { useWakeLock } from '@/components/use-wake-lock';
 import {
   finalizeMatchFromScoreboard,
   pushLiveScore,
@@ -74,32 +75,7 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
   }, [code]);
 
   // Keep the screen awake on the scoreboard tab while in use.
-  useEffect(() => {
-    type WakeLockSentinel = { release: () => Promise<void> };
-    type WakeLockNavigator = {
-      wakeLock?: { request: (kind: 'screen') => Promise<WakeLockSentinel> };
-    };
-    const nav = navigator as unknown as WakeLockNavigator;
-    if (!nav.wakeLock) return;
-    let sentinel: WakeLockSentinel | null = null;
-    let cancelled = false;
-    nav.wakeLock
-      .request('screen')
-      .then((s) => {
-        if (cancelled) {
-          void s.release();
-        } else {
-          sentinel = s;
-        }
-      })
-      .catch(() => {
-        // wake lock denied — silently continue
-      });
-    return () => {
-      cancelled = true;
-      if (sentinel) void sentinel.release();
-    };
-  }, []);
+  useWakeLock();
 
   // When bound to a scheduled match, mirror the live score to the public
   // bracket/standings (ADR 0023). Debounced: each change resets the timer, so
