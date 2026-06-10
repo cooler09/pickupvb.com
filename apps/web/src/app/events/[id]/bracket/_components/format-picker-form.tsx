@@ -540,7 +540,7 @@ export function FormatPickerForm(props: {
                 <label
                   key={f.value}
                   className={
-                    'rounded-shape-sm relative block cursor-pointer border p-3 text-sm transition ' +
+                    'rounded-shape-sm has-focus-visible:ring-primary relative block cursor-pointer border p-3 text-sm transition has-focus-visible:ring-2 ' +
                     (selected
                       ? 'border-primary bg-primary/5 ring-primary/30 ring-2'
                       : 'border-border-base bg-bg hover:border-primary/40') +
@@ -604,7 +604,7 @@ export function FormatPickerForm(props: {
                 <label
                   key={n}
                   className={
-                    'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
+                    'has-focus-visible:ring-primary cursor-pointer rounded border px-3 py-1 text-sm transition has-focus-visible:ring-2 ' +
                     (selected
                       ? 'border-primary bg-primary/10 text-fg'
                       : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
@@ -701,7 +701,7 @@ export function FormatPickerForm(props: {
                     <label
                       key={opt.v}
                       className={
-                        'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
+                        'has-focus-visible:ring-primary cursor-pointer rounded border px-3 py-1 text-sm transition has-focus-visible:ring-2 ' +
                         (selected
                           ? 'border-primary bg-primary/10 text-fg'
                           : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')

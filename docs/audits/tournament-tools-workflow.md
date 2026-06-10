@@ -1,6 +1,17 @@
 # Tournament-tools workflow audit
 
-_Last updated: 2026-06-05_
+_Last updated: 2026-06-10_
+
+**Status update (2026-06-10) — division-bracket-page UX/UI deep-dive.**
+Full read of the host/captain division-bracket workspace
+(`/events/[id]/bracket?division=…`) and its shared `_components`, through a
+**UX/UI** lens (bugs, gaps, streamlining, a11y, M3/stale-code) — distinct from
+the TT-\* correctness/parity backlog below, which is fully closed. **14 findings
+UX-1 … UX-14 (4 P2 · 10 P3)** in the new "Division bracket page — UX/UI
+deep-dive" section below. **First bundle shipped 2026-06-10 (uncommitted):
+UX-1 (host spectator-copy flash), UX-3 + UX-4 (the two a11y gaps), UX-9
+(per-division tab status pills + shared `DivisionTabs`).** See the remediation
+log. Remaining UX backlog: UX-2, UX-5…8, UX-10…14 (1 P2 · 9 P3).
 
 **Status update (2026-06-05) — bracket-tool deep-dive (standalone vs. division).**
 Full written audit of the bracket engine + both delivery surfaces (event/division
@@ -395,7 +406,206 @@ disclosure — the format card now describes the reset behavior instead.
 
 ---
 
+## Division bracket page — UX/UI deep-dive (2026-06-10)
+
+Scope: the host/captain workspace at `/events/[id]/bracket?division=…`
+([page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx)) and the shared
+`_components` it renders, plus the spectator twin
+([watch/page.tsx](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx)).
+Lens: bugs, gaps, streamlining, accessibility, and M3/stale-code drift — the
+UX/UI layer on top of the closed TT-\* correctness backlog. **4 P2 · 10 P3.**
+
+### UX-1 — Host sees spectator "check back" copy before controls resolve · **P2** · ✅ FIXED 2026-06-10
+
+The page is cacheable + viewer-independent, so
+[`useEventManageCaps`](../../apps/web/src/app/events/[id]/_components/use-event-manage-caps.ts)
+starts at `{ canManage: false }` and resolves the host **after** hydration.
+During that window the host sees the **spectator** message —
+[no-bracket-view.tsx#L12-L18](../../apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx#L12-L18)
+("The host hasn't created a bracket… yet"),
+[setup-view.tsx#L25-L31](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx#L25-L31),
+[bracket-workspace.tsx#L113-L117](../../apps/web/src/app/events/[id]/bracket/_components/bracket-workspace.tsx#L113-L117)
+— then it flips to their controls. A host being told "the host hasn't done this"
+is confusing. The hook had no way to distinguish "resolved as spectator" from
+"still resolving."
+**Fix:** add `resolved: boolean` to the hook's return; render a neutral skeleton
+for the host-conditional text views until `resolved`, so spectator copy only
+ever shows to confirmed spectators.
+
+### UX-2 — "Discard" in setup is a near-no-op with a misleading label · **P2**
+
+[setup-view.tsx#L98-L102](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx#L98-L102)
+labels the secondary action **Discard**, but it calls `reset`, and
+[`Bracket.reset()`](../../packages/domain/src/brackets/bracket.ts#L606-L613) only
+clears `_matches` and sets status→`setup`. In `setup` there are no matches yet
+**and seeds are not cleared**, so "Discard" does nothing visible except flash
+"Bracket reset to setup." There is no event-bracket delete, so the word promises
+something that can't happen here.
+**Fix:** relabel to "Clear seeding" and have it actually clear seeds, or drop the
+button in `setup` (it only makes sense in `draft`, where matches exist).
+
+### UX-3 — Score-entry inputs have no accessible label · **P2 (a11y)** · ✅ FIXED 2026-06-10
+
+[match-card.tsx#L160-L173](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx#L160-L173)
+— the set inputs are `name="set_a_1"` etc. with only a sibling
+`<span>Set 1</span>` (not a `<label htmlFor>`). Screen-reader users hear
+unlabeled number spinners.
+**Fix:** add `aria-label={`Team A, set ${i + 1}`}` / `Team B…` to each input.
+
+### UX-4 — Custom radio cards have no visible keyboard focus · **P2 (a11y, WCAG 2.4.7)** · ✅ FIXED 2026-06-10
+
+The format cards, "Best of" pills, and pool-schedule pills hide the real radio
+with `sr-only` and style the wrapping `<label>` only for `selected`/`hover` — no
+focus state
+([format-picker-form.tsx#L540-L558](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx#L540-L558),
+[#L604-L620](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx#L604-L620),
+[#L700-L718](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx#L700-L718)).
+A keyboard user arrowing through formats sees nothing move.
+**Fix:** add `has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary` to
+each label.
+
+### UX-5 — "Reset bracket" still hand-rolls `bg-red-600` · **P3**
+
+[board-view.tsx#L262](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx#L262)
+uses `bg-red-600 … hover:bg-red-700` — the 2026-06-07 danger-zone migration moved
+the four delete/cancel panels to `errorButtonClass` but missed this one. The
+enclosing `<details>` already uses `border-md-error` tokens, so the raw-red
+button is internally inconsistent (AGENTS pattern 11).
+**Fix:** `import { errorButtonClass }` and apply `errorButtonClass('sm')`.
+
+### UX-6 — Status notice hand-rolls the alert surface instead of `<Alert>` · **P3**
+
+[page.tsx#L175-L187](../../apps/web/src/app/events/[id]/bracket/page.tsx#L175-L187)
+hand-builds `border-md-success/30 bg-md-success/10 text-md-success`. AGENTS
+pattern 17 routes status surfaces through
+[`<Alert variant>`](../../apps/web/src/components/alert.tsx).
+**Fix:** `<Alert variant={notice.tone}>…</Alert>`.
+
+### UX-7 — h1 is undersized for a page title · **P3**
+
+Both [page.tsx#L124](../../apps/web/src/app/events/[id]/bracket/page.tsx#L124) and
+the watch twin use `text-headline-sm` (24/32 — the h2/h3 size); AGENTS pattern 16
+maps a **page-title h1** to `text-headline-lg` (32/40).
+**Fix:** `text-headline-lg` on both h1s.
+
+### UX-8 — Completed/winner highlight uses raw `green-500` · **P3 (judgment)**
+
+[match-card.tsx#L83](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx#L83)
+
+- [#L206](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx#L206)
+  and the save button at
+  [#L179](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx#L179)
+  (`bg-primary text-primary-fg`, hand-rolled) are the only raw-palette holdouts in
+  the bracket tree. A completed match / winner reads as success-semantic.
+  **Fix:** `bg-md-success/10` etc. and `primaryButtonClass` for the save button —
+  unless treated as decorative (borderline).
+
+### UX-9 — Division tabs show no per-division state · **P2** · ✅ FIXED 2026-06-10
+
+[page.tsx#L153-L173](../../apps/web/src/app/events/[id]/bracket/page.tsx#L153-L173)
+renders tabs labeled by division name only. A host running a multi-division
+tournament can't tell which divisions have a bracket _created / live / final_ —
+they must click each tab to find out. Highest-value running-the-event
+improvement.
+**Fix:** a lightweight per-division bracket-status lookup
+(`listDivisionStatuses(divisionIds)` — one `event_brackets` query) feeding a
+status pill on each tab. Extract the duplicated nav (cleanup below) into a shared
+`DivisionTabs` so both surfaces get it.
+
+### UX-10 — No status badge on the host page (watch page has one) · **P3**
+
+The spectator page shows a LIVE/Final pill
+([watch/page.tsx#L178-L187](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx#L178-L187));
+the host workspace shows nothing but BoardView's "In progress / Final results"
+subtext, and nothing in setup/draft. Parity gap.
+**Fix:** lift the same badge into the host header.
+
+### UX-11 — A completed bracket never celebrates the champion · **P3**
+
+On completion the winner is only the green-tinted team in the final card — no
+"🏆 Champion: Team X" banner on either surface.
+**Fix:** when `status === 'completed'`, render a champion banner above the board
+from the final match's `winnerEntryId`.
+
+### UX-12 — "Not a tournament" / "No divisions configured" are bare dead-ends · **P3**
+
+[page.tsx#L45-L65](../../apps/web/src/app/events/[id]/bracket/page.tsx#L45-L65) —
+both states are gray text with only "← Back to event," no path to fix (a host on
+"no divisions configured yet" has no link to add one).
+**Fix:** add a host CTA to the event's edit/divisions screen; keep plain copy for
+spectators.
+
+### UX-13 — Long actions give no progress feedback · **P3**
+
+[SubmitButton](../../apps/web/src/components/submit-button.tsx) disables on submit
+but only swaps text if passed `pendingChildren`, which no bracket form does —
+Generate / Publish / Record-result just fade slightly.
+**Fix:** pass `pendingChildren` ("Generating…", "Publishing…") on the heavy
+actions.
+
+### UX-14 — TreeBracket connectors drift on expanded cards & double-elim losers · **P3**
+
+Acknowledged in the component's own docstring
+([tree-bracket.tsx#L29-L37](../../apps/web/src/app/events/[id]/bracket/_components/tree-bracket.tsx#L29-L37))
+— the 25%/75% inset assumes equal card heights, so an expanded "Enter result"
+card pulls its connector off-center. Known polish item; tracked.
+
+### Cleanup notes (UX deep-dive)
+
+- **`pickLatestMatchId` computed twice** in
+  [bracket-workspace.tsx#L122](../../apps/web/src/app/events/[id]/bracket/_components/bracket-workspace.tsx#L122)
+  & [#L143](../../apps/web/src/app/events/[id]/bracket/_components/bracket-workspace.tsx#L143)
+  — hoist to one `const`.
+- **Header + division-nav markup duplicated** between
+  [page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx) and
+  [watch/page.tsx](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx) —
+  addressed by the shared `DivisionTabs` in the UX-9 fix.
+
+---
+
 ## Remediation log
+
+### 2026-06-10 — Division-bracket-page UX bundle 1 (UX-1, UX-3, UX-4, UX-9)
+
+First bundle off the 2026-06-10 UX/UI deep-dive. Verify chain green (typecheck /
+lint / test / build).
+
+- **UX-1 — host spectator-copy flash.**
+  [`useEventManageCaps`](../../apps/web/src/app/events/[id]/_components/use-event-manage-caps.ts)
+  now returns `resolved: boolean` (false until the post-hydration
+  `auth.getUser()` round-trip lands). The three host-conditional text views —
+  [no-bracket-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx),
+  [setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx),
+  and the draft branch in
+  [bracket-workspace.tsx](../../apps/web/src/app/events/[id]/bracket/_components/bracket-workspace.tsx)
+  — render a neutral
+  [`BracketViewSkeleton`](../../apps/web/src/app/events/[id]/bracket/_components/bracket-view-skeleton.tsx)
+  while `!resolved`, so the spectator "check back" copy only shows to confirmed
+  spectators. The board states (active/completed) render immediately for both as
+  before. Existing `useEventManageCaps` consumers are unaffected (additive field).
+- **UX-3 — score-input labels.** Each `set_a_*` / `set_b_*` number input in
+  [match-card.tsx](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx)
+  gained an `aria-label` ("`<TeamName>`, set N").
+- **UX-4 — keyboard focus on radio cards.** The format cards, "Best of" pills,
+  and pool-schedule pills in
+  [format-picker-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx)
+  gained `has-focus-visible:ring-2 has-focus-visible:ring-primary` so the
+  `sr-only` radio's focus is visible on its label.
+- **UX-9 — per-division tab status.** New `listDivisionStatuses(divisionIds)`
+  port ([bracket-repository.ts](../../packages/domain/src/brackets/bracket-repository.ts))
+  - admin-client adapter
+    ([supabase-bracket-repository.ts](../../packages/infrastructure/src/supabase-bracket-repository.ts))
+    — one `event_brackets` read. New shared
+    [`DivisionTabs`](../../apps/web/src/app/events/[id]/bracket/_components/division-tabs.tsx)
+    (server component; takes `basePath` + a `statusByDivision` map) renders a
+    status pill per tab (Setup / Draft / ● Live / ✓ Final, mirroring the watch
+    header treatment) and replaces the duplicated nav markup on **both**
+    [page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx) and
+    [watch/page.tsx](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx)
+    (closes the duplicated-nav cleanup note).
+
+Remaining UX backlog: **UX-2** (P2 "Discard" label), **UX-5…8**, **UX-10…14**
+(P3).
 
 ### 2026-06-05 — Bracket polish bundle (deferred follow-ups)
 

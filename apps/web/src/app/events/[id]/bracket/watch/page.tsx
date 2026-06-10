@@ -10,6 +10,7 @@ import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '../_components/board-view';
+import { DivisionTabs } from '../_components/division-tabs';
 import { LatestMatchTracker } from '../_components/latest-match-tracker';
 import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
 
@@ -131,13 +132,21 @@ export default async function BracketWatchPage(props: {
   const selectedDivision = event.divisions.find((d) => d.id === divParam) ?? event.divisions[0]!;
   const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
-  const [bracket, registeredTeams] = await Promise.all([
+  const multiDivision = event.divisions.length > 1;
+  const [bracket, registeredTeams, divisionStatuses] = await Promise.all([
     repositories.bracketRepo.findByDivisionId(DivisionId(selectedDivision.id)),
     repositories.bracketRepo.listRegisteredTeams(
       EventId(event.id),
       DivisionId(selectedDivision.id),
     ),
+    // Per-division status pills for the tabs (UX-9) — only when there are tabs.
+    multiDivision
+      ? repositories.bracketRepo.listDivisionStatuses(event.divisions.map((d) => DivisionId(d.id)))
+      : Promise.resolve([]),
   ]);
+  const statusByDivision = multiDivision
+    ? new Map(divisionStatuses.map((s) => [s.divisionId, s.status]))
+    : undefined;
 
   // Dual-keyed by both `entryId` and (when set) `teamId` — see page.tsx
   // for rationale. Ad-hoc / walk-in entries have no `teams.id`.
@@ -204,27 +213,12 @@ export default async function BracketWatchPage(props: {
         </div>
       </header>
 
-      {event.divisions.length > 1 && (
-        <nav aria-label="Divisions" className="border-border-base flex flex-wrap gap-1 border-b">
-          {event.divisions.map((d) => {
-            const active = d.id === selectedDivision.id;
-            return (
-              <Link
-                key={d.id}
-                href={`/events/${event.id}/bracket/watch?division=${d.id}`}
-                aria-current={active ? 'page' : undefined}
-                className={`-mb-px rounded-t px-3 py-2 text-sm ${
-                  active
-                    ? 'border-border-base bg-bg text-fg border border-b-transparent font-medium'
-                    : 'text-muted hover:text-fg'
-                }`}
-              >
-                {d.label}
-              </Link>
-            );
-          })}
-        </nav>
-      )}
+      <DivisionTabs
+        divisions={event.divisions}
+        selectedId={selectedDivision.id}
+        basePath={`/events/${event.id}/bracket/watch`}
+        {...(statusByDivision ? { statusByDivision } : {})}
+      />
 
       <BracketRealtimeRefresher divisionId={selectedDivision.id} bracketId={bracket?.id ?? null} />
 

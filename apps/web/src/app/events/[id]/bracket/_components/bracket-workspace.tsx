@@ -6,6 +6,7 @@ import { useEventManageCaps } from '../../_components/use-event-manage-caps';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from './board-view';
 import { eventScope } from './bracket-action-binding';
+import { BracketViewSkeleton } from './bracket-view-skeleton';
 import { DraftWorkspace } from './draft-workspace';
 import { LatestMatchTracker } from './latest-match-tracker';
 import { NoBracketView } from './no-bracket-view';
@@ -73,6 +74,10 @@ export function BracketWorkspace(props: {
   }, [registeredTeams]);
 
   const isHost = caps.canManage;
+  // False until `useEventManageCaps` resolves the viewer. The host-conditional
+  // text views below hold back their spectator copy until then so a host never
+  // flashes a "the host hasn't…" message before their controls load (UX-1).
+  const capsResolved = caps.resolved;
 
   return (
     <>
@@ -82,6 +87,7 @@ export function BracketWorkspace(props: {
           divisionId={divisionId}
           registeredTeams={registeredTeams}
           isHost={isHost}
+          capsResolved={capsResolved}
         />
       )}
 
@@ -95,6 +101,7 @@ export function BracketWorkspace(props: {
           seeds={bracket.seeds}
           registeredTeams={registeredTeams}
           isHost={isHost}
+          capsResolved={capsResolved}
         />
       )}
 
@@ -110,6 +117,8 @@ export function BracketWorkspace(props: {
             teams={registeredTeams}
             seeds={bracket.seeds}
           />
+        ) : !capsResolved ? (
+          <BracketViewSkeleton />
         ) : (
           <p className="text-muted text-sm">
             The host is finalizing the bracket. Check back shortly.

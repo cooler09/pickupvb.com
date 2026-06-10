@@ -162,6 +162,7 @@ export function MatchCard(props: {
                     type="number"
                     min="0"
                     defaultValue={existing?.teamAScore ?? ''}
+                    aria-label={`${teamA?.name ?? 'Team A'}, set ${i + 1} score`}
                     className="border-border-base bg-bg w-16 rounded border px-1 py-0.5"
                   />
                   <span className="text-muted">{'–'}</span>
@@ -170,6 +171,7 @@ export function MatchCard(props: {
                     type="number"
                     min="0"
                     defaultValue={existing?.teamBScore ?? ''}
+                    aria-label={`${teamB?.name ?? 'Team B'}, set ${i + 1} score`}
                     className="border-border-base bg-bg w-16 rounded border px-1 py-0.5"
                   />
                 </div>

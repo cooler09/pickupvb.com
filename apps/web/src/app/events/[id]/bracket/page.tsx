@@ -8,6 +8,7 @@ import { handlers, repositories } from '@/lib/handlers';
 import { assertEventVisibleOrNotFound } from '@/lib/event-visibility';
 import { isPro } from '@/lib/pro';
 import { BracketWorkspace } from './_components/bracket-workspace';
+import { DivisionTabs } from './_components/division-tabs';
 import { NOTICE_LABEL } from './_components/labels';
 
 // No `force-dynamic` and no `cookies()` read: every load resolves the same
@@ -68,13 +69,22 @@ export default async function BracketPage(props: {
   const selectedDivision = event.divisions.find((d) => d.id === divParam) ?? event.divisions[0]!;
   const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
-  const [bracket, registeredTeams] = await Promise.all([
+  const multiDivision = event.divisions.length > 1;
+  const [bracket, registeredTeams, divisionStatuses] = await Promise.all([
     repositories.bracketRepo.findByDivisionId(DivisionId(selectedDivision.id)),
     repositories.bracketRepo.listRegisteredTeams(
       EventId(event.id),
       DivisionId(selectedDivision.id),
     ),
+    // Per-division status pills for the tabs (UX-9) — only worth a query when
+    // there's more than one division (a single-division event has no tabs).
+    multiDivision
+      ? repositories.bracketRepo.listDivisionStatuses(event.divisions.map((d) => DivisionId(d.id)))
+      : Promise.resolve([]),
   ]);
+  const statusByDivision = multiDivision
+    ? new Map(divisionStatuses.map((s) => [s.divisionId, s.status]))
+    : undefined;
 
   // ADR 0023: live scoreboard scoring is a Pro-host perk, enabled for every
   // match in the event when the event's host is Pro. Viewer-independent —
@@ -150,27 +160,12 @@ export default async function BracketPage(props: {
         </div>
       </header>
 
-      {event.divisions.length > 1 && (
-        <nav aria-label="Divisions" className="border-border-base flex flex-wrap gap-1 border-b">
-          {event.divisions.map((d) => {
-            const active = d.id === selectedDivision.id;
-            return (
-              <Link
-                key={d.id}
-                href={`/events/${event.id}/bracket?division=${d.id}`}
-                aria-current={active ? 'page' : undefined}
-                className={`-mb-px rounded-t px-3 py-2 text-sm ${
-                  active
-                    ? 'border-border-base bg-bg text-fg border border-b-transparent font-medium'
-                    : 'text-muted hover:text-fg'
-                }`}
-              >
-                {d.label}
-              </Link>
-            );
-          })}
-        </nav>
-      )}
+      <DivisionTabs
+        divisions={event.divisions}
+        selectedId={selectedDivision.id}
+        basePath={`/events/${event.id}/bracket`}
+        {...(statusByDivision ? { statusByDivision } : {})}
+      />
 
       {notice && (
         <div

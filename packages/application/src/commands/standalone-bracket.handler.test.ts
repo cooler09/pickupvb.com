@@ -74,6 +74,9 @@ class FakeRepo implements BracketRepository {
   async listRegisteredTeams(): Promise<BracketTeamLite[]> {
     return [];
   }
+  async listDivisionStatuses(): Promise<ReadonlyArray<never>> {
+    return [];
+  }
   async listByOwner(): Promise<ReadonlyArray<BracketSummary>> {
     return [];
   }

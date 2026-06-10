@@ -110,6 +110,9 @@ class FakeBracketRepo implements BracketRepository {
   async listRegisteredTeams(): Promise<BracketTeamLite[]> {
     return [];
   }
+  async listDivisionStatuses(): Promise<ReadonlyArray<never>> {
+    return [];
+  }
   async listByOwner(): Promise<ReadonlyArray<never>> {
     return [];
   }
@@ -212,6 +215,9 @@ class HostBracketRepo implements BracketRepository {
   }
   async deleteBracket(): Promise<void> {}
   async listRegisteredTeams(): Promise<BracketTeamLite[]> {
+    return [];
+  }
+  async listDivisionStatuses(): Promise<ReadonlyArray<never>> {
     return [];
   }
   async listByOwner(): Promise<ReadonlyArray<never>> {

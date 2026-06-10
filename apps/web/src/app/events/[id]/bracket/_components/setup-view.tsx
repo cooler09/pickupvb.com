@@ -5,6 +5,7 @@ import { primaryButtonClass } from '@/components/primary-button';
 import { FormModal } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
 import { bindBracketActions, eventScope } from './bracket-action-binding';
+import { BracketViewSkeleton } from './bracket-view-skeleton';
 import { FORMAT_LABEL, type BracketScope, type TeamLite } from './labels';
 import { SeedingList } from './seeding-list';
 import { WalkInTeamForm } from './walk-in-team-form';
@@ -18,11 +19,16 @@ export function SetupView(props: {
   seeds: ReadonlyArray<{ entryId: string; seed: number }>;
   registeredTeams: ReadonlyArray<TeamLite>;
   isHost: boolean;
+  /** False while the event page's `useEventManageCaps` is still resolving — hold
+   *  the spectator copy until then so a host doesn't flash it (UX-1). Defaults to
+   *  true for the standalone page, whose ownership is resolved server-side. */
+  capsResolved?: boolean;
 }) {
   const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
   const a = bindBracketActions(scope);
   const standalone = scope.kind === 'standalone';
   if (!props.isHost) {
+    if (props.capsResolved === false) return <BracketViewSkeleton />;
     return (
       <p className="text-muted text-sm">
         The host is still setting up the bracket. Check back shortly.
