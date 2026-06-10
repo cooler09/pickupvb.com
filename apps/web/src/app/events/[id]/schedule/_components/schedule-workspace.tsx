@@ -31,9 +31,15 @@ export function ScheduleWorkspace(props: {
   teams: ReadonlyArray<ScheduleTeam>;
   matches: ReadonlyArray<ScheduleMatchVm>;
   liveScoringEnabled: boolean;
+  /** Kiosk display mode (tournament-displays slice A): force the read-only
+   *  spectator slate even for a signed-in host, so a gym TV shows no edit
+   *  affordances. */
+  display?: boolean;
 }) {
   const { eventId, divisionId, returnPath, timeZone, teams, matches } = props;
   const { canManage } = useEventManageCaps(props.hostUserId, props.hostGroupId);
+  // Display mode never shows host controls, regardless of who's viewing.
+  const showHostControls = !props.display && canManage;
 
   const { weeks, matchesByWeek, defaultWeek } = useMemo(() => {
     const byWeek = new Map<number, ScheduleMatchVm[]>();
@@ -52,7 +58,7 @@ export function ScheduleWorkspace(props: {
 
   return (
     <>
-      {canManage && matches.length === 0 && teams.length >= 2 && (
+      {showHostControls && matches.length === 0 && teams.length >= 2 && (
         // Empty slate: offer one-click round-robin generation. Hidden once
         // matches exist — regenerating requires clearing first (the handler
         // refuses to overwrite a non-empty slate).
@@ -67,7 +73,7 @@ export function ScheduleWorkspace(props: {
         </section>
       )}
 
-      {canManage && (
+      {showHostControls && (
         <section className="space-y-2">
           <h2 className="text-fg text-base font-semibold">Add a match</h2>
           <AddMatchForm
@@ -99,7 +105,7 @@ export function ScheduleWorkspace(props: {
                       match={m}
                       teams={teams}
                       timeZone={timeZone}
-                      isHost={canManage}
+                      isHost={showHostControls}
                       liveScoringEnabled={props.liveScoringEnabled}
                     />
                   ))}
@@ -110,7 +116,7 @@ export function ScheduleWorkspace(props: {
         </LiveScoresProvider>
       )}
 
-      {canManage && matches.length > 0 && (
+      {showHostControls && matches.length > 0 && (
         // Host counterpart to "generate": wipe the slate (re-enables generation).
         // Destructive — confirms first because it also deletes recorded scores.
         <form
