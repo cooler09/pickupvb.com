@@ -11,6 +11,7 @@ import {
 import { HostDivisionWinnersPanel } from '../../_components/host-division-winners-panel';
 import { LeagueTeamsPanel } from '../../_components/league-teams-panel';
 import { HostsSection } from '../../_components/hosts-section';
+import { DisplaysPanel } from './displays-panel';
 import { CancelEventPanel } from '../../edit/cancel-event-panel';
 import { EventToolsCard, type EventToolSlug } from '@/app/tools/_components/event-tools-card';
 import type {
@@ -41,6 +42,7 @@ export function ManageDashboard({
   eligibleTeamsByDivision,
   leagueTeamsByDivision,
   viewerIsPro,
+  hostIsPro,
   payments,
   primaryHostUserSocial,
 }: {
@@ -50,6 +52,9 @@ export function ManageDashboard({
   eligibleTeamsByDivision: ReadonlyMap<string, EligibleTeamOption[]>;
   leagueTeamsByDivision: ReadonlyMap<string, LeagueTeamView[]>;
   viewerIsPro: boolean;
+  /** Whether the event's *host* (not the viewer) is Pro — gates the kiosk
+   *  "Displays" hub, mirroring the page-level `?display=1` gate. */
+  hostIsPro: boolean;
   payments: Map<string, AttendeePaymentInfo> | undefined;
   primaryHostUserSocial: SocialHandles | null;
 }) {
@@ -151,6 +156,9 @@ export function ManageDashboard({
               href={`/events/${event.id}/schedule` as Route}
               label="Open schedule"
             />
+          )}
+          {(isTournament || isLeague) && hasDivisions && hostIsPro && (
+            <DisplaysPanel event={event} />
           )}
           <EventToolsCard
             eventId={event.id}

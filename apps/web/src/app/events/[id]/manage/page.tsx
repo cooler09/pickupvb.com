@@ -4,6 +4,7 @@ import type { Metadata } from 'next/types';
 import { notFound } from 'next/navigation';
 import { NotFoundError } from '@pickupvb/domain';
 import { getViewer } from '@/lib/server-auth';
+import { isPro } from '@/lib/pro';
 import { LocalDateTime } from '@/components/local-datetime';
 import { loadEventDetail, loadEventReadModelPublic } from '../_loaders/load-event-detail';
 import { ManageDashboard } from './_components/manage-dashboard';
@@ -53,6 +54,10 @@ export default async function ManageEventPage(props: { params: Promise<{ id: str
   if (!event.canManage) notFound();
 
   const returnPath = `/events/${event.id}/manage`;
+
+  // Kiosk display mode is gated on the *host's* Pro status (not the viewer's —
+  // a Free co-host managing a Pro host's event still gets the Displays hub).
+  const hostIsPro = !!event.hostUserId && (await isPro(event.hostUserId));
 
   // Manual-award (host_grant) badges + their existing grants, for the award
   // panel. on_attend badges aren't awarded here (they grant on attendance).
@@ -112,6 +117,7 @@ export default async function ManageEventPage(props: { params: Promise<{ id: str
         eligibleTeamsByDivision={vm.eligibleTeamsByDivision}
         leagueTeamsByDivision={vm.leagueTeamsByDivision}
         viewerIsPro={vm.viewerIsPro}
+        hostIsPro={hostIsPro}
         payments={vm.payments}
         primaryHostUserSocial={vm.primaryHostUserSocial}
       />
