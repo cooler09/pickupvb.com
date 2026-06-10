@@ -129,6 +129,20 @@ export class Team extends AggregateRoot<TeamId> {
   }
 
   /**
+   * Rename the team. Captain-only at the application layer. Mirrors the name
+   * rules in {@link Team.create}: trimmed, non-empty, and not profane (an
+   * identity field — reject rather than mask, ADR 0030).
+   */
+  rename(name: string): void {
+    const next = name.trim();
+    if (!next) {
+      throw new InvariantViolation('Team name is required.');
+    }
+    assertCleanName(next);
+    this._name = next;
+  }
+
+  /**
    * Update the off-site player count. Captain-only at the application layer.
    */
   setExtraMemberCount(n: number): void {

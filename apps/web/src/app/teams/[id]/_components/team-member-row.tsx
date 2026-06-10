@@ -1,29 +1,24 @@
-import { SubmitButton } from '@/components/submit-button';
-import { removeMemberFromForm } from '../../actions';
+import Link from 'next/link';
+import type { Route } from 'next';
 
 export type TeamRosterMember = {
   userId: string;
   status: 'active' | 'pending';
   profile: {
     displayName: string;
-    firstName: string | null;
-    lastName: string | null;
+    /** Vanity handle for the player profile link; '' when unknown. */
+    handle: string;
   } | null;
 };
 
 type Props = {
-  teamId: string;
   member: TeamRosterMember;
   isCaptain: boolean;
-  viewerIsCaptain: boolean;
-  returnPath: string;
 };
 
-function memberName(m: TeamRosterMember): string {
-  const p = m.profile;
-  if (!p) return 'Player';
-  const full = [p.firstName, p.lastName].filter(Boolean).join(' ').trim();
-  return full || p.displayName || 'Player';
+/** Display name for a roster member, falling back to a generic label. */
+export function memberName(m: TeamRosterMember): string {
+  return m.profile?.displayName || 'Player';
 }
 
 function initials(name: string): string {
@@ -36,13 +31,21 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-export function TeamMemberRow({ teamId, member, isCaptain, viewerIsCaptain, returnPath }: Props) {
+/**
+ * Read-only roster row on the public team page. Captain removal lives in the
+ * viewer-only `TeamViewerChrome` "Roster controls" island, not here — the
+ * roster itself is server-rendered so the page stays ISR-cacheable.
+ */
+export function TeamMemberRow({ member, isCaptain }: Props) {
   const name = memberName(member);
-  const canRemove = viewerIsCaptain && !isCaptain;
   const isPending = member.status === 'pending';
+  const handle = member.profile?.handle || member.userId;
   return (
     <li className="border-border-base bg-md-surface-container flex items-center justify-between gap-3 rounded-md border p-3">
-      <div className="flex min-w-0 items-center gap-3">
+      <Link
+        href={`/players/${handle}` as Route}
+        className="group flex min-w-0 items-center gap-3 hover:underline"
+      >
         <span
           aria-hidden="true"
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
@@ -59,14 +62,7 @@ export function TeamMemberRow({ teamId, member, isCaptain, viewerIsCaptain, retu
             <p className="text-muted text-xs font-medium tracking-wide uppercase">Pending invite</p>
           ) : null}
         </div>
-      </div>
-      {canRemove && (
-        <form action={removeMemberFromForm.bind(null, teamId, member.userId, returnPath)}>
-          <SubmitButton className="text-md-error text-xs font-medium hover:underline disabled:opacity-50">
-            {isPending ? 'Cancel' : 'Remove'}
-          </SubmitButton>
-        </form>
-      )}
+      </Link>
     </li>
   );
 }

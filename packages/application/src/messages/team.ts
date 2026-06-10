@@ -45,6 +45,14 @@ export class SetTeamExtraMembersCommand {
   ) {}
 }
 
+export class RenameTeamCommand {
+  constructor(
+    public readonly teamId: string,
+    public readonly name: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
 export class RegisterTeamCommand {
   constructor(
     public readonly eventId: string,

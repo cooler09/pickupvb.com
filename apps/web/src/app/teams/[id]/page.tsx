@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
+import { TeamFlash } from './_components/team-flash';
 import { TeamViewerChrome } from './_components/team-viewer-chrome';
 import { TeamLeagueRecords } from './_components/team-league-records';
 import { TeamJsonLd } from './_components/team-jsonld';
@@ -88,7 +89,7 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
     return {
       userId: m.user_id,
       status: m.status ?? 'active',
-      profile: p ? { displayName: p.displayName, firstName: null, lastName: null } : null,
+      profile: p ? { displayName: p.displayName, handle: p.handle } : null,
     };
   });
 
@@ -132,18 +133,13 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
         </p>
       </header>
 
+      <TeamFlash />
+
       <section className="space-y-2">
         <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">Roster</h2>
         <ul className="space-y-2">
           {members.map((m) => (
-            <TeamMemberRow
-              key={m.userId}
-              teamId={team.id}
-              member={m}
-              isCaptain={m.userId === team.captain_id}
-              viewerIsCaptain={false}
-              returnPath={returnPath}
-            />
+            <TeamMemberRow key={m.userId} member={m} isCaptain={m.userId === team.captain_id} />
           ))}
         </ul>
       </section>

@@ -3,6 +3,7 @@ import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { Pagination } from '@/components/pagination';
 import { primaryButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
+import { Alert } from '@/components/alert';
 import { EmptyState } from '@/components/empty-state';
 import { MyTeamsPanel } from './_components/my-teams-panel';
 import { TeamCard } from './_components/team-card';
@@ -30,7 +31,7 @@ export const metadata = {
 const PAGE_SIZE = 24;
 
 export default async function TeamsIndexPage(props: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; deleted?: string }>;
 }) {
   const searchParams = await props.searchParams;
   const supabase = createSupabaseAnonClient();
@@ -62,6 +63,8 @@ export default async function TeamsIndexPage(props: {
           </p>
         </div>
       </header>
+
+      {searchParams.deleted === '1' && <Alert variant="success">Team deleted.</Alert>}
 
       <MyTeamsPanel />
 

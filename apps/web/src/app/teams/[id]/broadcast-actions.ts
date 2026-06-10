@@ -7,7 +7,7 @@ import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { notify } from '@/lib/notify';
 
-type State = { ok?: boolean; error?: string };
+type State = { error?: string };
 
 /**
  * Captain-only broadcast to all active team members.
