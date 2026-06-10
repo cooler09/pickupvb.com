@@ -45,8 +45,23 @@ This file is complementary to — not a duplicate of:
 > `preview_sender_name` column from `profiles_public`, threaded through
 > `InboxItem`, so room previews read "Alex: …"). The MU-4 migration
 > (`20261007000000_inbox_preview_sender_name.sql`) is deploy-gated; the generated
-> types were hand-edited and will regenerate on the next `gen:types`. **The 11
-> P3s remain open backlog.**
+> types were hand-edited and will regenerate on the next `gen:types`.
+>
+> **2026-06-09 — all 11 P3s FIXED (uncommitted, quad-green), one partial.**
+> Inbox: MU-12 (rooms now open `/messages/{id}`, unified with the bell — no more
+> burying the chat on a long context page), MU-13 (copy names DMs), MU-9
+> (recency-aware stamps: today→time, week→weekday, older→date). Thread:
+> MU-6 (composer auto-grows to ~6 rows), MU-7 (edit box gets Enter/Shift+Enter/Esc
+>
+> - `maxLength`), MU-8 (day-separator rows), MU-10 (error → padded `<Alert>`),
+>   MU-11 ("New messages ↓" jump pill when scrolled up). MU-5 + MU-14 retired the
+>   two `window.confirm` calls for a reusable Radix `ConfirmDialog`
+>   ([confirm-dialog.tsx](../../apps/web/src/components/confirm-dialog.tsx)) whose
+>   Report variant collects the (previously always-null) moderator reason. **MU-15
+>   partial:** the live-inbox half shipped (an `InboxLiveRefresh` island
+>   `router.refresh()`es on `chat.message.received`); the **compose-from-inbox
+>   people-picker is deferred** as a product feature (see MU-15). Net: 0 open P2,
+>   1 partial P3 (compose entry).
 
 ---
 
@@ -203,7 +218,7 @@ deploy-gated; types regenerate on the next `gen:types`.
 
 ## P3 — nice-to-have
 
-### MU-5 — Native `window.confirm()` for delete & report
+### MU-5 — Native `window.confirm()` for delete & report — ✅ FIXED 2026-06-09 (uncommitted, quad-green)
 
 `remove` and `report` gate on the unstyled, thread-blocking browser dialog:
 
@@ -221,7 +236,7 @@ optimistically and surface "Message deleted · Undo" via `useToast`, matching th
 M3 Snackbar already in the tree). Report can become a one-tap toast-confirmed flag.
 [conversation-view.tsx#L478-L503](../../apps/web/src/components/conversation-view.tsx#L478-L503)
 
-### MU-6 — Composer textarea doesn't auto-grow
+### MU-6 — Composer textarea doesn't auto-grow — ✅ FIXED 2026-06-09 (uncommitted, quad-green)
 
 `rows={1}` + `resize-none`
 ([conversation-view.tsx:698-712](../../apps/web/src/components/conversation-view.tsx#L698-L712)) —
@@ -231,7 +246,7 @@ on input to a max height (`el.style.height='auto'; el.style.height =
 Math.min(el.scrollHeight, MAX_PX)+'px'`), capping at ~6 rows, then snap back to one
 row after send.
 
-### MU-7 — The inline edit box lacks the composer's keyboard affordances and `maxLength`
+### MU-7 — The inline edit box lacks the composer's keyboard affordances and `maxLength` — ✅ FIXED 2026-06-09 (uncommitted, quad-green)
 
 The edit `<textarea>`
 ([conversation-view.tsx:554-559](../../apps/web/src/components/conversation-view.tsx#L554-L559))
@@ -241,7 +256,7 @@ edit submits and fails with the generic "…may contain blocked content" copy.
 **Fix:** add the same `onKeyDown` (Enter saves, Shift+Enter newline, Escape cancels)
 and `maxLength` to the edit box.
 
-### MU-8 — No day separators or same-sender grouping in threads
+### MU-8 — No day separators or same-sender grouping in threads — ✅ FIXED 2026-06-09 (day separators; same-sender grouping deferred)
 
 Every message renders its own avatar+name+time row and only a **time-of-day** label
 (`timeLabel` → "3:42 PM"); there are no "Today / Yesterday / Jun 7" dividers between
@@ -253,7 +268,7 @@ the calendar day changes between consecutive messages, and collapse the
 avatar/name header for consecutive messages from the same sender within a short
 window (keep the hover/inline timestamp).
 
-### MU-9 — Inbox timestamps are date-only and absolute, even for today
+### MU-9 — Inbox timestamps are date-only and absolute, even for today — ✅ FIXED 2026-06-09 (uncommitted, quad-green)
 
 `stamp` returns only month/day ("Jun 9")
 ([messages/page.tsx:50-57](../../apps/web/src/app/messages/page.tsx#L50-L57)), so
@@ -264,7 +279,7 @@ ISO string — today → time ("3:42 PM"), within a week → weekday ("Mon"), ol
 prop/`searchParams`-free constant or accept the ET-day boundary as the existing
 `DEFAULT_TIME_ZONE` already does).
 
-### MU-10 — The error banner has no padding and renders below the composer
+### MU-10 — The error banner has no padding and renders below the composer — ✅ FIXED 2026-06-09 (uncommitted, quad-green)
 
 `{error && <p role="alert" className="text-md-error text-xs">…}`
 ([conversation-view.tsx:719-723](../../apps/web/src/components/conversation-view.tsx#L719-L723))
@@ -275,7 +290,7 @@ variant="error">` (m3-alignment pattern #17). Also `remove`/`report` set the err
 but never clear it on a later success — only `send`/`saveEdit` reset it; clear on
 the next successful mutation.
 
-### MU-11 — No "new messages" affordance when scrolled up
+### MU-11 — No "new messages" affordance when scrolled up — ✅ FIXED 2026-06-09 (uncommitted, quad-green)
 
 When the reader scrolls up to read history, incoming messages correctly **don't**
 yank the viewport (`atBottomRef`,
@@ -285,7 +300,7 @@ pill or jump-to-latest button. **Fix:** when a non-own message arrives while
 `!atBottomRef.current`, show a floating "New messages ↓" button that scrolls to
 bottom (reuse the `announcement` signal that already fires for SR users).
 
-### MU-12 — Inbox links to room context pages don't anchor to the chat
+### MU-12 — Inbox links to room context pages don't anchor to the chat — ✅ FIXED 2026-06-09 (uncommitted, quad-green)
 
 `inboxHref` routes rooms to `/teams/{slug}` / `/groups/{slug}` / `/events/{id}`
 with **no hash**
@@ -301,7 +316,7 @@ entry from both surfaces (pairs with MU-1's header fix and removes the
 bell-vs-inbox split). **Alternative:** append `#chat` and add `anchorId="chat"` to
 the teams/groups panels too.
 
-### MU-13 — Inbox copy omits direct messages
+### MU-13 — Inbox copy omits direct messages — ✅ FIXED 2026-06-09 (uncommitted, quad-green)
 
 The subtitle "Your team, event, and group conversations."
 ([messages/page.tsx:80](../../apps/web/src/app/messages/page.tsx#L80)) and the
@@ -311,7 +326,7 @@ omit DMs, which the inbox _does_ list (and `KIND_LABEL` includes "Direct message
 **Fix:** "Your direct messages and team, event, and group conversations." (or just
 "Your conversations") in both spots.
 
-### MU-14 — "Report" always sends a `null` reason
+### MU-14 — "Report" always sends a `null` reason — ✅ FIXED 2026-06-09 (folded into MU-5's ConfirmDialog)
 
 The report flow calls `reportChatMessage(messageId, null)`
 ([conversation-view.tsx:495](../../apps/web/src/components/conversation-view.tsx#L495)),
@@ -321,7 +336,7 @@ select/textarea in the confirm step from MU-5) or document the `null` as an
 intentional quick-flag and note the param exists for a future moderator surface.
 Low priority — flag only.
 
-### MU-15 — No compose entry from the inbox, and the inbox list isn't live
+### MU-15 — No compose entry from the inbox, and the inbox list isn't live — ⚠️ PARTIAL 2026-06-09 (live refresh shipped; compose picker deferred)
 
 A DM can only be started from a player profile ("Message" button); `/messages` has
 no "New message" affordance, so the inbox is a pure read entry point. Separately,
@@ -332,6 +347,16 @@ picker over followed users (`startDmWithUser` already exists); (b) subscribe the
 inbox to the shared `notifications:{uid}` topic and `router.refresh()` on
 `chat.message.received` for a live list — or accept (b) as a documented tradeoff
 (the badge already nudges; the list re-syncs on open).
+
+**Partially fixed — (b) shipped, (a) deferred.** An
+[`InboxLiveRefresh`](../../apps/web/src/app/messages/_components/inbox-live-refresh.tsx)
+island subscribes to the shared `notifications:{uid}` topic and `router.refresh()`es
+the server-rendered list on `chat.message.received`, so previews / unread dots /
+ordering reconcile without a navigation (the upstream coalescing bounds the refresh
+rate). The **compose-from-inbox people-picker is deferred as a product decision** —
+DMs remain contextual (started from a player profile), and a directory-style "New
+message" picker is a feature, not a polish fix. Revisit if DM-initiation friction
+shows up in usage.
 
 ---
 
@@ -357,8 +382,34 @@ min-h-48`); thread page passes `max-h-[65vh] min-h-[20rem]` via `DmThread` +
   previews read "Alex: …".
   ([messages/page.tsx](../../apps/web/src/app/messages/page.tsx))
 
-Verify: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green (356
-tests). **Open backlog: the 11 P3s** (native `confirm()`, auto-grow composer,
-edit-box keyboard parity, day separators, relative inbox stamps, error-banner
-padding, jump-to-latest, inbox→`/messages/[id]` routing, DM-omitting copy,
-always-null report reason, compose entry / live inbox).
+Verify: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green.
+
+**2026-06-09 — P3 sweep shipped (uncommitted, quad-green).**
+
+- **MU-5 + MU-14** — new reusable
+  [`ConfirmDialog`](../../apps/web/src/components/confirm-dialog.tsx) (controlled
+  Radix dialog, `danger` + optional `reason` props) retires the two
+  `window.confirm` calls; the Report variant collects the moderator reason
+  (previously always `null`), passed through `reportChatMessage`.
+- **MU-6** — composer auto-grows on input to ~6 rows (`scrollHeight`-driven,
+  160 px cap), collapses after send.
+- **MU-7** — edit box gets Enter-saves / Shift+Enter-newlines / Escape-cancels +
+  `maxLength={4000}`.
+- **MU-8** — day-separator rows (`dayKey`/`dayDividerLabel`, pure on the ISO) when
+  the calendar day changes between adjacent messages. Same-sender grouping deferred.
+- **MU-9** — recency-aware inbox `stamp(iso, now)` (today→time, <7 d→weekday,
+  else→"Jun 7"); `now` from the page boundary keeps it pure.
+- **MU-10** — error → padded `<Alert variant="error">` (was an unpadded `<p>`).
+- **MU-11** — "New messages ↓" jump pill when a message arrives while scrolled up
+  (`hasNewBelow` + `scrollToBottom`).
+- **MU-12** — `inboxHref` routes every conversation to `/messages/{id}` (unified
+  with the bell); the room-context split is gone.
+- **MU-13** — inbox subtitle + empty-state name DMs.
+- **MU-15** — `InboxLiveRefresh` island live-refreshes the list; compose-picker
+  deferred (product).
+  ([conversation-view.tsx](../../apps/web/src/components/conversation-view.tsx),
+  [messages/page.tsx](../../apps/web/src/app/messages/page.tsx),
+  [inbox-live-refresh.tsx](../../apps/web/src/app/messages/_components/inbox-live-refresh.tsx))
+
+**Remaining backlog:** MU-15(a) compose-from-inbox people-picker (product
+decision) and MU-8's same-sender message grouping (deferred polish). No open P1/P2.
