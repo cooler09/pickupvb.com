@@ -25,10 +25,15 @@ export function DisplaysPanel({ event }: { event: EventDetailReadModel }) {
       ? `/events/${event.id}/${surface}?division=${d.id}&display=1`
       : `/events/${event.id}/${surface}?display=1`,
   }));
-  // The court board is venue-wide (all divisions at once) — one link, listed
-  // first as the marquee "what's on now / up next" screen.
+  // Venue-wide boards (all divisions at once) lead the list: the court board
+  // ("what's on now / up next") and the all-divisions dashboard.
   const rows = [
     { key: 'courts', title: 'Courts — Now & Next', path: `/events/${event.id}/courts?display=1` },
+    {
+      key: 'dashboard',
+      title: 'Dashboard — all divisions',
+      path: `/events/${event.id}/dashboard?display=1`,
+    },
     ...divisionRows,
   ];
 

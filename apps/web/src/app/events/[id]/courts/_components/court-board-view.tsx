@@ -1,4 +1,4 @@
-import type { CourtBoard, CourtColumn, CourtMatch } from '../_lib/court-board';
+import type { CourtBoard, CourtColumn, CourtMatch } from '../../_lib/court-board';
 
 /**
  * Presentational court board (tournament-displays slice B). Server component —
