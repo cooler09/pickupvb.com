@@ -6,21 +6,25 @@ _Last updated: 2026-06-10_
 > groups surface** — detail (`/groups/[id]`), member-management
 > (`/members`), edit, billing (`/billing`), and analytics. The 2026-06-01
 > directory pass (G-1…G-5) stays ✅ closed below. New detail-surface pass:
-> **0 P1 · 3 P2 · 7 P3**. **6 fixed same day, quad-green (GD-1, GD-2, GD-3,
-> GD-5, GD-7, GD-9):** member-management failures now surface via flash-param
-> `<Alert>` (last-owner / already-member / unauthorized no longer a silent
-> no-op); the directory shows a "Group deleted" banner; the group's "Host an
-> event" CTA preselects the club (`?host_group=<slug>`); the four-way
-> slug→group + owner/admin gate is collapsed into one `requireGroupManager`
-> page helper; the directory follow button uses `neutralButtonClass`; and a
-> dead `ok` state field was dropped. **4 open** (GD-4, GD-6, GD-8, GD-10) —
-> join-request product call, member-form field vocab, host h1 size, and
-> member-row mobile wrap. No data-loss or auth holes found. Findings + fixes
+> **0 P1 · 3 P2 · 7 P3** — **9 of 10 fixed same day, quad-green** (GD-1, GD-2,
+> GD-3, GD-5, GD-6, GD-7, GD-8, GD-9, GD-10): member-management failures now
+> surface via flash-param `<Alert>` (last-owner / already-member / unauthorized
+> no longer a silent no-op); the directory shows a "Group deleted" banner; the
+> group's "Host an event" CTA preselects the club (`?host_group=<slug>`); the
+> four-way slug→group + owner/admin gate is collapsed into one
+> `requireGroupManager` page helper; the member forms use the shared field
+> vocab (`fieldInputClass` / `field()`); the directory follow button uses
+> `neutralButtonClass`; the manager sub-page h1s align on `text-headline-sm`;
+> the member-row action cluster wraps on mobile; and a dead `ok` state field
+> was dropped. **1 open — GD-4** (a product call: clarify follow≠membership vs.
+> build a real join-request flow). No data-loss or auth holes found. Findings
 > in
 > "[Findings — detail, members, edit & billing](#findings--group-detail-member-management-edit--billing-2026-06-10)";
 > what shipped is in the
-> [remediation](#2026-06-10--gd-1-gd-2-gd-3-gd-7-gd-9-bundle-member-feedback--polish)
-> [log](#2026-06-10--gd-5-bundle-shared-requiregroupmanager-gate).
+> [member-feedback](#2026-06-10--gd-1-gd-2-gd-3-gd-7-gd-9-bundle-member-feedback--polish),
+> [gate](#2026-06-10--gd-5-bundle-shared-requiregroupmanager-gate), and
+> [vocab/polish](#2026-06-10--gd-6-gd-8-gd-10-bundle-field-vocab--heading--mobile-wrap)
+> remediation-log entries.
 
 UX/UI evaluation of the **groups directory**
 ([apps/web/src/app/groups/page.tsx](../../apps/web/src/app/groups/page.tsx)) —
@@ -297,7 +301,7 @@ extract one `requireGroupManager(slug)` **page helper** (returns
 read-model adapter as its backing query. **P2** — maintainability + drift risk on
 an authorization path.
 
-#### GD-6 — Field-vocabulary drift in the member forms · **P3**
+#### GD-6 — Field-vocabulary drift in the member forms · **P3** · ✅ resolved 2026-06-10
 
 - `add-member-form.tsx` hand-rolls the `<select>` class string and a bare
   `<label className="text-fg block text-sm font-medium">` instead of the shared
@@ -324,7 +328,7 @@ follow buttons render differently across surfaces; the detail page is correct.
 **Fix:** switch the directory button to `neutralButtonClass('sm')` for the
 followed state. **P3.**
 
-#### GD-8 — Page-title heading size inconsistent across group sub-pages · **P3**
+#### GD-8 — Page-title heading size inconsistent across group sub-pages · **P3** · ✅ resolved 2026-06-10
 
 Billing + analytics use `text-headline-lg` for their h1
 ([billing/page.tsx#L76](../../apps/web/src/app/groups/[id]/billing/page.tsx#L76),
@@ -342,7 +346,7 @@ isolation. **P3** — visual consistency.
 and `deleteGroupAction`'s `State` both declare `ok`, but success **redirects**, so
 `ok` is never set or read. Drop it from both. **P3** — trivial.
 
-#### GD-10 — Member-row action cluster doesn't wrap on mobile · **P3**
+#### GD-10 — Member-row action cluster doesn't wrap on mobile · **P3** · ✅ resolved 2026-06-10
 
 `MemberRowItem` lays out name + role + up to three role-change buttons + Remove in
 a single `flex items-center gap-3` row with no `flex-wrap`
@@ -361,6 +365,36 @@ into a single menu. **P3** — mobile polish.
   surface; this file only covers the **UX** of the billing page.
 
 ## Remediation log
+
+### 2026-06-10 — GD-6 / GD-8 / GD-10 bundle (field vocab + heading + mobile wrap)
+
+The remaining P3 polish (GD-4 stays open as a product call).
+
+- **GD-6 ✅** — the add-member form
+  ([add-member-form.tsx](../../apps/web/src/app/groups/[id]/members/_components/add-member-form.tsx))
+  uses `fieldLabelClass` + `` `${fieldInputClass} sm:w-48` `` for the role
+  `<select>` (the shared chassis already carries `w-full`, which `sm:w-48`
+  overrides at the breakpoint), and the `addMemberFromForm` wrapper
+  ([members-actions.ts](../../apps/web/src/app/groups/[id]/members/members-actions.ts))
+  reads `field(formData, …)` instead of raw `formData.get` — the AGENTS
+  pattern-11 / form-data convention every other group form already follows.
+- **GD-8 ✅** — aligned the group manager sub-pages **down** to
+  `text-headline-sm`: billing + analytics were the only two group surfaces on
+  `text-headline-lg`, while the directory, detail group-name, edit, members, and
+  new all use `text-headline-sm`. The app is ~50/50 on page-title size globally
+  (no hard convention to honour), so feature-internal consistency won — one less
+  edit-surface than bumping five pages up, and it keeps the group-name h1 (the
+  feature's primary title) as the size anchor.
+- **GD-10 ✅** — `MemberRowItem`
+  ([member-row-item.tsx](../../apps/web/src/app/groups/[id]/members/_components/member-row-item.tsx))
+  `<li>` gains `flex-wrap`, and the name link is `grow basis-full sm:basis-auto`
+  (avoiding `flex-1`'s `basis-0` clash with `basis-full`): on a narrow viewport
+  the name takes the full first row and the `→ Member / → Admin / → Owner /
+Remove` cluster wraps below instead of overflowing; on `sm:` it returns to the
+  inline single-row layout.
+
+Verified `pnpm typecheck && lint && test && build` (all green; touched files add
+zero lint warnings; 375 web tests pass).
 
 ### 2026-06-10 — GD-5 bundle (shared `requireGroupManager` gate)
 

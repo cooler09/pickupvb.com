@@ -50,7 +50,7 @@ export default async function GroupBillingPage(props: {
   return (
     <section className="mx-auto max-w-2xl space-y-6 py-4">
       <header className="space-y-1">
-        <h1 className="text-headline-lg font-bold">Club &amp; payouts</h1>
+        <h1 className="text-headline-sm font-bold">Club &amp; payouts</h1>
         <p className="text-muted text-sm">
           For <span className="font-medium">{groupName}</span>. Subscribe to Club to collect event
           payments into one shared club account — no more nominating a treasurer.

@@ -1,6 +1,7 @@
 import { UserPicker } from '@/components/user-picker';
 import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
+import { fieldInputClass, fieldLabelClass } from '@/components/field-styles';
 import { addMemberFromForm } from '../members-actions';
 
 type Props = {
@@ -37,14 +38,14 @@ export function AddMemberForm({
           excludeIds={existingMemberIds}
         />
         <div>
-          <label htmlFor="role" className="text-fg block text-sm font-medium">
+          <label htmlFor="role" className={fieldLabelClass}>
             Role
           </label>
           <select
             id="role"
             name="role"
             defaultValue="member"
-            className="border-border-base bg-md-surface-container mt-1 block w-full rounded-md border px-3 py-2 text-sm sm:w-48"
+            className={`${fieldInputClass} sm:w-48`}
           >
             <option value="member">Member</option>
             <option value="admin">Admin</option>

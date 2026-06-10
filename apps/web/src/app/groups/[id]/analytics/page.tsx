@@ -134,7 +134,7 @@ export default async function GroupAnalyticsPage(props: { params: Promise<{ id: 
 function Header({ name }: { name: string }) {
   return (
     <header className="space-y-1">
-      <h1 className="text-headline-lg font-bold">Club analytics</h1>
+      <h1 className="text-headline-sm font-bold">Club analytics</h1>
       <p className="text-muted text-sm">
         Earnings and engagement across <span className="font-medium">{name}</span>&apos;s events.
       </p>
