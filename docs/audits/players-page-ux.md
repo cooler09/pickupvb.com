@@ -7,18 +7,19 @@ _Last updated: 2026-06-10_
 > regenerated, plus the `profiles_public_round_coords` + `profiles_discoverable`
 > follow-ups). **No P1, no data/auth holes** — the page is still
 > `profiles_public`-correct, `discoverable`-gated, ISR-cacheable, and paginated.
-> New findings: **1 P2 · 4 P3**. **PL-6, PL-7, PL-10 shipped same day, quad-green;
-> PL-8 + PL-9 remain open.** **PL-7** (P2) — the directory is now **filterable by
-> position** (the headline recruiting signal PL-1 added to the cards): a position
-> `<select>` in the filter row, threaded through `ProfileDirectoryQuery.position`
-> to a `.or(...)` over the three position slots, no migration. **PL-6** — the
-> directory's "✓ Following" button now uses `neutralButtonClass` (matching the
-> detail page / AGENTS pattern 11 — was the exact **GD-7** drift). **PL-10** — the
-> dead `cityLike` directory-query param was removed (its slot is now `position`).
-> **Still open: PL-8** the filter row shows **two ambiguous "Search" buttons** and
-> the name input is placeholder-only (no label / `role="search"`); **PL-9** the
-> filtered empty-state says "widen your radius" but there's **no radius control**
-> (radius is hard-coded 40 km). See
+> New findings: **1 P2 · 4 P3** — **all shipped 2026-06-10, quad-green.** **PL-7**
+> (P2) — the directory is now **filterable by position** (the headline recruiting
+> signal PL-1 added to the cards): a position `<select>` in the filter row,
+> threaded through `ProfileDirectoryQuery.position` to a `.or(...)` over the three
+> position slots, no migration. **PL-6** — the directory's "✓ Following" button now
+> uses `neutralButtonClass` (matching the detail page / AGENTS pattern 11 — was the
+> exact **GD-7** drift). **PL-10** — the dead `cityLike` directory-query param was
+> removed (its slot is now `position`). **PL-8** — the name search form/input got
+> `role="search"` + an `aria-label`, and the location control got a distinct label
+> ("Go") + a players-specific SR label so it no longer reads as a second ambiguous
+> "Search". **PL-9** — a `RadiusSelect` inline control now lets the user widen /
+> narrow the near-me radius (was hard-coded 40 km), making the empty-state's "widen
+> your radius" copy actionable. **0 findings open.** See
 > "[Re-audit findings (2026-06-10)](#re-audit-findings-2026-06-10)". The
 > `/players/[id]` **detail** page is a separate surface
 > ([public-profile-ux.md](public-profile-ux.md), all resolved); its re-audit
@@ -303,7 +304,7 @@ its `escapeLike` line); if it's intentionally reserved, say so in a comment.
 
 ### C. Filter-control polish
 
-#### PL-8 — Two ambiguous "Search" buttons in the filter row; name input is placeholder-only · **P3**
+#### PL-8 — Two ambiguous "Search" buttons in the filter row; name input is placeholder-only · **P3** · ✅ resolved 2026-06-10
 
 The filter row renders the **name** form's Search button (`primaryButtonClass()`,
 [page.tsx#L94-L96](../../apps/web/src/app/players/page.tsx#L94-L96)) immediately
@@ -323,7 +324,7 @@ has **both** ([location-search.tsx#L47-L53](../../apps/web/src/app/events/locati
 or fold name + location + the PL-7 position select into one labeled filter group).
 Optionally also `ilike` `handle` so a known `@handle` resolves. **P3.**
 
-#### PL-9 — Empty state says "widen your radius" but there's no radius control · **P3**
+#### PL-9 — Empty state says "widen your radius" but there's no radius control · **P3** · ✅ resolved 2026-06-10
 
 The near-me radius is hard-coded to 40 km
 (`Number.parseFloat(searchParams.radiusKm ?? '') || 40`,
@@ -350,6 +351,35 @@ drop "widen your radius" from the empty-state copy. **P3.**
   own UX audit if/when we get there. This file covers the **directory** only.
 
 ## Remediation log
+
+### 2026-06-10 — PL-8 / PL-9 (filter-row a11y + radius control)
+
+Closed the two remaining re-audit findings. Verified `pnpm typecheck && lint &&
+test && build` (all green; touched files add zero lint warnings; 375 web tests
+pass). The re-audit pass is now fully resolved.
+
+- **PL-8 ✅** — the name search `<form>` gained `role="search"` and the input an
+  `aria-label="Search players by name"` (was placeholder-only). The shared
+  `LocationSearch` gained backward-compatible `inputLabel` / `submitLabel` props
+  (defaults preserve `/events` + `/community`); `/players` passes
+  `submitLabel="Go"` and `inputLabel="Find players by city or ZIP code"`, so the
+  location control no longer reads as a second ambiguous "Search" and its
+  screen-reader label is page-appropriate (it previously announced "Find
+  **events**…" on the players page).
+  [page.tsx](../../apps/web/src/app/players/page.tsx),
+  [location-search.tsx](../../apps/web/src/app/events/location-search.tsx).
+  _Deferred (deliberate):_ the optional `handle` match was **not** added —
+  folding free-text into the PostGREST `or` filter (where commas/parens are
+  syntactic) would reintroduce a parse/injection risk the parameterized
+  `.ilike('display_name', …)` avoids; name search stays display-name only.
+- **PL-9 ✅** — new client control
+  [`RadiusSelect`](../../apps/web/src/app/events/radius-select.tsx) (sits beside
+  its `NearMeButton` / `LocationSearch` siblings) renders inline on the
+  active-location line — "Showing players _[within N km ▾]_ of your location ·
+  Clear". On change it re-navigates (`URLSearchParams` preserves the other
+  filters, resets `page`), so the empty-state's "widen your radius" copy is now
+  actionable. Presets 10/25/40/80/160 km, plus the active value if a URL set one
+  off-list. [page.tsx](../../apps/web/src/app/players/page.tsx).
 
 ### 2026-06-10 — PL-6 / PL-10 cleanup + PL-7 position filter
 

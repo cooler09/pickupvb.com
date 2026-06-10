@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/empty-state';
 import { PlayersFollowProvider, FollowButton } from './_components/players-follow';
 import { NearMeButton } from '../events/near-me-button';
 import { LocationSearch } from '../events/location-search';
+import { RadiusSelect } from '../events/radius-select';
 
 // Public listing; no viewer-specific state. Rendered with the sessionless
 // anon client so the route stays ISR-cacheable. Mutations elsewhere should
@@ -86,11 +87,12 @@ export default async function PlayersIndexPage(props: {
         </p>
       </header>
       <div className="flex flex-wrap items-center gap-2">
-        <form className="flex flex-1 flex-wrap items-center gap-2">
+        <form role="search" className="flex flex-1 flex-wrap items-center gap-2">
           <input
             type="search"
             name="q"
             placeholder="Search by name…"
+            aria-label="Search players by name"
             defaultValue={q}
             className={`${fieldInputClass} flex-1`}
           />
@@ -123,16 +125,24 @@ export default async function PlayersIndexPage(props: {
             Search
           </button>
         </form>
-        <LocationSearch basePath="/players" />
+        {/* PL-8: distinct label ("Go") + players-specific SR label so this
+            location control doesn't read as a second ambiguous "Search". */}
+        <LocationSearch
+          basePath="/players"
+          inputLabel="Find players by city or ZIP code"
+          submitLabel="Go"
+        />
         <NearMeButton basePath="/players" />
       </div>
       {hasLocation && (
-        <p className="text-muted text-xs">
-          Showing players within {radiusKm} km of your location ·{' '}
+        <div className="text-muted flex flex-wrap items-center gap-1.5 text-xs">
+          <span>Showing players</span>
+          <RadiusSelect basePath="/players" value={radiusKm} />
+          <span>of your location ·</span>
           <Link href={clearLocationHref} className="text-primary hover:underline">
             Clear
           </Link>
-        </p>
+        </div>
       )}
       {players.length === 0 ? (
         hasFilter ? (

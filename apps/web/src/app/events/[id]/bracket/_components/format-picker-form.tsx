@@ -309,7 +309,13 @@ export function FormatPickerForm(props: {
   registeredTeams?: ReadonlyArray<TeamLite>;
 }) {
   const enforceMin = props.enforceMinTeams ?? true;
-  const knowsTeamCount = props.teamCount > 0;
+  // The event path (registered teams provided) can offer "All teams advance":
+  // the team count is knowable before submit even when it's 0 at mount — teams
+  // register, or the host adds walk-ins in the Teams step, before creating. Key
+  // the 'all' default/option on the path, NOT the live count, so opening the
+  // builder early still defaults to all. Standalone create adds teams only after
+  // the bracket exists, so it can't resolve 'all' and falls back to a number.
+  const canAdvanceAll = props.registeredTeams !== undefined;
   const [step, setStep] = useState(0);
   const [format, setFormat] = useState<BracketFormat>('single_elimination');
   const [bestOf, setBestOf] = useState<1 | 3 | 5>(3);
@@ -320,8 +326,7 @@ export function FormatPickerForm(props: {
   const [poolCount, setPoolCount] = useState(1);
   // Advance selection: 'all' ⇒ every team makes the playoff (resolved to a
   // concrete count at submit from the team count); otherwise the numeric pick.
-  // Standalone create has no teams yet, so it can't offer 'all'.
-  const [advanceSel, setAdvanceSel] = useState<string>(() => (knowsTeamCount ? 'all' : '2'));
+  const [advanceSel, setAdvanceSel] = useState<string>(() => (canAdvanceAll ? 'all' : '2'));
   const [poolSchedule, setPoolSchedule] = useState<'round_robin' | 'fixed_games'>('round_robin');
   const [poolGamesPerTeam, setPoolGamesPerTeam] = useState(3);
   // Playoff-stage overrides (pool_play_playoff only). '' best-of = same as pool
@@ -670,7 +675,7 @@ export function FormatPickerForm(props: {
                 onChange={(e) => setAdvanceSel(e.target.value)}
                 className="border-border-base bg-bg rounded border px-2 py-1"
               >
-                {knowsTeamCount && (
+                {canAdvanceAll && (
                   <option value="all">
                     {poolCount === 1 ? 'All teams' : 'All teams (full pool)'}
                   </option>
