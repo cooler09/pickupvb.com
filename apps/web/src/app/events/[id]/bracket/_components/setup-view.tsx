@@ -72,7 +72,14 @@ export function SetupView(props: {
   // create path doesn't enforce a count — sees the issue here instead of a late
   // generator error.
   const genCheck = validateTeamCountForFormat(props.bracketFormat, orderedTeams.length);
-  const canGenerate = genCheck.ok;
+  const teamCountReady = genCheck.ok;
+  // Generation reads the *saved* seeds: the domain throws "Need at least 2
+  // seeded teams" when none are saved, and a team added/dropped after the last
+  // save wouldn't be reflected. So Generate is a two-step flow — save the
+  // seeding below first, then generate. Gate the button on `seedingSaved` (seeds
+  // exist AND match the current registration) and say so, so the host isn't
+  // surprised by a generator error after clicking an enabled-looking button.
+  const canGenerate = teamCountReady && seedingSaved;
 
   return (
     <section className="space-y-4">
@@ -83,16 +90,26 @@ export function SetupView(props: {
       <div className="border-primary/40 bg-primary/5 rounded-shape-sm flex flex-wrap items-center justify-between gap-3 border p-4">
         <div className="space-y-0.5">
           <p className="text-fg text-sm font-semibold">
-            {canGenerate ? 'Ready to generate' : 'Not ready to generate'}
+            {canGenerate
+              ? 'Ready to generate'
+              : !teamCountReady
+                ? 'Not ready to generate'
+                : 'Save your seeding first'}
           </p>
           <p className="text-muted text-xs">
             Format:{' '}
             <span className="text-fg/80 font-medium">{FORMAT_LABEL[props.bracketFormat]}</span> ·{' '}
-            {orderedTeams.length} team{orderedTeams.length === 1 ? '' : 's'} seeded
+            {orderedTeams.length} team{orderedTeams.length === 1 ? '' : 's'}
+            {seedingSaved ? ' seeded' : ''}
           </p>
-          {!genCheck.ok && (
+          {!teamCountReady && (
             <p className="text-md-error text-xs" role="alert">
               {genCheck.reason}
+            </p>
+          )}
+          {teamCountReady && !seedingSaved && (
+            <p className="text-md-warning text-xs">
+              Save the seeding order below first — generation uses the saved seeds.
             </p>
           )}
         </div>
@@ -222,7 +239,12 @@ function SeedingForm(props: {
             </span>
           </span>
         ) : (
-          <span className="text-fg text-sm font-semibold">Seeding order</span>
+          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-fg text-sm font-semibold">Seeding order</span>
+            <span className="text-md-warning text-xs font-medium">
+              Save required before generating
+            </span>
+          </span>
         )}
         <span className="text-muted group-hover/seed:text-fg shrink-0 text-xs font-medium">
           <span className="group-open/seed:hidden">Edit</span>
@@ -232,7 +254,10 @@ function SeedingForm(props: {
       <div className="space-y-2 px-4 pb-4">
         <p className="text-muted text-xs">
           Top of the list is seed 1. Drag or use the arrows to reorder, click <em>Randomize</em> to
-          shuffle, or save the current order as-is.
+          shuffle, or save the current order as-is.{' '}
+          <span className="text-fg/80 font-medium">
+            You must save the seeding before you can generate the bracket.
+          </span>
         </p>
         <form action={a.seedFromForm} className="space-y-2">
           <SeedingList
