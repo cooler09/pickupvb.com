@@ -18,13 +18,19 @@ export function DisplaysPanel({ event }: { event: EventDetailReadModel }) {
   const noun = isTournament ? 'bracket' : 'schedule';
   const multi = event.divisions.length > 1;
 
-  const rows = event.divisions.map((d) => ({
+  const divisionRows = event.divisions.map((d) => ({
     key: d.id,
     title: multi ? `${label} — ${d.label}` : `${label} display`,
     path: multi
       ? `/events/${event.id}/${surface}?division=${d.id}&display=1`
       : `/events/${event.id}/${surface}?display=1`,
   }));
+  // The court board is venue-wide (all divisions at once) — one link, listed
+  // first as the marquee "what's on now / up next" screen.
+  const rows = [
+    { key: 'courts', title: 'Courts — Now & Next', path: `/events/${event.id}/courts?display=1` },
+    ...divisionRows,
+  ];
 
   return (
     <div className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-3 border p-4">

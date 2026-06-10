@@ -166,6 +166,12 @@ export default async function BracketPage(props: {
           >
             {'Open public spectator view →'}
           </Link>
+          <Link
+            href={`/events/${event.id}/courts` as Route}
+            className="text-primary text-xs hover:underline"
+          >
+            {'Court board →'}
+          </Link>
           {/* Pro-host kiosk: chromeless, dark, full-screen for a gym TV / tablet
               (tournament-displays slice A). New tab keeps this workspace open. */}
           {liveScoringEnabled && (

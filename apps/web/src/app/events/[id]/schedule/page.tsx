@@ -248,10 +248,16 @@ export default async function SchedulePage(props: {
           {teams.length} registered team{teams.length === 1 ? '' : 's'} · {matches.length} match
           {matches.length === 1 ? '' : 'es'} on the slate
         </p>
-        {/* Pro-host kiosk: chromeless, dark, full-screen for a gym TV / tablet
-            (tournament-displays slice A). New tab keeps this page open. */}
-        {proHost && matches.length > 0 && (
-          <div className="pt-1">
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Link
+            href={`/events/${event.id}/courts` as Route}
+            className="text-primary text-xs hover:underline"
+          >
+            {'Court board →'}
+          </Link>
+          {/* Pro-host kiosk: chromeless, dark, full-screen for a gym TV / tablet
+              (tournament-displays slice A). New tab keeps this page open. */}
+          {proHost && matches.length > 0 && (
             <a
               href={displayPath}
               target="_blank"
@@ -260,8 +266,8 @@ export default async function SchedulePage(props: {
             >
               {'Display mode ↗'}
             </a>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       {event.divisions.length > 1 && (
