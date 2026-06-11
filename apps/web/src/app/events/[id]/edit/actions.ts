@@ -11,7 +11,7 @@ import { timeZoneForCoords } from '@/lib/timezone';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 import { parsePriceCents, parseRefundWindowHours } from '@/lib/money';
 import { hasProBenefits } from '@/lib/admin';
-import { clampVisibilityForHost } from '@/lib/visibility';
+import { normalizeVisibility } from '@/lib/visibility';
 import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { isPricingLocked } from '@/lib/pricing-lock';
@@ -59,16 +59,9 @@ export async function editEventAction(
   // Tournaments manage skill tier per-division on the event page; the
   // edit form only submits this field for open-play events.
   const skillTier = fieldOrUndefined(formData, 'skillTier');
-  // Pro-gated: clamp non-public visibility to public when the event's
-  // owning host lacks Pro benefits. Checked against `detail.hostUserId`
-  // (not the editor) so a Pro co-host editing a Free host's event can't
-  // promote it to invite-only. Group-only hosted events (no user host)
-  // fall back to the editor's entitlement.
-  const visibilityCheckUserId = detail.hostUserId ?? user.id;
-  const visibility = clampVisibilityForHost(
-    field(formData, 'visibility'),
-    await hasProBenefits(visibilityCheckUserId),
-  );
+  // Visibility is free for every host; normalize the untrusted submitted
+  // value to a recognized enum member.
+  const visibility = normalizeVisibility(field(formData, 'visibility'));
   const startsAt = field(formData, 'startsAt');
   const endsAt = field(formData, 'endsAt');
 

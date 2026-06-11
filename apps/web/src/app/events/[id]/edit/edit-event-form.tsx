@@ -277,13 +277,11 @@ export default function EditEventForm({
           <div>
             <label htmlFor="visibility" className={labelClass}>
               Visibility
-              {!viewerHasProBenefits && <span className="text-muted ml-1 text-xs">(Pro)</span>}
             </label>
             <select
               id="visibility"
               name="visibility"
-              defaultValue={viewerHasProBenefits ? initial.visibility : 'public'}
-              disabled={!viewerHasProBenefits}
+              defaultValue={initial.visibility}
               className={inputClass}
             >
               <option value="public">Public</option>
@@ -291,15 +289,10 @@ export default function EditEventForm({
               <option value="friends_of_host">People the host follows</option>
               <option value="friends_of_attendees">People attendees follow</option>
             </select>
-            {!viewerHasProBenefits && (
-              <p className="text-muted mt-1 text-xs">
-                Free events are public.{' '}
-                <Link href="/pricing" className="text-primary hover:underline">
-                  Upgrade to Pro
-                </Link>{' '}
-                to host unlisted or friends-only events.
-              </p>
-            )}
+            <p className="text-muted mt-1 text-xs">
+              Public events show up in search and the home feed. Unlisted events are reachable only
+              by link; friends-only events stay within your network.
+            </p>
           </div>
         </div>
       </fieldset>

@@ -12,6 +12,40 @@ signal; P3 = opportunistic / post-product-market-fit.
 
 ---
 
+## Status — 2026-06-11 — Event visibility un-gated (Pro perk removed)
+
+**Product decision (not an audit finding):** non-public event visibility
+(`invite_only`, `friends_of_host`, `friends_of_attendees`) is **no longer a Pro
+perk** — every host, free or Pro, can pick any visibility mode. This reverses
+the gate shipped in **Bundle 99** (P1 #1 sub-item #4, remediation log below).
+
+What changed (uncommitted):
+
+- `apps/web/src/lib/visibility.ts` — `clampVisibilityForHost(submitted, pro)`
+  replaced by `normalizeVisibility(submitted)`. No Pro arg; it only normalizes
+  an untrusted value to a recognized enum member (junk → `public`). The
+  `isGatedVisibility` helper is gone (nothing is gated).
+- `/events/new` + `/events/[id]/edit` actions call `normalizeVisibility(...)`;
+  the edit path no longer needs the `detail.hostUserId` Pro lookup for
+  visibility.
+- Both forms' visibility `<select>` is no longer `disabled` for free hosts; the
+  "(Pro)" label and "Upgrade to Pro" nudge are replaced with neutral
+  explanatory copy.
+- Pricing page: "Invite-only / private events" moved out of the Pro feature
+  list into Free; comparison Row "Private / invite-only events" is now `free ✓
+/ pro ✓`.
+- No migration needed — the gate was always app-layer only; the
+  `20260702000000` RLS work (invite-only readable by link, discovery filters)
+  is independent and stays. `visibility.test.ts` rewritten to pin the
+  normalize-only contract. Quad-green.
+
+The RLS posture is unchanged: `invite_only` rows are still excluded from
+`/events`, search, and sitemap, and the social-graph modes still restrict reads
+to the host's / attendees' networks. Only the **who-may-author-them** gate was
+removed.
+
+---
+
 ## Status — 2026-06-08 — Sponsor slot focused audit (code / UX pass)
 
 **Trigger:** user-requested focused audit of the **sponsor slot** feature
