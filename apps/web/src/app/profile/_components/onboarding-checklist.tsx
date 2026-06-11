@@ -17,10 +17,13 @@ export function OnboardingChecklist({
   heading,
   intro,
   progress,
+  learnMore,
 }: {
   heading: string;
   intro: string;
   progress: ChecklistProgress;
+  /** Optional "read the guide" link rendered under the steps (e.g. host track). */
+  learnMore?: { href: Route; label: string };
 }) {
   return (
     <section className="border-primary/30 bg-primary/5 rounded-shape-sm border p-5 sm:p-6">
@@ -36,6 +39,13 @@ export function OnboardingChecklist({
           <ChecklistRow key={step.key} step={step} />
         ))}
       </ol>
+      {learnMore && (
+        <p className="mt-3 text-sm">
+          <Link href={learnMore.href} className="text-primary hover:underline">
+            {learnMore.label} →
+          </Link>
+        </p>
+      )}
     </section>
   );
 }

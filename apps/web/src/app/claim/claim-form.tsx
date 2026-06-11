@@ -27,7 +27,17 @@ function SubmitBtn() {
   );
 }
 
-export default function ClaimForm({ next }: { next?: string }) {
+export default function ClaimForm({
+  next,
+  defaultFirstName = '',
+  defaultLastName = '',
+  defaultEmail = '',
+}: {
+  next?: string;
+  defaultFirstName?: string;
+  defaultLastName?: string;
+  defaultEmail?: string;
+}) {
   const [state, formAction] = useFormState(claimAccount, initial);
   const errorRef = useAlertReveal(state, Boolean(state.error));
   return (
@@ -46,13 +56,25 @@ export default function ClaimForm({ next }: { next?: string }) {
           <label htmlFor="first_name" className={labelClass}>
             First name
           </label>
-          <input id="first_name" name="first_name" maxLength={60} className={inputClass} />
+          <input
+            id="first_name"
+            name="first_name"
+            defaultValue={defaultFirstName}
+            maxLength={60}
+            className={inputClass}
+          />
         </div>
         <div>
           <label htmlFor="last_name" className={labelClass}>
             Last name
           </label>
-          <input id="last_name" name="last_name" maxLength={60} className={inputClass} />
+          <input
+            id="last_name"
+            name="last_name"
+            defaultValue={defaultLastName}
+            maxLength={60}
+            className={inputClass}
+          />
         </div>
       </div>
       <div>
@@ -64,6 +86,7 @@ export default function ClaimForm({ next }: { next?: string }) {
           name="email"
           type="email"
           required
+          defaultValue={defaultEmail}
           maxLength={120}
           autoComplete="email"
           className={inputClass}

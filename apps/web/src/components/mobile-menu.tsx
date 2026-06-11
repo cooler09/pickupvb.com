@@ -13,11 +13,17 @@ import { signOut } from './actions';
 type Props = {
   theme: ThemePreference;
   user: { displayName: string; initials: string } | null;
+  /**
+   * Viewer is signed in via Supabase anonymous auth (a guest who RSVPed but
+   * hasn't claimed). `user` is null for them, so surface a claim CTA instead
+   * of the signed-out Sign in / Sign up pair. See anonymous-claim.md AC-1.
+   */
+  isAnon: boolean;
   /** Number of unanswered team invites for the signed-in user. */
   pendingTeamInvites: number;
 };
 
-export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
+export function MobileMenu({ theme, user, isAnon, pendingTeamInvites }: Props) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   // Track pathname across renders so we only close on actual navigations
@@ -163,6 +169,24 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                       Sign out
                     </SubmitButton>
                   </form>
+                </div>
+              ) : isAnon ? (
+                <div className="space-y-2">
+                  <Link
+                    href="/claim"
+                    className={`${primaryButtonClass('md')} block w-full text-center`}
+                  >
+                    Finish creating your account
+                  </Link>
+                  <p className="text-fg/60 text-xs">
+                    Keep your signups and reach them from any device.
+                  </p>
+                  <Link
+                    href="/login"
+                    className={`${secondaryButtonClass('md')} block w-full text-center`}
+                  >
+                    Sign in instead
+                  </Link>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">

@@ -12,6 +12,7 @@ import { HostDivisionWinnersPanel } from '../../_components/host-division-winner
 import { LeagueTeamsPanel } from '../../_components/league-teams-panel';
 import { HostsSection } from '../../_components/hosts-section';
 import { DisplaysPanel } from './displays-panel';
+import { RegistrationWindowPanel } from './registration-window-panel';
 import { CancelEventPanel } from '../../edit/cancel-event-panel';
 import { EventToolsCard, type EventToolSlug } from '@/app/tools/_components/event-tools-card';
 import type {
@@ -45,6 +46,8 @@ export function ManageDashboard({
   hostIsPro,
   payments,
   primaryHostUserSocial,
+  registrationClosed,
+  registrationManageable,
 }: {
   event: EventDetailReadModel;
   returnPath: string;
@@ -57,6 +60,10 @@ export function ManageDashboard({
   hostIsPro: boolean;
   payments: Map<string, AttendeePaymentInfo> | undefined;
   primaryHostUserSocial: SocialHandles | null;
+  /** Effective "registration closed now" state, computed at the page boundary. */
+  registrationClosed: boolean;
+  /** Whether the close/reopen toggle applies (published + not yet started). */
+  registrationManageable: boolean;
 }) {
   const isTournament = event.type === 'tournament';
   const isLeague = event.type === 'league';
@@ -215,6 +222,16 @@ export function ManageDashboard({
               )}
             </div>
           )}
+        </ManageGroup>
+      )}
+
+      {/* ─────────────────────── Registration ───────────────────── */}
+      {registrationManageable && (
+        <ManageGroup
+          label="Registration"
+          description="Open or close signups before the event starts."
+        >
+          <RegistrationWindowPanel event={event} registrationClosed={registrationClosed} />
         </ManageGroup>
       )}
 

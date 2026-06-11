@@ -98,6 +98,10 @@ export default async function ProfilePage(props: {
           heading="Host setup"
           intro="Finish setting up so players can find and pay for your events."
           progress={hostOnboarding.progress}
+          learnMore={{
+            href: '/help/getting-started' as Route,
+            label: 'New to hosting? Read the host guide',
+          }}
         />
       )}
       <OnboardingCelebration

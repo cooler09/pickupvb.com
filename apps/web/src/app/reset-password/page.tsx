@@ -13,6 +13,10 @@ export default function ResetPasswordPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  // `from=claim` is threaded by the anonymous-claim flow (claim/actions.ts):
+  // this is the user's FIRST password, not a reset, so the copy + expired-link
+  // recovery differ. See docs/audits/anonymous-claim.md AC-3.
+  const [fromClaim, setFromClaim] = useState(false);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,8 +26,10 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
+    const claim = new URLSearchParams(window.location.search).get('from') === 'claim';
     supabase.auth.getUser().then(({ data }) => {
       setAuthed(Boolean(data.user));
+      setFromClaim(claim);
       setReady(true);
     });
   }, []);
@@ -65,14 +71,20 @@ export default function ResetPasswordPage() {
   }
 
   if (!authed) {
+    // A claim confirmation link has no password to "reset" and often no email
+    // on file to recover — send them back to restart /claim, not /forgot-password.
     return (
       <div className="mx-auto max-w-sm space-y-4 py-8">
-        <h1 className="text-headline-sm font-bold">Reset link expired</h1>
+        <h1 className="text-headline-sm font-bold">
+          {fromClaim ? 'Confirmation link expired' : 'Reset link expired'}
+        </h1>
         <p className="text-fg/70 text-sm">
-          This password-reset link is no longer valid. Request a new one to continue.
+          {fromClaim
+            ? 'This confirmation link is no longer valid. Restart creating your account to continue.'
+            : 'This password-reset link is no longer valid. Request a new one to continue.'}
         </p>
-        <Link href="/forgot-password" className={primaryButtonClass('md')}>
-          Request new link
+        <Link href={fromClaim ? '/claim' : '/forgot-password'} className={primaryButtonClass('md')}>
+          {fromClaim ? 'Finish creating your account' : 'Request new link'}
         </Link>
       </div>
     );
@@ -81,8 +93,14 @@ export default function ResetPasswordPage() {
   return (
     <div className="mx-auto max-w-sm space-y-6 py-8">
       <div className="space-y-2">
-        <h1 className="text-headline-sm font-bold">Choose a new password</h1>
-        <p className="text-fg/70 text-sm">Pick something at least 8 characters long.</p>
+        <h1 className="text-headline-sm font-bold">
+          {fromClaim ? 'Set your password' : 'Choose a new password'}
+        </h1>
+        <p className="text-fg/70 text-sm">
+          {fromClaim
+            ? 'Last step — pick something at least 8 characters long to finish creating your account.'
+            : 'Pick something at least 8 characters long.'}
+        </p>
       </div>
 
       {done ? (
@@ -90,7 +108,7 @@ export default function ResetPasswordPage() {
           role="status"
           className="border-primary/30 bg-primary/10 text-primary rounded-md border p-3 text-sm"
         >
-          Password updated. Redirecting…
+          {fromClaim ? 'Account created. Redirecting…' : 'Password updated. Redirecting…'}
         </div>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4">
@@ -126,7 +144,13 @@ export default function ResetPasswordPage() {
           )}
 
           <button type="submit" disabled={loading} className={`${primaryButtonClass('md')} w-full`}>
-            {loading ? 'Updating…' : 'Update password'}
+            {loading
+              ? fromClaim
+                ? 'Setting…'
+                : 'Updating…'
+              : fromClaim
+                ? 'Set password'
+                : 'Update password'}
           </button>
         </form>
       )}

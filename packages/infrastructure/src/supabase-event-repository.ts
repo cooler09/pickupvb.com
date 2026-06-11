@@ -91,6 +91,8 @@ type EventRow = {
   // ADR 0006 extension columns (nullable / defaulted at DB)
   venue_name: string | null;
   registration_closes_at: string | null;
+  registration_close_offset_minutes: number | null;
+  registration_override: 'open' | 'closed' | null;
   series_name: string | null;
   series_position: number | null;
   series_size: number | null;
@@ -285,6 +287,8 @@ function rowToExtensions(row: EventRow) {
   return {
     venueName: row.venue_name,
     registrationClosesAt: row.registration_closes_at ? new Date(row.registration_closes_at) : null,
+    registrationCloseOffsetMinutes: row.registration_close_offset_minutes ?? null,
+    registrationOverride: row.registration_override ?? null,
     seriesName: row.series_name,
     seriesPosition: row.series_position,
     seriesSize: row.series_size,
@@ -454,6 +458,8 @@ export class SupabaseEventRepository implements EventRepository {
       registration_closes_at: event.registrationClosesAt
         ? event.registrationClosesAt.toISOString()
         : null,
+      registration_close_offset_minutes: event.registrationCloseOffsetMinutes,
+      registration_override: event.registrationOverride,
       series_name: event.seriesName,
       series_position: event.seriesPosition,
       series_size: event.seriesSize,

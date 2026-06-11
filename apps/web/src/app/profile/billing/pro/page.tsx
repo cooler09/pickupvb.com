@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import type { Route } from 'next';
 import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
@@ -94,7 +95,13 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
       )}
       {sp.error === 'anonymous' && (
         <div className="border-secondary bg-secondary/10 rounded-shape-sm border p-4 text-sm">
-          You need a permanent account (with email) to subscribe.
+          <p>You need a permanent account (with email) to subscribe.</p>
+          <Link
+            href={'/claim?next=/profile/billing/pro' as Route}
+            className="mt-1 inline-block font-semibold underline"
+          >
+            Finish creating your account →
+          </Link>
         </div>
       )}
       {sp.error === 'no_customer' && (

@@ -202,7 +202,12 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
               initialItems={notifItems}
             />
           )}
-          <MobileMenu theme={theme} user={userInfo} pendingTeamInvites={pendingTeamInvites} />
+          <MobileMenu
+            theme={theme}
+            user={userInfo}
+            isAnon={isAnon}
+            pendingTeamInvites={pendingTeamInvites}
+          />
         </div>
       </nav>
     </header>

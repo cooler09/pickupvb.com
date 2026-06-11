@@ -9,6 +9,21 @@ type Props = {
   hasStarted: boolean;
   attendeeCount: number;
   isHost: boolean;
+  /**
+   * Registration is closed by the host's window / manual override while the
+   * event is still upcoming (published, not started). Renders a "Registration
+   * closed" notice — with a host-only Manage link to reopen — instead of the
+   * silent `null` that would otherwise leave the viewer wondering why there's
+   * no signup form.
+   */
+  registrationClosed: boolean;
+  /**
+   * Whether the tournament has a host-created bracket. Non-hosts only get the
+   * "View bracket" CTA once one exists; otherwise they're pointed at the
+   * registered teams. Hosts always get it (the bracket page is where they build
+   * it). Irrelevant for non-tournaments.
+   */
+  bracketExists: boolean;
 };
 
 /**
@@ -23,6 +38,8 @@ export function EventClosedState({
   hasStarted,
   attendeeCount,
   isHost,
+  registrationClosed,
+  bracketExists,
 }: Props) {
   if (status === 'cancelled') {
     return (
@@ -41,6 +58,11 @@ export function EventClosedState({
   if (status === 'completed' || hasStarted) {
     const isTournament = eventType === 'tournament';
     const isLeague = eventType === 'league';
+    // Only point at the bracket when one actually exists (or the viewer is the
+    // host, who can create it there) — otherwise a non-host lands on an empty
+    // "the host hasn't created a bracket" page. Without a bracket, send them to
+    // the registered-teams roster instead.
+    const showBracket = isTournament && (bracketExists || isHost);
     return (
       <section
         className="border-border-base bg-fg/5 rounded-shape-sm space-y-2 border p-4 text-sm"
@@ -51,15 +73,17 @@ export function EventClosedState({
         </p>
         <p className="text-muted text-xs">
           {status === 'completed'
-            ? isTournament
+            ? showBracket
               ? 'See the final bracket and results below.'
               : isLeague
                 ? 'See the season schedule and final results.'
-                : `Thanks to the ${attendeeCount} player${attendeeCount === 1 ? '' : 's'} who came out.`
+                : isTournament
+                  ? 'See the registered teams below.'
+                  : `Thanks to the ${attendeeCount} player${attendeeCount === 1 ? '' : 's'} who came out.`
             : 'This event has already started.'}
         </p>
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {isTournament && (
+          {showBracket && (
             <Link href={`/events/${eventId}/bracket` as Route} className={primaryButtonClass('sm')}>
               View bracket
             </Link>
@@ -72,9 +96,9 @@ export function EventClosedState({
               View schedule
             </Link>
           )}
-          {!isTournament && !isLeague && (
-            <a href="#attendees" className={primaryButtonClass('sm')}>
-              View attendees
+          {!showBracket && !isLeague && (
+            <a href={isTournament ? '#teams' : '#attendees'} className={primaryButtonClass('sm')}>
+              {isTournament ? 'View teams' : 'View attendees'}
             </a>
           )}
           {isHost && status !== 'completed' && (
@@ -83,6 +107,29 @@ export function EventClosedState({
             </Link>
           )}
         </div>
+      </section>
+    );
+  }
+
+  if (registrationClosed) {
+    return (
+      <section
+        className="border-md-error/30 bg-md-error/10 text-fg rounded-shape-sm space-y-2 border p-4 text-sm"
+        role="status"
+      >
+        <p className="text-fg font-semibold">Registration is closed.</p>
+        <p className="text-muted text-xs">
+          {isHost
+            ? 'You’ve closed signups (or the registration window has passed). Reopen them from the manage dashboard.'
+            : 'The host has closed signups for this event.'}
+        </p>
+        {isHost && (
+          <div className="pt-1">
+            <Link href={`/events/${eventId}/manage` as Route} className={neutralButtonClass('sm')}>
+              Manage registration
+            </Link>
+          </div>
+        )}
       </section>
     );
   }

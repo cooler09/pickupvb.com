@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { VolleyballEvent, type EventId, type UserId, type TeamId } from './volleyball-event.js';
+import {
+  VolleyballEvent,
+  isRegistrationClosed,
+  effectiveRegistrationClosesAt,
+  type EventExtensionsInput,
+  type EventId,
+  type UserId,
+  type TeamId,
+} from './volleyball-event.js';
 import { Capacity } from './capacity.js';
 import { Location } from './location.js';
 import { Division, type DivisionId } from './division.js';
@@ -997,5 +1005,229 @@ describe('capacity waitlist + auto-promotion (ADR 0036)', () => {
     evt.leaveWaitlist(CAROL);
     expect(evt.waitlist).toEqual([]);
     expect(() => evt.leaveWaitlist(DAVE)).toThrow(NotFoundError);
+  });
+});
+
+describe('registration close window', () => {
+  const STARTS = new Date('2026-07-01T18:00:00.000Z');
+  const ENDS = new Date('2026-07-01T20:00:00.000Z');
+
+  // 24h before start
+  const closeAt24hBefore = new Date('2026-06-30T18:00:00.000Z');
+
+  function publishedOpenPlay(extensions: Partial<EventExtensionsInput>): VolleyballEvent {
+    const evt = VolleyballEvent.create({
+      id: 'evt-rc' as EventId,
+      hostId: HOST,
+      title: 'Reg Window',
+      description: '',
+      rules: '',
+      surface: Surface.Indoor,
+      type: EventType.OpenPlay,
+      visibility: Visibility.Public,
+      location: LOCATION,
+      startsAt: STARTS,
+      endsAt: ENDS,
+      capacity: Capacity.fixed(8),
+      extensions,
+    });
+    evt.publish();
+    return evt;
+  }
+
+  describe('effectiveRegistrationClosesAt (pure)', () => {
+    it('an absolute close time wins', () => {
+      expect(
+        effectiveRegistrationClosesAt({
+          startsAt: STARTS,
+          registrationClosesAt: closeAt24hBefore,
+          registrationCloseOffsetMinutes: null,
+        }),
+      ).toEqual(closeAt24hBefore);
+    });
+
+    it('a relative offset resolves to start − offset', () => {
+      expect(
+        effectiveRegistrationClosesAt({
+          startsAt: STARTS,
+          registrationClosesAt: null,
+          registrationCloseOffsetMinutes: 24 * 60,
+        }),
+      ).toEqual(closeAt24hBefore);
+    });
+
+    it('is null when neither is set (open until start)', () => {
+      expect(
+        effectiveRegistrationClosesAt({
+          startsAt: STARTS,
+          registrationClosesAt: null,
+          registrationCloseOffsetMinutes: null,
+        }),
+      ).toBeNull();
+    });
+  });
+
+  describe('isRegistrationClosed (pure) precedence', () => {
+    const base = {
+      status: EventStatus.Published,
+      startsAt: STARTS,
+      registrationClosesAt: null,
+      registrationCloseOffsetMinutes: null,
+      registrationOverride: null,
+    } as const;
+    const before = new Date('2026-06-29T00:00:00.000Z'); // well before any window
+    const afterStart = new Date('2026-07-01T19:00:00.000Z');
+
+    it('open until start when no window/override', () => {
+      expect(isRegistrationClosed(base, before)).toBe(false);
+    });
+
+    it('closed once the event has started', () => {
+      expect(isRegistrationClosed(base, afterStart)).toBe(true);
+    });
+
+    it('closed for a non-published event', () => {
+      expect(isRegistrationClosed({ ...base, status: EventStatus.Draft }, before)).toBe(true);
+    });
+
+    it('relative window closes signups inside the window', () => {
+      const state = { ...base, registrationCloseOffsetMinutes: 24 * 60 };
+      expect(isRegistrationClosed(state, new Date('2026-06-29T00:00:00.000Z'))).toBe(false);
+      expect(isRegistrationClosed(state, new Date('2026-06-30T19:00:00.000Z'))).toBe(true);
+    });
+
+    it("override 'closed' wins over an open schedule", () => {
+      expect(isRegistrationClosed({ ...base, registrationOverride: 'closed' }, before)).toBe(true);
+    });
+
+    it("override 'open' keeps signups open past a passed scheduled window, until start", () => {
+      const state = {
+        ...base,
+        registrationClosesAt: closeAt24hBefore,
+        registrationOverride: 'open' as const,
+      };
+      // After the scheduled close but before start → still open thanks to override.
+      expect(isRegistrationClosed(state, new Date('2026-07-01T00:00:00.000Z'))).toBe(false);
+      // …but the override never outlives the start time.
+      expect(isRegistrationClosed(state, afterStart)).toBe(true);
+    });
+  });
+
+  describe('aggregate enforcement on signup', () => {
+    it('rejects joinAsPlayer when a relative window has passed', () => {
+      // start − 48h is already in the past relative to a far-future start? No —
+      // use a window that is closed *now*: offset so large the close is in the
+      // past. With STARTS in 2026 (assumed past test runtime is fine; we drive
+      // `registrationIsClosed()` via the default `new Date()` only here, so use
+      // an offset relative to a near-future start instead.
+      const start = new Date(Date.now() + 24 * 60 * 60 * 1000); // +24h
+      const evt = VolleyballEvent.create({
+        id: 'evt-rel' as EventId,
+        hostId: HOST,
+        title: 'Reg Window',
+        description: '',
+        rules: '',
+        surface: Surface.Indoor,
+        type: EventType.OpenPlay,
+        visibility: Visibility.Public,
+        location: LOCATION,
+        startsAt: start,
+        endsAt: new Date(start.getTime() + 2 * 60 * 60 * 1000),
+        capacity: Capacity.fixed(8),
+        // Close 48h before a 24h-away start → closed since 24h ago.
+        extensions: { registrationCloseOffsetMinutes: 48 * 60 },
+      });
+      evt.publish();
+      expect(evt.registrationIsClosed()).toBe(true);
+      expect(() => evt.joinAsPlayer(ALICE)).toThrow(InvariantViolation);
+    });
+
+    it("rejects joinAsPlayer under override 'closed', allows after clearing", () => {
+      const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const make = (ext: Partial<EventExtensionsInput>) => {
+        const e = VolleyballEvent.create({
+          id: 'evt-ovr' as EventId,
+          hostId: HOST,
+          title: 'Reg Window',
+          description: '',
+          rules: '',
+          surface: Surface.Indoor,
+          type: EventType.OpenPlay,
+          visibility: Visibility.Public,
+          location: LOCATION,
+          startsAt: start,
+          endsAt: new Date(start.getTime() + 2 * 60 * 60 * 1000),
+          capacity: Capacity.fixed(8),
+          extensions: ext,
+        });
+        e.publish();
+        return e;
+      };
+      expect(() => make({ registrationOverride: 'closed' }).joinAsPlayer(ALICE)).toThrow(
+        InvariantViolation,
+      );
+      // No override → open until start → join succeeds.
+      const open = make({});
+      open.joinAsPlayer(ALICE);
+      expect(open.attendees.has(ALICE)).toBe(true);
+    });
+
+    it('rejects registerTeam on a closed tournament window', () => {
+      const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const div = Division.create({
+        id: 'd1' as DivisionId,
+        sortOrder: 0,
+        label: 'Open',
+        surface: Surface.Sand,
+        format: Format.Quads,
+        gender: Gender.Coed,
+        skillTier: SkillTier.BB,
+        teamComposition: TeamComposition.Team,
+        teamRegistrationMode: TeamRegistrationMode.Roster,
+        priceCents: null,
+        priceUnit: PriceUnit.PerTeam,
+      });
+      const evt = VolleyballEvent.create({
+        id: 'evt-tourney-rc' as EventId,
+        hostId: HOST,
+        title: 'Closed Tourney',
+        description: '',
+        rules: '',
+        surface: Surface.Sand,
+        type: EventType.Tournament,
+        visibility: Visibility.Public,
+        location: LOCATION,
+        startsAt: start,
+        endsAt: new Date(start.getTime() + 6 * 60 * 60 * 1000),
+        divisions: [div],
+        extensions: { registrationOverride: 'closed' },
+      });
+      evt.publish();
+      expect(() => evt.registerTeam(TEAM_A, 'd1' as DivisionId)).toThrow(InvariantViolation);
+    });
+  });
+
+  describe('resolveExtensions validation', () => {
+    it('rejects a negative offset', () => {
+      expect(() => publishedOpenPlay({ registrationCloseOffsetMinutes: -1 })).toThrow(
+        InvariantViolation,
+      );
+    });
+
+    it('rejects setting both an absolute close and a relative offset', () => {
+      expect(() =>
+        publishedOpenPlay({
+          registrationClosesAt: closeAt24hBefore,
+          registrationCloseOffsetMinutes: 24 * 60,
+        }),
+      ).toThrow(InvariantViolation);
+    });
+
+    it('exposes the configured window via getters', () => {
+      const evt = publishedOpenPlay({ registrationCloseOffsetMinutes: 24 * 60 });
+      expect(evt.registrationCloseOffsetMinutes).toBe(24 * 60);
+      expect(evt.registrationClosesAt).toBeNull();
+      expect(evt.effectiveRegistrationClosesAt).toEqual(closeAt24hBefore);
+    });
   });
 });

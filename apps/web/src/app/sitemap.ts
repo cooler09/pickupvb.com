@@ -3,6 +3,7 @@ import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { IS_PROD_HOST, PROD_APP_URL } from '@/lib/app-url';
 import { legalLastUpdatedDate } from './legal/legal-meta';
+import { HELP_GUIDES, helpLastUpdatedDate } from './help/help-meta';
 
 const BASE = PROD_APP_URL;
 
@@ -38,6 +39,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/pricing`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
     { url: `${BASE}/about/numbers`, lastModified: now, changeFrequency: 'daily', priority: 0.4 },
     { url: `${BASE}/tools`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    // Help & guides hub + each how-to guide. Footer-linked, but advertising them
+    // closes the discovery gap and they're SEO landing pages (like /tools).
+    // `lastModified` tracks each guide's real document date (help-meta.ts).
+    { url: `${BASE}/help`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    ...HELP_GUIDES.map((g) => ({
+      url: `${BASE}/help/${g.slug}`,
+      lastModified: helpLastUpdatedDate(g.slug),
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
+    })),
     {
       url: `${BASE}/tools/scoreboard`,
       lastModified: now,

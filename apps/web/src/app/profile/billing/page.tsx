@@ -118,8 +118,13 @@ export default async function BillingPage(props: { searchParams: SearchParams })
 
       {sp.error === 'anonymous' && (
         <div className="rounded-shape-sm border-md-warning/40 bg-md-warning/5 text-md-warning border p-4 text-sm">
-          You need a permanent account (with email) to receive payouts. Finish claiming your account
-          first.
+          <p>You need a permanent account (with email) to receive payouts.</p>
+          <Link
+            href={'/claim?next=/profile/billing' as Route}
+            className="mt-1 inline-block font-semibold underline"
+          >
+            Finish creating your account →
+          </Link>
         </div>
       )}
 

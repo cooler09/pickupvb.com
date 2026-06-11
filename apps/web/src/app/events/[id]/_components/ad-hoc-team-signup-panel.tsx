@@ -86,6 +86,13 @@ type Props = {
   /** All ad-hoc registrations on this event, for the public list. */
   allRegistrations: ReadonlyArray<AdHocTeamPublicEntry>;
   /**
+   * Whether the viewer manages this event (host or co-host). Payment status
+   * is private to the host and the team itself, so the public roster's
+   * payment pill only renders for the host or for the team's own captain
+   * (`isViewerCaptain`) — never for other viewers.
+   */
+  viewerIsHost?: boolean;
+  /**
    * True when the host can't (or won't) collect payment via Stripe —
    * either `events.payments_off_platform` is set or the host has no
    * charges-enabled Stripe Connect account. Suppresses the captain Pay
@@ -153,6 +160,7 @@ export function AdHocTeamSignupPanel({
   viewerRegistrations,
   allRegistrations,
   paymentsOffPlatform = false,
+  viewerIsHost = false,
   resultCode,
   resultMsg,
 }: Props) {
@@ -217,11 +225,15 @@ export function AdHocTeamSignupPanel({
                           {rosterSize === 1 ? '' : 's'}
                         </p>
                       </div>
-                      <span
-                        className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[t.paymentStatus].cls}`}
-                      >
-                        {PAYMENT_PILL[t.paymentStatus].label}
-                      </span>
+                      {/* Payment status stays between the host and the team:
+                          show it only to the host or to the team's own captain. */}
+                      {(viewerIsHost || t.isViewerCaptain) && (
+                        <span
+                          className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[t.paymentStatus].cls}`}
+                        >
+                          {PAYMENT_PILL[t.paymentStatus].label}
+                        </span>
+                      )}
                     </div>
                     {rosterSize > 1 && (
                       <details className="group mt-2">

@@ -24,6 +24,7 @@ import {
 export type AdvancedDetailsInitial = {
   venueName?: string | null;
   registrationClosesAt?: Date | null;
+  registrationCloseOffsetMinutes?: number | null;
   seriesName?: string | null;
   seriesPosition?: number | null;
   seriesSize?: number | null;
@@ -66,6 +67,7 @@ export default function AdvancedDetailsPanel({
     initial &&
     (initial.venueName ||
       initial.registrationClosesAt ||
+      initial.registrationCloseOffsetMinutes != null ||
       initial.seriesName ||
       initial.isFundraiser ||
       (initial.themeTags && initial.themeTags.length > 0) ||
@@ -82,6 +84,21 @@ export default function AdvancedDetailsPanel({
   const effectiveExternal = externalOverride ?? isExternal;
   const [registrationClosesAt, setRegistrationClosesAt] = useState<Date | null>(
     initial?.registrationClosesAt ?? null,
+  );
+  // Registration-close window: "start" (open until kickoff), "relative" (N
+  // hours before start — auto-follows a start-time edit), or "absolute" (a
+  // specific date/time). The server action keys off the chosen mode, so only
+  // the active sub-input is rendered/submitted.
+  const initialCloseMode: 'start' | 'relative' | 'absolute' = initial?.registrationClosesAt
+    ? 'absolute'
+    : initial?.registrationCloseOffsetMinutes != null
+      ? 'relative'
+      : 'start';
+  const [registrationCloseMode, setRegistrationCloseMode] = useState(initialCloseMode);
+  const [registrationCloseOffsetHours, setRegistrationCloseOffsetHours] = useState(
+    initial?.registrationCloseOffsetMinutes != null
+      ? Math.max(1, Math.round(initial.registrationCloseOffsetMinutes / 60))
+      : 24,
   );
 
   function toggleExternal(next: boolean) {
@@ -130,21 +147,75 @@ export default function AdvancedDetailsPanel({
 
           {/* Registration closes — only relevant for on-platform signups;
               off-platform registrars (AES, Eventbrite, …) manage their own
-              deadlines, so hide the field entirely when external. */}
+              deadlines, so hide the field entirely when external. The mode
+              radio is the source of truth: the server action reads
+              `registrationCloseMode` and only the active sub-input submits. */}
           {!effectiveExternal && (
             <div>
-              <label htmlFor="registrationClosesAt" className={labelClass}>
-                Registration closes at
-              </label>
-              <DateTimePicker
-                name="registrationClosesAt"
-                value={registrationClosesAt}
-                onChange={setRegistrationClosesAt}
-                minDate={new Date()}
-                inputClass={inputClass}
-              />
+              <span className={labelClass}>Registration closes</span>
+              <div className="mt-1 space-y-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="registrationCloseMode"
+                    value="start"
+                    checked={registrationCloseMode === 'start'}
+                    onChange={() => setRegistrationCloseMode('start')}
+                  />
+                  When the event starts
+                </label>
+
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="registrationCloseMode"
+                    value="relative"
+                    checked={registrationCloseMode === 'relative'}
+                    onChange={() => setRegistrationCloseMode('relative')}
+                  />
+                  <input
+                    type="number"
+                    name="registrationCloseOffsetHours"
+                    min={1}
+                    step={1}
+                    value={registrationCloseOffsetHours}
+                    disabled={registrationCloseMode !== 'relative'}
+                    onChange={(e) =>
+                      setRegistrationCloseOffsetHours(Math.max(1, Number(e.target.value) || 1))
+                    }
+                    className={`${inputClass} w-20`}
+                  />
+                  hours before start
+                </label>
+
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="registrationCloseMode"
+                    value="absolute"
+                    className="mt-1"
+                    checked={registrationCloseMode === 'absolute'}
+                    onChange={() => setRegistrationCloseMode('absolute')}
+                  />
+                  <span className="flex-1">
+                    At a specific date &amp; time
+                    {registrationCloseMode === 'absolute' && (
+                      <span className="mt-1 block">
+                        <DateTimePicker
+                          name="registrationClosesAt"
+                          value={registrationClosesAt}
+                          onChange={setRegistrationClosesAt}
+                          minDate={new Date()}
+                          inputClass={inputClass}
+                        />
+                      </span>
+                    )}
+                  </span>
+                </label>
+              </div>
               <p className="text-muted mt-1 text-xs">
-                Leave blank to let players join right up to the start time.
+                Players can sign up until this point. Pick “24 hours before start” to finalize the
+                day before, or set an exact cutoff.
               </p>
             </div>
           )}

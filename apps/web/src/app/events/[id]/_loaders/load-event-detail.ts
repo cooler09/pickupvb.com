@@ -13,6 +13,8 @@ import type { Route } from 'next';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import {
   NotFoundError,
+  effectiveRegistrationClosesAt,
+  isRegistrationClosed,
   type EventDetailReadModel,
   type EventMediaSummary,
   type EventPosition,
@@ -137,6 +139,10 @@ export type EventDetailViewModel = {
   nowMs: number;
   hasStarted: boolean;
   closingSoon: boolean;
+  /** True when signups are closed *now* (override / status / start / window). */
+  registrationClosed: boolean;
+  /** Resolved scheduled close time (absolute or start − offset); null if none. */
+  effectiveRegistrationClosesAt: Date | null;
   isExternal: boolean;
   signupsOpen: boolean;
 
@@ -204,6 +210,13 @@ export type EventDetailViewModel = {
 
   // Media (videos / livestreams / clips) summary for the page footprint.
   mediaSummary: EventMediaSummary;
+
+  /**
+   * True when at least one of the tournament's divisions has a bracket the host
+   * has created. Drives whether non-hosts see any "bracket" affordance at all —
+   * hosts always do (so they can go create it). Always false for non-tournaments.
+   */
+  bracketExists: boolean;
 
   // Hero / sticky call-to-action.
   cta: EventHeroCta;
@@ -279,11 +292,32 @@ export async function loadEventDetail(
   const returnPath = `/events/${event.id}`;
   const nowMs = renderNowMs();
   const hasStarted = event.startsAt.getTime() <= nowMs;
-  const closesAtMs = event.registrationClosesAt ? event.registrationClosesAt.getTime() : null;
+  // Effective scheduled close (absolute date, or start − relative offset),
+  // shared with the domain so the "closing soon" badge and the signup gate
+  // agree on one cutoff.
+  const effectiveCloseAt = effectiveRegistrationClosesAt({
+    startsAt: event.startsAt,
+    registrationClosesAt: event.registrationClosesAt,
+    registrationCloseOffsetMinutes: event.registrationCloseOffsetMinutes,
+  });
+  const closesAtMs = effectiveCloseAt ? effectiveCloseAt.getTime() : null;
   const closingSoon =
     closesAtMs !== null && closesAtMs > nowMs && closesAtMs - nowMs <= 72 * 60 * 60 * 1000;
+  // Whether registration is closed *now* (manual override / status / start /
+  // scheduled window) — the same predicate the aggregate enforces on signup.
+  const registrationClosed = isRegistrationClosed(
+    {
+      status: event.status,
+      startsAt: event.startsAt,
+      registrationClosesAt: event.registrationClosesAt,
+      registrationCloseOffsetMinutes: event.registrationCloseOffsetMinutes,
+      registrationOverride: event.registrationOverride,
+    },
+    new Date(nowMs),
+  );
   const isExternal = event.registrationMode === 'external';
-  const signupsOpen = event.status === 'published' && !hasStarted && !isExternal;
+  const signupsOpen =
+    event.status === 'published' && !hasStarted && !isExternal && !registrationClosed;
   const isHostOfEvent = !!user && event.canManage;
 
   // Wave 1 — every viewer/host/event side-load that doesn't depend on
@@ -304,6 +338,7 @@ export async function loadEventDetail(
     mediaSummary,
     eventBadges,
     waitlist,
+    bracketExists,
   ] = await Promise.all([
     loadEventPricingCached(event.id),
     event.canManage && user
@@ -327,6 +362,7 @@ export async function loadEventDetail(
     loadEventMediaSummaryCached(event.id),
     loadEventBadgesCached(event.id),
     loadWaitlist(event, user),
+    loadBracketExists(event),
   ]);
 
   const paid = isPaidEvent(pricing);
@@ -396,6 +432,8 @@ export async function loadEventDetail(
     signupsOpen,
     hasStarted,
     paid,
+    isHost: isHostOfEvent,
+    bracketExists,
   });
 
   return {
@@ -408,6 +446,8 @@ export async function loadEventDetail(
     nowMs,
     hasStarted,
     closingSoon,
+    registrationClosed,
+    effectiveRegistrationClosesAt: effectiveCloseAt,
     isExternal,
     signupsOpen,
     pricing,
@@ -435,6 +475,7 @@ export async function loadEventDetail(
     eventBadges,
     heroImageUrl,
     mediaSummary,
+    bracketExists,
     cta,
   };
 }
@@ -719,6 +760,34 @@ async function loadWaitlist(
   }
 }
 
+/**
+ * Whether any of the tournament's divisions has a bracket row. Viewer-
+ * independent (the `event_brackets` row is shared across viewers), so an admin
+ * read is correct here — the page's visibility gate already ran. Read uncached:
+ * the bracket create/delete actions only `revalidatePath` the bracket sub-page
+ * (not the event cache tag), so caching this would go stale on creation. The
+ * read is a single indexed `division_id IN (...)` lookup folded into wave 1, so
+ * it adds no latency. Always false for non-tournaments / divisionless events —
+ * only tournaments surface a bracket affordance.
+ */
+async function loadBracketExists(event: EventDetailReadModel): Promise<boolean> {
+  if (event.type !== 'tournament' || event.divisions.length === 0) return false;
+  try {
+    const { getAdminSupabase } = await import('@/lib/supabase-admin');
+    const { data } = await getAdminSupabase()
+      .from('event_brackets')
+      .select('id')
+      .in(
+        'division_id',
+        event.divisions.map((d) => d.id),
+      )
+      .limit(1);
+    return ((data as unknown[] | null)?.length ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Hero CTA
 // -----------------------------------------------------------------------------
@@ -729,8 +798,10 @@ function buildCta(args: {
   signupsOpen: boolean;
   hasStarted: boolean;
   paid: boolean;
+  isHost: boolean;
+  bracketExists: boolean;
 }): EventHeroCta {
-  const { event, isExternal, signupsOpen, hasStarted, paid } = args;
+  const { event, isExternal, signupsOpen, hasStarted, paid, isHost, bracketExists } = args;
   if (event.status === 'cancelled' || event.status === 'draft') return null;
   // `signupsOpen` is forced false for external events (it gates on-platform
   // signup logic), so the external CTA can't reuse it. Show "Register
@@ -744,11 +815,17 @@ function buildCta(args: {
     };
   }
   if (event.type === 'tournament' && (hasStarted || event.status === 'completed')) {
-    return {
-      kind: 'internal',
-      href: `/events/${event.id}/bracket` as Route,
-      label: 'Open bracket',
-    };
+    // Only surface the bracket once the host has actually built one — a non-host
+    // shouldn't be sent to an empty "the host hasn't created a bracket" page.
+    // The host always gets it (the bracket page is where they create it).
+    if (bracketExists || isHost) {
+      return {
+        kind: 'internal',
+        href: `/events/${event.id}/bracket` as Route,
+        label: 'Open bracket',
+      };
+    }
+    return { kind: 'anchor', hash: '#teams', label: 'View teams' };
   }
   if (event.type === 'open_play' && (hasStarted || event.status === 'completed')) {
     return { kind: 'anchor', hash: '#attendees', label: 'View attendees' };

@@ -47,6 +47,13 @@ type Props = {
    */
   closingSoon?: boolean;
   /**
+   * Whether registration is closed *now* (host override / scheduled window),
+   * while the event is still published and hasn't started — computed at the
+   * page boundary. Renders a "Registration closed" pill in place of the
+   * "closing soon" hint.
+   */
+  registrationClosed?: boolean;
+  /**
    * Whether a live stream is currently broadcasting for this event. Computed
    * at the page boundary from the cached media summary; renders a "Live now"
    * pill linking to the media sub-page. Kept conditional so details-only
@@ -83,6 +90,7 @@ export function EventHero({
   cta,
   divisionCount,
   closingSoon = false,
+  registrationClosed = false,
   liveNow = false,
 }: Props) {
   return (
@@ -164,7 +172,16 @@ export function EventHero({
             <span aria-hidden="true">🔴</span> Live now
           </Link>
         )}
-        {closingSoon && registrationClosesAt !== null && (
+        {registrationClosed && (
+          <span
+            className="border-md-error/30 bg-md-error/15 text-md-error inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium"
+            aria-label="Registration closed"
+          >
+            <span aria-hidden="true">🔒</span>
+            Registration closed
+          </span>
+        )}
+        {!registrationClosed && closingSoon && registrationClosesAt !== null && (
           <span
             className="border-md-warning/30 bg-md-warning/15 text-md-warning inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium"
             aria-label="Registration closing soon"

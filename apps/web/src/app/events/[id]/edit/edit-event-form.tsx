@@ -23,6 +23,7 @@ import {
   type CapacityKind,
 } from '../../new/_components/form-primitives';
 import LocationFields from '../../new/_components/location-fields';
+import { StripeOnboardingBanner, PaidEventCapBanner } from '../../new/_components/payment-fields';
 import { editEventAction, type EditEventState } from './actions';
 
 const initialState: EditEventState = {};
@@ -86,6 +87,17 @@ export type EditEventFormProps = {
   isOpenPlay: boolean;
   pricingLocked: boolean;
   viewerHasProBenefits: boolean;
+  /** Host has a Stripe Connect account with charges enabled. Drives the
+   *  proactive readiness banners (parity with the create form). */
+  canCollectPayments: boolean;
+  /** Free host already at their rolling-30d paid-event cap. */
+  atPaidEventCap: boolean;
+  /** Event currently has no price — so a price change here is a free→paid flip
+   *  (the only case the server's cap check fires for). */
+  currentlyFree: boolean;
+  /** Tournament/league has at least one paid division (prices are edited
+   *  elsewhere, so this is computed server-side and passed in). */
+  hasPaidDivision: boolean;
   initial: {
     title: string;
     description: string;
@@ -118,6 +130,10 @@ export default function EditEventForm({
   isOpenPlay,
   pricingLocked,
   viewerHasProBenefits,
+  canCollectPayments,
+  atPaidEventCap,
+  currentlyFree,
+  hasPaidDivision,
   initial,
 }: EditEventFormProps) {
   const [state, formAction] = useFormState(editEventAction, initialState);
@@ -152,10 +168,16 @@ export default function EditEventForm({
   const [startsAt, setStartsAt] = useState<Date | null>(initial.startsAt);
   const [endsAt, setEndsAt] = useState<Date | null>(initial.endsAt);
   // Controlled so we can hide on-platform-only controls (refund window,
-  // service-fee absorption) when the host opts out of Stripe entirely.
-  // Matches the gating in apps/web/src/app/events/new/new-event-form.tsx.
+  // service-fee absorption) when the host opts out of Stripe entirely, or can't
+  // collect on-platform at all. Matches the gating in
+  // apps/web/src/app/events/new/new-event-form.tsx.
   const [paymentsOffPlatform, setPaymentsOffPlatform] = useState(initial.paymentsOffPlatform);
-  const showOnPlatformControls = !paymentsOffPlatform;
+  const showOnPlatformControls = canCollectPayments && !paymentsOffPlatform;
+  // Track the open-play price client-side so the readiness banners can escalate
+  // to blocking the moment a price is entered without Stripe — before submit,
+  // instead of the server gate rolling it back (parity with PricingSubsection).
+  const [priceUsd, setPriceUsd] = useState(initial.priceUsd);
+  const hasPrice = Number(priceUsd) > 0;
 
   function applySuggestion(s: Suggestion) {
     setAddressLine(s.addressLine);
@@ -335,6 +357,15 @@ export default function EditEventForm({
               first to change price, fee, or refund window.
             </div>
           )}
+          {atPaidEventCap && currentlyFree && hasPrice && !paymentsOffPlatform && (
+            <PaidEventCapBanner />
+          )}
+          {!canCollectPayments && (
+            <StripeOnboardingBanner
+              blocking={hasPrice && !paymentsOffPlatform}
+              onCollectOffPlatform={() => setPaymentsOffPlatform(true)}
+            />
+          )}
           <div
             className={`grid grid-cols-1 gap-3 ${showOnPlatformControls ? 'sm:grid-cols-3' : ''}`}
           >
@@ -349,7 +380,8 @@ export default function EditEventForm({
                 min="0"
                 max="10000"
                 step="0.01"
-                defaultValue={initial.priceUsd}
+                value={priceUsd}
+                onChange={(e) => setPriceUsd(e.target.value)}
                 disabled={pricingLocked}
                 className={inputClass}
               />
@@ -428,6 +460,12 @@ export default function EditEventForm({
             <div className="border-md-warning/30 bg-md-warning-container text-md-on-warning-container rounded-md border p-2 text-xs">
               Payment settings are locked because at least one ticket has been sold.
             </div>
+          )}
+          {!canCollectPayments && (
+            <StripeOnboardingBanner
+              blocking={hasPaidDivision && !paymentsOffPlatform}
+              onCollectOffPlatform={() => setPaymentsOffPlatform(true)}
+            />
           )}
           <p className="text-muted text-xs">
             Entry prices are managed per division on the{' '}

@@ -38,8 +38,15 @@ function advancedInitialFromValues(
     return Number.isFinite(n) ? n : null;
   };
   const themeTagsRaw = values.themeTags;
+  const closeHours = num(values.registrationCloseOffsetHours);
   return {
     venueName: values.venueName ?? null,
+    // Restore a relative registration-close window from a template/redisplay.
+    // The absolute date is one-off (omitted from templates) so it isn't mapped.
+    registrationCloseOffsetMinutes:
+      values.registrationCloseMode === 'relative' && closeHours != null
+        ? Math.round(closeHours * 60)
+        : null,
     seriesName: values.seriesName ?? null,
     seriesPosition: num(values.seriesPosition),
     seriesSize: num(values.seriesSize),

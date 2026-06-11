@@ -1,11 +1,11 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
+import { buildClaimEmailRedirect } from '@/lib/server-redirects';
 import { getViewer } from '@/lib/server-auth';
 import type { TablesUpdate } from '@pickupvb/supabase';
 
@@ -80,18 +80,12 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
   // user clicks it the email stays in `email_change` and `is_anonymous`
   // stays true. The user CANNOT set a password until after confirmation —
   // emailRedirectTo sends them through /auth/callback to /reset-password.
-  const h = await headers();
-  const origin =
-    h.get('origin') ?? (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000');
   // Thread the gate's `next` (e.g. /events/new) through the confirm →
   // set-password chain so the user lands where they were headed. Same-origin
   // relative only — reject `//evil.com` / `/\evil.com` (mirrors /auth/callback).
   const next = field(formData, 'next');
   const safeNext = next && /^\/(?![/\\])/.test(next) ? next : null;
-  const afterPassword = safeNext
-    ? `/reset-password?from=claim&next=${encodeURIComponent(safeNext)}`
-    : '/reset-password?from=claim';
-  const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(afterPassword)}`;
+  const emailRedirectTo = await buildClaimEmailRedirect(safeNext ?? undefined);
 
   // Rate-limit before the email send so an attacker can't replay this
   // form to spam a target with confirmation emails. Audit P2 #6.
@@ -111,9 +105,22 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
   const { error: emailErr } = await supabase.auth.updateUser({ email }, { emailRedirectTo });
   if (emailErr) {
     await log.error('[claim] updateUser(email) failed', emailErr);
-    return { error: emailErr.message };
+    // The address already belongs to another account — point them at sign-in
+    // (the /claim page renders a "Sign in instead" link) instead of leaking
+    // GoTrue's raw message. Keep unknown failures generic.
+    if (/already.*(registered|in use|exists)/i.test(emailErr.message)) {
+      return {
+        error:
+          "That email is already linked to an account. If it's yours, sign in instead — your guest signups won't merge automatically.",
+      };
+    }
+    return { error: "We couldn't send the confirmation email. Please try again." };
   }
 
   revalidatePath('/');
-  redirect(`/claim/check-email?to=${encodeURIComponent(email)}`);
+  redirect(
+    `/claim/check-email?to=${encodeURIComponent(email)}${
+      safeNext ? `&next=${encodeURIComponent(safeNext)}` : ''
+    }`,
+  );
 }

@@ -15,6 +15,14 @@ type Props = {
   adHocRegistrations?: ReadonlyArray<AdHocTeamPublicEntry>;
   /** Divisions on the event, used to resolve labels for ad-hoc rows. */
   divisions?: ReadonlyArray<Division>;
+  /**
+   * Whether the viewer can manage this event (host or co-host). A team's
+   * payment status is private to the host and the team itself — never
+   * surfaced to the public roster — so the payment pill renders only when
+   * this is true. The host's full payment view lives in the separate,
+   * host-gated `HostAdHocTeamsPanel`.
+   */
+  viewerIsHost?: boolean;
 };
 
 const PAYMENT_PILL: Record<AdHocTeamPublicEntry['paymentStatus'], { label: string; cls: string }> =
@@ -53,7 +61,7 @@ function RosterTeamRow({ team }: { team: RegisteredTeam }) {
   );
 }
 
-function AdHocTeamRow({ reg }: { reg: AdHocTeamPublicEntry }) {
+function AdHocTeamRow({ reg, viewerIsHost }: { reg: AdHocTeamPublicEntry; viewerIsHost: boolean }) {
   const rosterSize = 1 + reg.members.length;
   const captainLabel = reg.captainName ?? 'Captain';
   return (
@@ -72,11 +80,15 @@ function AdHocTeamRow({ reg }: { reg: AdHocTeamPublicEntry }) {
               Added by host
             </span>
           )}
-          <span
-            className={`rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[reg.paymentStatus].cls}`}
-          >
-            {PAYMENT_PILL[reg.paymentStatus].label}
-          </span>
+          {/* Payment status stays between the host and the team: show it only
+              to the host or to the team's own captain. */}
+          {(viewerIsHost || reg.isViewerCaptain) && (
+            <span
+              className={`rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[reg.paymentStatus].cls}`}
+            >
+              {PAYMENT_PILL[reg.paymentStatus].label}
+            </span>
+          )}
         </div>
       </div>
       {rosterSize > 1 && (
@@ -112,7 +124,12 @@ function AdHocTeamRow({ reg }: { reg: AdHocTeamPublicEntry }) {
  * without scanning a flat list. Single-division events stay flat — the
  * sub-heading would just repeat what `EventHero` already shows.
  */
-export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisions = [] }: Props) {
+export function TeamsRegisteredSection({
+  teams,
+  adHocRegistrations = [],
+  divisions = [],
+  viewerIsHost = false,
+}: Props) {
   const total = teams.length + adHocRegistrations.length;
   const groupByDivision = divisions.length > 1;
 
@@ -146,7 +163,7 @@ export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisio
                       <RosterTeamRow key={`team-${t.teamId}`} team={t} />
                     ))}
                     {divAdHoc.map((r) => (
-                      <AdHocTeamRow key={`adhoc-${r.id}`} reg={r} />
+                      <AdHocTeamRow key={`adhoc-${r.id}`} reg={r} viewerIsHost={viewerIsHost} />
                     ))}
                   </ul>
                 )}
@@ -169,7 +186,7 @@ export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisio
                     <RosterTeamRow key={`team-${t.teamId}`} team={t} />
                   ))}
                   {orphanAdHoc.map((r) => (
-                    <AdHocTeamRow key={`adhoc-${r.id}`} reg={r} />
+                    <AdHocTeamRow key={`adhoc-${r.id}`} reg={r} viewerIsHost={viewerIsHost} />
                   ))}
                 </ul>
               </div>
@@ -182,7 +199,7 @@ export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisio
             <RosterTeamRow key={`team-${t.teamId}`} team={t} />
           ))}
           {adHocRegistrations.map((r) => (
-            <AdHocTeamRow key={`adhoc-${r.id}`} reg={r} />
+            <AdHocTeamRow key={`adhoc-${r.id}`} reg={r} viewerIsHost={viewerIsHost} />
           ))}
         </ul>
       )}

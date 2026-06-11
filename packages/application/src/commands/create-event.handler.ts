@@ -33,6 +33,12 @@ function buildExtensions(input: EventExtensionsDto | undefined): Partial<EventEx
     ...(input.registrationClosesAt !== undefined
       ? { registrationClosesAt: input.registrationClosesAt }
       : {}),
+    ...(input.registrationCloseOffsetMinutes !== undefined
+      ? { registrationCloseOffsetMinutes: input.registrationCloseOffsetMinutes }
+      : {}),
+    ...(input.registrationOverride !== undefined
+      ? { registrationOverride: input.registrationOverride }
+      : {}),
     ...(input.seriesName !== undefined ? { seriesName: input.seriesName } : {}),
     ...(input.seriesPosition !== undefined ? { seriesPosition: input.seriesPosition } : {}),
     ...(input.seriesSize !== undefined ? { seriesSize: input.seriesSize } : {}),
