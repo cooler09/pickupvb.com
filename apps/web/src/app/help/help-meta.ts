@@ -75,6 +75,42 @@ export const HELP_GUIDES = [
     order: 5,
     lastUpdated: 'June 11, 2026',
   },
+  {
+    slug: 'find-and-join',
+    title: 'Find a game and join',
+    description:
+      'Discover events near you, RSVP, understand the waitlist, and sign up with or without an account.',
+    audience: 'player',
+    order: 1,
+    lastUpdated: 'June 11, 2026',
+  },
+  {
+    slug: 'paying-for-events',
+    title: 'Pay for an event',
+    description:
+      'How checkout works, what the fee is, refunds when you leave, tipping the host, and using passes or a membership.',
+    audience: 'player',
+    order: 2,
+    lastUpdated: 'June 11, 2026',
+  },
+  {
+    slug: 'teams-and-free-agents',
+    title: 'Play on a team',
+    description:
+      'Join or start a team, sign up with a partner, or jump into a free-agent pool so a captain can pick you up.',
+    audience: 'player',
+    order: 3,
+    lastUpdated: 'June 11, 2026',
+  },
+  {
+    slug: 'your-account',
+    title: 'Your account & profile',
+    description:
+      'Fill out your profile, claim a guest sign-up, add friends, join groups, and manage notifications.',
+    audience: 'player',
+    order: 4,
+    lastUpdated: 'June 11, 2026',
+  },
 ] as const satisfies readonly HelpGuideMeta[];
 
 export type HelpSlug = (typeof HELP_GUIDES)[number]['slug'];

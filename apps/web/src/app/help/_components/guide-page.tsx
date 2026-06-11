@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import type { ReactNode } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
-import { helpGuide, type HelpSlug } from '../help-meta';
+import { helpGuide, type HelpGuideMeta, type HelpSlug } from '../help-meta';
 
 /**
  * Shared chassis for every `/help/<slug>` guide. The authored body is wrapped in
@@ -22,8 +22,15 @@ const PROSE = [
   '[&_strong]:font-semibold',
 ].join(' ');
 
+/** Footer call-to-action, keyed off the guide's audience. */
+const CTA: Record<HelpGuideMeta['audience'], { href: Route; label: string }> = {
+  host: { href: '/events/new' as Route, label: 'Host an event →' },
+  player: { href: '/events' as Route, label: 'Browse events →' },
+};
+
 export function GuidePage({ slug, children }: { slug: HelpSlug; children: ReactNode }) {
   const guide = helpGuide(slug);
+  const cta = CTA[guide.audience];
   return (
     <div className="mx-auto max-w-3xl">
       <p className="mb-4 text-sm">
@@ -41,8 +48,8 @@ export function GuidePage({ slug, children }: { slug: HelpSlug; children: ReactN
 
       <hr className="border-border-base my-8" />
       <div className="flex flex-wrap items-center gap-4">
-        <Link href={'/events/new' as Route} className={primaryButtonClass('md')}>
-          Host an event →
+        <Link href={cta.href} className={primaryButtonClass('md')}>
+          {cta.label}
         </Link>
         <Link href={'/help' as Route} className="text-primary text-sm hover:underline">
           Browse all guides

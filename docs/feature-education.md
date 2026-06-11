@@ -109,15 +109,17 @@ checklists piggyback on it instead of adding a new system. **Highest leverage.**
 - **C1 — Short looping GIFs/videos** (10–15s, no audio) embedded at decision
   points. Far higher completion than docs.
 - **C2 — A `/help` or `/how-it-works` route** with role-segmented guides
-  (Player / Host), reusing existing page-composition conventions. ✅ **Host track
+  (Player / Host), reusing existing page-composition conventions. ✅ **Both tracks
   shipped 2026-06-11**
-  ([journal](journal/2026-06-11-bundle-host-help-guides.md)). New `/help` hub +
-  five host guides (host your first event · get paid · tournaments · leagues ·
-  event day), mirroring the legal-section pattern (`help-meta.ts` SSOT + prose
-  `GuidePage` wrapper). Linked from the footer, the `/host` zero-state, and the
-  host onboarding checklist; in the sitemap. Guides link to `/pricing` rather
-  than restating rates so copy can't drift. Player-track guides are a one-entry
-  addition to the same catalog (deferred — the ask was host-focused).
+  ([host journal](journal/2026-06-11-bundle-host-help-guides.md),
+  [player journal](journal/2026-06-11-bundle-player-help-guides.md)). New `/help`
+  hub with audience-grouped cards, mirroring the legal-section pattern
+  (`help-meta.ts` SSOT + prose `GuidePage` wrapper). **Host (5):** host your first
+  event · get paid · tournaments · leagues · event day. **Player (4):** find and
+  join · pay for an event · play on a team · your account. Linked from the footer,
+  the `/host` zero-state, and the host onboarding checklist; all in the sitemap.
+  Host guides link to `/pricing` rather than restating rates so copy can't drift;
+  the footer CTA keys off the guide's audience (Host an event vs. Browse events).
 - **C3 — Seed-the-network nudges.** "Invite a friend to your event" surfaces
   the social loop early — both growth _and_ the fastest way a new user
   understands the product (they learn by doing it with someone).
