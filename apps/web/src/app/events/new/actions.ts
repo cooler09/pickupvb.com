@@ -13,7 +13,7 @@ import { geocodeAddress } from '@/lib/geocode';
 import { timeZoneForCoords } from '@/lib/timezone';
 import { parsePriceCents, parseRefundWindowHours } from '@/lib/money';
 import { hasProBenefits } from '@/lib/admin';
-import { clampVisibilityForHost } from '@/lib/visibility';
+import { normalizeVisibility } from '@/lib/visibility';
 import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { captureOnboardingStep } from '@/lib/onboarding';
@@ -289,12 +289,9 @@ export async function createEventAction(
     // derive it. Falls back to 'bb' (intermediate) if the field is missing.
     skillLevel: skillTierBand(topSkillTier),
     type,
-    // Non-public visibility modes are a Pro perk (audit P1 #1). Clamp
-    // server-side so the rule can't be bypassed by editing the form HTML.
-    visibility: clampVisibilityForHost(
-      fieldOrUndefined(formData, 'visibility'),
-      await hasProBenefits(user.id),
-    ),
+    // Visibility is free for every host; normalize the untrusted submitted
+    // value to a recognized enum member.
+    visibility: normalizeVisibility(fieldOrUndefined(formData, 'visibility')),
     location: {
       addressLine,
       city,

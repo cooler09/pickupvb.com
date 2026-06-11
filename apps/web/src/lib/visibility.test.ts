@@ -1,41 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { clampVisibilityForHost, isGatedVisibility } from './visibility';
+import { normalizeVisibility } from './visibility';
 
-describe('clampVisibilityForHost', () => {
+describe('normalizeVisibility', () => {
   it('returns public when no value is submitted', () => {
-    expect(clampVisibilityForHost(undefined, true)).toBe('public');
-    expect(clampVisibilityForHost(null, true)).toBe('public');
-    expect(clampVisibilityForHost('', true)).toBe('public');
+    expect(normalizeVisibility(undefined)).toBe('public');
+    expect(normalizeVisibility(null)).toBe('public');
+    expect(normalizeVisibility('')).toBe('public');
   });
 
   it('returns public for unknown values', () => {
-    expect(clampVisibilityForHost('secret', true)).toBe('public');
-    expect(clampVisibilityForHost('PRIVATE', true)).toBe('public');
+    expect(normalizeVisibility('secret')).toBe('public');
+    expect(normalizeVisibility('PRIVATE')).toBe('public');
   });
 
-  it('passes public through regardless of Pro status', () => {
-    expect(clampVisibilityForHost('public', false)).toBe('public');
-    expect(clampVisibilityForHost('public', true)).toBe('public');
-  });
-
-  it('clamps gated values to public for non-Pro hosts', () => {
-    expect(clampVisibilityForHost('invite_only', false)).toBe('public');
-    expect(clampVisibilityForHost('friends_of_host', false)).toBe('public');
-    expect(clampVisibilityForHost('friends_of_attendees', false)).toBe('public');
-  });
-
-  it('passes gated values through for Pro hosts', () => {
-    expect(clampVisibilityForHost('invite_only', true)).toBe('invite_only');
-    expect(clampVisibilityForHost('friends_of_host', true)).toBe('friends_of_host');
-    expect(clampVisibilityForHost('friends_of_attendees', true)).toBe('friends_of_attendees');
-  });
-});
-
-describe('isGatedVisibility', () => {
-  it('flags non-public modes', () => {
-    expect(isGatedVisibility('public')).toBe(false);
-    expect(isGatedVisibility('invite_only')).toBe(true);
-    expect(isGatedVisibility('friends_of_host')).toBe(true);
-    expect(isGatedVisibility('friends_of_attendees')).toBe(true);
+  it('passes every recognized visibility through — no Pro gate', () => {
+    expect(normalizeVisibility('public')).toBe('public');
+    expect(normalizeVisibility('invite_only')).toBe('invite_only');
+    expect(normalizeVisibility('friends_of_host')).toBe('friends_of_host');
+    expect(normalizeVisibility('friends_of_attendees')).toBe('friends_of_attendees');
   });
 });

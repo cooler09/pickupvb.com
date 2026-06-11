@@ -5,7 +5,6 @@
  * rules + the collapsed advanced-details panel. External-registration lives in
  * section 1 now, so the panel is told to skip it (`hideExternal`).
  */
-import Link from 'next/link';
 import AdvancedDetailsPanel, {
   type AdvancedDetailsInitial,
 } from '@/components/event-advanced-details-panel';
@@ -65,12 +64,10 @@ function advancedInitialFromValues(
 export default function VisibilitySection({
   fieldErrors,
   values,
-  viewerHasProBenefits,
   isExternal,
 }: {
   fieldErrors: Record<string, string> | undefined;
   values: Record<string, string> | undefined;
-  viewerHasProBenefits: boolean;
   isExternal: boolean;
 }) {
   const advancedInitial = advancedInitialFromValues(values);
@@ -86,13 +83,11 @@ export default function VisibilitySection({
       <div>
         <label htmlFor="visibility" className={labelClass}>
           Who can see this event?
-          {!viewerHasProBenefits && <span className="text-muted ml-1 text-xs">(Pro)</span>}
         </label>
         <select
           id="visibility"
           name="visibility"
-          defaultValue={viewerHasProBenefits ? val(values, 'visibility', 'public') : 'public'}
-          disabled={!viewerHasProBenefits}
+          defaultValue={val(values, 'visibility', 'public')}
           className={inputClass}
           {...fieldA11y('visibility', fieldErrors)}
         >
@@ -102,15 +97,10 @@ export default function VisibilitySection({
           <option value="friends_of_attendees">People attendees follow</option>
         </select>
         <FieldError name="visibility" errors={fieldErrors} />
-        {!viewerHasProBenefits && (
-          <p className="text-muted mt-1 text-xs">
-            Free events are public.{' '}
-            <Link href="/pricing" className="text-primary hover:underline">
-              Upgrade to Pro
-            </Link>{' '}
-            to host unlisted or friends-only events.
-          </p>
-        )}
+        <p className="text-muted mt-1 text-xs">
+          Public events show up in search and the home feed. Unlisted events are reachable only by
+          link; friends-only events stay within your network.
+        </p>
       </div>
       <div>
         <label htmlFor="rules" className={labelClass}>

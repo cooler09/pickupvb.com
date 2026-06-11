@@ -223,12 +223,7 @@ export default function NewEventForm({
         atPaidEventCap={atPaidEventCap}
       />
 
-      <VisibilitySection
-        fieldErrors={state.fieldErrors}
-        values={values}
-        viewerHasProBenefits={viewerHasProBenefits}
-        isExternal={isExternal}
-      />
+      <VisibilitySection fieldErrors={state.fieldErrors} values={values} isExternal={isExternal} />
 
       {/* ──────────────────────────────────────────────────────────────────
          Sticky footer — keeps the primary CTA reachable on long forms.

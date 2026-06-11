@@ -43,6 +43,7 @@ const FREE_TIER_FEATURES = [
   'Standalone tournament bracket — 1 active at a time',
   'Group pages, co-hosts, free-agent signups',
   'Event check-in & roster management',
+  'Public, unlisted & friends-only event visibility',
 ];
 
 const PRO_TIER_FEATURES = [
@@ -56,7 +57,6 @@ const PRO_TIER_FEATURES = [
   'Sponsor slot included on every event',
   'Collectible event badges included on every event',
   'Custom refund policy (1 hour to 30 days)',
-  'Invite-only / private events',
   'CSV attendee export with payment status',
   '14-day free trial — cancel anytime',
 ];
@@ -245,7 +245,7 @@ export default async function PricingPage() {
               />
               <Row label="Standalone tournament brackets" free="1 at a time" pro="Unlimited" />
               <Row label="Custom refund policy" free="—" pro="✓" />
-              <Row label="Private / invite-only events" free="—" pro="✓" />
+              <Row label="Private / invite-only events" free="✓" pro="✓" />
               <Row label="CSV attendee export" free="—" pro="✓" />
               <Row label="Co-hosts & group pages" free="✓" pro="✓" />
               <Row label="Event check-in & roster" free="✓" pro="✓" />
