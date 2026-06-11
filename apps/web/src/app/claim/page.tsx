@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
 import ClaimForm from './claim-form';
+import { ClaimGoogleButton } from './claim-google-button';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -54,9 +55,22 @@ export default async function ClaimPage({
       <div>
         <h1 className="text-fg text-headline-sm font-bold">Finish creating your account</h1>
         <p className="text-muted mt-1 text-sm">
-          Add an email and password to keep your signups and access them from any device. All your
-          existing signups will carry over.
+          Continue with Google, or add an email and password — either way your existing signups
+          carry over and follow you to any device.
         </p>
+      </div>
+
+      {/* One-click path: links Google to this anonymous user (linkIdentity), no
+          email round-trip. The email form below is the fallback. */}
+      <ClaimGoogleButton {...(safeNext ? { next: safeNext } : {})} />
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="border-border-base w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-md-surface-container text-fg/50 px-2">Or use email</span>
+        </div>
       </div>
 
       <ClaimForm

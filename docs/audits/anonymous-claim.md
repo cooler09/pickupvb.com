@@ -2,12 +2,13 @@
 
 _Last updated: 2026-06-11 (first-pass remediation)_
 
-> **Status (2026-06-11, remediation bundle):** First-pass fixes landed
-> (uncommitted, quad-green). **9 of 10 findings closed** — AC-1, AC-2, AC-3,
-> AC-4, AC-5, AC-6, AC-8, AC-9, AC-10. Only **AC-7** (one-click Google claim via
-> `linkIdentity`) is deferred: it needs **Manual Linking enabled in the Supabase
-> dashboard** first, and shipping the button before that toggle would present a
-> failing CTA. New shared helper `buildClaimEmailRedirect`
+> **Status (2026-06-11, remediation bundle):** **All 10 findings closed**
+> (uncommitted, quad-green). AC-7 landed once Manual Linking was enabled in the
+> Supabase dashboard — `/claim` now leads with a one-click "Continue with
+> Google" (`linkIdentity`) above the email form, skipping the
+> email→confirm→password round-trip while preserving the guest's signups. AC-1,
+> AC-2, AC-3, AC-4, AC-5, AC-6, AC-8, AC-9, AC-10 all shipped in the same bundle.
+> New shared helper `buildClaimEmailRedirect`
 > ([server-redirects.ts](../../apps/web/src/lib/server-redirects.ts)) now backs
 > all three email-attach sites (claim form, guest RSVP, guest checkout). New
 > unit test [claim/actions.test.ts](../../apps/web/src/app/claim/actions.test.ts)
@@ -196,7 +197,7 @@ renders **empty** name + email inputs
 in the page and pass them as `defaultValue`s into `ClaimForm`. A guest who
 already typed their email at signup then just clicks "Send confirmation email".
 
-### AC-7 · One-click "Continue with Google" claim via `linkIdentity` — P3 (biggest streamline, config-dependent)
+### AC-7 · One-click "Continue with Google" claim via `linkIdentity` — P3 — ✅ FIXED 2026-06-11
 
 The entire email → confirm → password round-trip can be skipped. Supabase
 `auth.linkIdentity({ provider: 'google' })` attaches a Google identity to the
@@ -257,7 +258,8 @@ and `/reset-password` already honor it end-to-end.
 
 ### 2026-06-11 — first-pass bundle (uncommitted, quad-green)
 
-9 of 10 findings closed; AC-7 deferred (needs Supabase Manual Linking enabled).
+All 10 findings closed. AC-7 landed after Manual Linking was enabled in the
+Supabase dashboard (2026-06-11); the rest shipped in the same bundle.
 
 | Finding   | What landed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -270,4 +272,4 @@ and `/reset-password` already honor it end-to-end.
 | **AC-8**  | `load-profile-page` redirects anon viewers → `/claim?next=/profile`. ([load-profile-page.ts](../../apps/web/src/app/profile/_loaders/load-profile-page.ts))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | **AC-9**  | `claimAccount` maps "already registered" → friendly sign-in copy and keeps unknown GoTrue errors generic (no raw-message leak). ([claim/actions.ts](../../apps/web/src/app/claim/actions.ts))                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **AC-10** | `next` threaded on the pricing CTA (`/claim?next=/pricing`) and carried through the claim action → `/claim/check-email` → "Use a different email". Header CTA left global (no single return path). ([pricing/page.tsx](../../apps/web/src/app/pricing/page.tsx), [claim/actions.ts](../../apps/web/src/app/claim/actions.ts), [check-email/page.tsx](../../apps/web/src/app/claim/check-email/page.tsx))                                                                                                                                                                                                                                                         |
-| **AC-7**  | **Deferred** — `linkIdentity` Google claim needs Manual Linking enabled in the Supabase dashboard before the button can ship.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **AC-7**  | **Landed** (Manual Linking enabled 2026-06-11). New [claim-google-button.tsx](../../apps/web/src/app/claim/claim-google-button.tsx) calls `supabase.auth.linkIdentity({ provider: 'google' })` to attach a Google identity to the existing anon user (preserves signups, no email/password). `/claim` leads with it above an "Or use email" divider; redirect → `/auth/callback?next={safeNext ?? /profile}`; already-linked-elsewhere errors map to friendly sign-in copy. ([claim/page.tsx](../../apps/web/src/app/claim/page.tsx))                                                                                                                            |
