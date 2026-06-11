@@ -165,6 +165,7 @@ export default async function EventDetailPage(props: {
     eventBadges,
     heroImageUrl,
     mediaSummary,
+    bracketExists,
     cta,
   } = vm;
 
@@ -327,6 +328,7 @@ export default async function EventDetailPage(props: {
         isExternal={isExternal}
         signupsOpen={signupsOpen}
         hasStarted={hasStarted}
+        bracketExists={bracketExists}
         paid={paid}
         pricing={pricing}
         breakdown={breakdown}
@@ -385,15 +387,21 @@ export default async function EventDetailPage(props: {
           EventClosedState both surface "Open bracket" / "View schedule", so the
           standalone sub-page card is redundant (3 controls → 2). Keep it only
           while signups are upcoming, where it's the sole bracket/schedule
-          preview affordance (the hero CTA there is "Register"). */}
-      {event.type === 'tournament' && !hasStarted && event.status !== 'completed' && (
-        <EventSubpageLink
-          title="Bracket"
-          description="View the tournament bracket, matchups, and live results."
-          href={`/events/${event.id}/bracket`}
-          ctaLabel="Open bracket"
-        />
-      )}
+          preview affordance (the hero CTA there is "Register").
+          Non-hosts only see it once the host has actually built a bracket —
+          otherwise it links to an empty "no bracket yet" page. Hosts always see
+          it (that page is where they create the bracket). */}
+      {event.type === 'tournament' &&
+        !hasStarted &&
+        event.status !== 'completed' &&
+        (isHostOfEvent || bracketExists) && (
+          <EventSubpageLink
+            title="Bracket"
+            description="View the tournament bracket, matchups, and live results."
+            href={`/events/${event.id}/bracket`}
+            ctaLabel="Open bracket"
+          />
+        )}
 
       {event.type === 'league' && !hasStarted && event.status !== 'completed' && (
         <EventSubpageLink
