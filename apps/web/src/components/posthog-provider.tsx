@@ -44,7 +44,7 @@ export function shouldInitPostHog(args: { allowed: boolean; apiKey: string | und
  *    `posthog-js` (keeps it out of the SSR bundle and out of the entry
  *    chunk for users who decline) and call `posthog.init()` exactly once.
  *  - When the viewer is signed in with a real account we call
- *    `posthog.identify(hashedDistinctId, traits)` so browser autocapture
+ *    `posthog.identify(hashedDistinctId, traits)` so browser pageviews
  *    and server-side `capture()` events land under the same Person.
  *  - When consent is revoked at runtime we call `posthog.opt_out_capturing()`
  *    and `posthog.reset()` to clear the persisted distinct id; granting
@@ -93,7 +93,14 @@ export function PostHogProvider({
           person_profiles: 'identified_only',
           capture_pageview: 'history_change',
           capture_pageleave: true,
-          autocapture: true,
+          // Privacy posture: capture pageviews + the explicit business
+          // events we fire from the domain outbox, but do NOT autocapture
+          // every click / input across the site (indiscriminate behavioral
+          // data we'd never look at). Honor the legacy DNT header too, on
+          // top of the GPC handling in the server-side consent gate
+          // ([consent.ts](../lib/consent.ts)). Session recording stays off.
+          autocapture: false,
+          respect_dnt: true,
           disable_session_recording: true,
         });
         initialized.current = true;
