@@ -37,6 +37,10 @@ export const LocationSchema = z.object({
 export const EventExtensionsSchema = z.object({
   venueName: z.string().max(200).optional().nullable(),
   registrationClosesAt: z.coerce.date().optional().nullable(),
+  /** Relative close window: minutes before start that signups close (1440 = 24h). */
+  registrationCloseOffsetMinutes: z.number().int().min(0).optional().nullable(),
+  /** Manual host override of the registration window. */
+  registrationOverride: z.enum(['open', 'closed']).optional().nullable(),
   seriesName: z.string().max(120).optional().nullable(),
   seriesPosition: z.number().int().positive().optional().nullable(),
   seriesSize: z.number().int().positive().optional().nullable(),

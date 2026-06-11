@@ -107,12 +107,22 @@ export async function createEventAction(
         .filter((t) => t.length > 0)
         .slice(0, 16)
     : undefined;
+  // Registration-close window: the panel's mode radio is the source of truth.
+  // 'absolute' → a specific date; 'relative' → N hours before start (stored as
+  // minutes); 'start'/omitted → open until kickoff (no fields).
+  const closeMode = fieldOrUndefined(formData, 'registrationCloseMode');
   const registrationClosesAtRaw = fieldOrUndefined(formData, 'registrationClosesAt');
+  const closeOffsetHoursRaw = fieldOrUndefined(formData, 'registrationCloseOffsetHours');
   const extensions = {
     ...(fieldOrUndefined(formData, 'venueName')
       ? { venueName: fieldOrUndefined(formData, 'venueName') }
       : {}),
-    ...(registrationClosesAtRaw ? { registrationClosesAt: registrationClosesAtRaw } : {}),
+    ...(closeMode === 'absolute' && registrationClosesAtRaw
+      ? { registrationClosesAt: registrationClosesAtRaw }
+      : {}),
+    ...(closeMode === 'relative' && closeOffsetHoursRaw
+      ? { registrationCloseOffsetMinutes: Math.round(Number(closeOffsetHoursRaw) * 60) }
+      : {}),
     ...(isSeries && fieldOrUndefined(formData, 'seriesName')
       ? { seriesName: fieldOrUndefined(formData, 'seriesName') }
       : {}),

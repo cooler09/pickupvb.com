@@ -120,6 +120,8 @@ export default async function ManageEventPage(props: { params: Promise<{ id: str
         hostIsPro={hostIsPro}
         payments={vm.payments}
         primaryHostUserSocial={vm.primaryHostUserSocial}
+        registrationClosed={vm.registrationClosed}
+        registrationManageable={event.status === 'published' && !vm.hasStarted}
       />
 
       <HostAwardBadgesPanel

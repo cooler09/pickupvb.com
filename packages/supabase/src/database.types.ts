@@ -1744,6 +1744,8 @@ export type Database = {
           refund_window_hours: number;
           region: string;
           registration_closes_at: string | null;
+          registration_close_offset_minutes: number | null;
+          registration_override: string | null;
           registration_mode: Database['public']['Enums']['registration_mode'];
           rules: string;
           sanctioning_body: string | null;
@@ -1788,6 +1790,8 @@ export type Database = {
           refund_window_hours?: number;
           region: string;
           registration_closes_at?: string | null;
+          registration_close_offset_minutes?: number | null;
+          registration_override?: string | null;
           registration_mode?: Database['public']['Enums']['registration_mode'];
           rules?: string;
           sanctioning_body?: string | null;
@@ -1832,6 +1836,8 @@ export type Database = {
           refund_window_hours?: number;
           region?: string;
           registration_closes_at?: string | null;
+          registration_close_offset_minutes?: number | null;
+          registration_override?: string | null;
           registration_mode?: Database['public']['Enums']['registration_mode'];
           rules?: string;
           sanctioning_body?: string | null;
@@ -3699,6 +3705,8 @@ export type Database = {
           refund_window_hours: number | null;
           region: string | null;
           registration_closes_at: string | null;
+          registration_close_offset_minutes: number | null;
+          registration_override: string | null;
           registration_mode: Database['public']['Enums']['registration_mode'] | null;
           rules: string | null;
           sanctioning_body: string | null;
@@ -3745,6 +3753,8 @@ export type Database = {
           refund_window_hours?: number | null;
           region?: string | null;
           registration_closes_at?: string | null;
+          registration_close_offset_minutes?: number | null;
+          registration_override?: string | null;
           registration_mode?: Database['public']['Enums']['registration_mode'] | null;
           rules?: string | null;
           sanctioning_body?: string | null;
@@ -3791,6 +3801,8 @@ export type Database = {
           refund_window_hours?: number | null;
           region?: string | null;
           registration_closes_at?: string | null;
+          registration_close_offset_minutes?: number | null;
+          registration_override?: string | null;
           registration_mode?: Database['public']['Enums']['registration_mode'] | null;
           rules?: string | null;
           sanctioning_body?: string | null;

@@ -13,6 +13,8 @@ import type { Route } from 'next';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import {
   NotFoundError,
+  effectiveRegistrationClosesAt,
+  isRegistrationClosed,
   type EventDetailReadModel,
   type EventMediaSummary,
   type EventPosition,
@@ -137,6 +139,10 @@ export type EventDetailViewModel = {
   nowMs: number;
   hasStarted: boolean;
   closingSoon: boolean;
+  /** True when signups are closed *now* (override / status / start / window). */
+  registrationClosed: boolean;
+  /** Resolved scheduled close time (absolute or start − offset); null if none. */
+  effectiveRegistrationClosesAt: Date | null;
   isExternal: boolean;
   signupsOpen: boolean;
 
@@ -286,11 +292,32 @@ export async function loadEventDetail(
   const returnPath = `/events/${event.id}`;
   const nowMs = renderNowMs();
   const hasStarted = event.startsAt.getTime() <= nowMs;
-  const closesAtMs = event.registrationClosesAt ? event.registrationClosesAt.getTime() : null;
+  // Effective scheduled close (absolute date, or start − relative offset),
+  // shared with the domain so the "closing soon" badge and the signup gate
+  // agree on one cutoff.
+  const effectiveCloseAt = effectiveRegistrationClosesAt({
+    startsAt: event.startsAt,
+    registrationClosesAt: event.registrationClosesAt,
+    registrationCloseOffsetMinutes: event.registrationCloseOffsetMinutes,
+  });
+  const closesAtMs = effectiveCloseAt ? effectiveCloseAt.getTime() : null;
   const closingSoon =
     closesAtMs !== null && closesAtMs > nowMs && closesAtMs - nowMs <= 72 * 60 * 60 * 1000;
+  // Whether registration is closed *now* (manual override / status / start /
+  // scheduled window) — the same predicate the aggregate enforces on signup.
+  const registrationClosed = isRegistrationClosed(
+    {
+      status: event.status,
+      startsAt: event.startsAt,
+      registrationClosesAt: event.registrationClosesAt,
+      registrationCloseOffsetMinutes: event.registrationCloseOffsetMinutes,
+      registrationOverride: event.registrationOverride,
+    },
+    new Date(nowMs),
+  );
   const isExternal = event.registrationMode === 'external';
-  const signupsOpen = event.status === 'published' && !hasStarted && !isExternal;
+  const signupsOpen =
+    event.status === 'published' && !hasStarted && !isExternal && !registrationClosed;
   const isHostOfEvent = !!user && event.canManage;
 
   // Wave 1 — every viewer/host/event side-load that doesn't depend on
@@ -419,6 +446,8 @@ export async function loadEventDetail(
     nowMs,
     hasStarted,
     closingSoon,
+    registrationClosed,
+    effectiveRegistrationClosesAt: effectiveCloseAt,
     isExternal,
     signupsOpen,
     pricing,

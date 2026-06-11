@@ -229,6 +229,7 @@ export default async function EditEventPage(props: {
           extensions: {
             venueName: event.venueName,
             registrationClosesAt: event.registrationClosesAt,
+            registrationCloseOffsetMinutes: event.registrationCloseOffsetMinutes,
             seriesName: event.seriesName,
             seriesPosition: event.seriesPosition,
             seriesSize: event.seriesSize,

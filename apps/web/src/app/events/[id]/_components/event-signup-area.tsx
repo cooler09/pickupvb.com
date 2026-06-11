@@ -29,6 +29,7 @@ export function EventSignupArea({
   isExternal,
   signupsOpen,
   hasStarted,
+  registrationClosed,
   bracketExists,
   paid,
   pricing,
@@ -55,6 +56,8 @@ export function EventSignupArea({
   isExternal: boolean;
   signupsOpen: boolean;
   hasStarted: boolean;
+  /** Registration closed by host window / override (published, not started). */
+  registrationClosed: boolean;
   /** Whether the tournament has a host-created bracket (gates the closed-state CTA). */
   bracketExists: boolean;
   paid: boolean;
@@ -387,6 +390,7 @@ export function EventSignupArea({
       hasStarted={hasStarted}
       attendeeCount={event.attendeeCount}
       isHost={event.canManage}
+      registrationClosed={registrationClosed}
       bracketExists={bracketExists}
     />
   );

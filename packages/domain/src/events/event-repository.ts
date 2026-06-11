@@ -295,6 +295,8 @@ export interface EventDetailReadModel {
   // ---- ADR 0006 event-level extensions ----
   venueName: string | null;
   registrationClosesAt: Date | null;
+  registrationCloseOffsetMinutes: number | null;
+  registrationOverride: 'open' | 'closed' | null;
   seriesName: string | null;
   seriesPosition: number | null;
   seriesSize: number | null;

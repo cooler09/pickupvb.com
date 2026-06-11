@@ -142,6 +142,8 @@ export default async function EventDetailPage(props: {
     returnPath,
     hasStarted,
     closingSoon,
+    registrationClosed,
+    effectiveRegistrationClosesAt,
     isExternal,
     signupsOpen,
     pricing,
@@ -283,10 +285,11 @@ export default async function EventDetailPage(props: {
           region={event.location.region}
           spotsRemaining={isTeamEvent ? null : event.spotsRemaining}
           priceLabel={priceLabel}
-          registrationClosesAt={event.registrationClosesAt}
+          registrationClosesAt={effectiveRegistrationClosesAt}
           cta={cta}
           divisionCount={event.divisions.length}
           closingSoon={closingSoon}
+          registrationClosed={registrationClosed && !hasStarted && event.status === 'published'}
           liveNow={mediaSummary.liveCount > 0}
         />
       </header>
@@ -311,7 +314,7 @@ export default async function EventDetailPage(props: {
         fundraiserBeneficiary={event.fundraiserBeneficiary}
         themeTags={event.themeTags}
         sanctioningBody={event.sanctioningBody}
-        registrationClosesAt={event.registrationClosesAt}
+        registrationClosesAt={effectiveRegistrationClosesAt}
         paymentInstructions={event.paymentInstructions}
         isExternal={isExternal}
         timeZone={event.timeZone}
@@ -328,6 +331,7 @@ export default async function EventDetailPage(props: {
         isExternal={isExternal}
         signupsOpen={signupsOpen}
         hasStarted={hasStarted}
+        registrationClosed={registrationClosed && event.status === 'published' && !hasStarted}
         bracketExists={bracketExists}
         paid={paid}
         pricing={pricing}

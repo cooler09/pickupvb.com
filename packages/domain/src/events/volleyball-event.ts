@@ -116,9 +116,25 @@ export interface CreateEventProps {
  * sanctioning bodies, etc.). All fields are optional in inputs; the
  * aggregate exposes resolved values via getters.
  */
+/**
+ * Manual host override of the registration window. `'closed'` force-closes
+ * signups regardless of the scheduled window; `'open'` force-opens them until
+ * the event starts; `null` follows the scheduled window. See
+ * {@link isRegistrationClosed}.
+ */
+export type RegistrationOverride = 'open' | 'closed';
+
 export interface EventExtensionsInput {
   venueName: string | null;
   registrationClosesAt: Date | null;
+  /**
+   * Relative registration-close window: minutes before {@link CreateEventProps.startsAt}
+   * that signups close (e.g. `1440` = 24h before). Mutually exclusive with
+   * `registrationClosesAt`. `null` = no relative window.
+   */
+  registrationCloseOffsetMinutes: number | null;
+  /** Manual host override of the registration window. `null` = follow the schedule. */
+  registrationOverride: RegistrationOverride | null;
   seriesName: string | null;
   seriesPosition: number | null;
   seriesSize: number | null;
@@ -141,6 +157,8 @@ export interface EventExtensionsInput {
 interface EventExtensions {
   venueName: string | null;
   registrationClosesAt: Date | null;
+  registrationCloseOffsetMinutes: number | null;
+  registrationOverride: RegistrationOverride | null;
   seriesName: string | null;
   seriesPosition: number | null;
   seriesSize: number | null;
@@ -175,6 +193,27 @@ function resolveExtensions(
   const registrationClosesAt = input?.registrationClosesAt ?? null;
   if (registrationClosesAt && registrationClosesAt > endsAt) {
     throw new InvariantViolation('Registration close time must be on or before event end time.');
+  }
+  const registrationCloseOffsetMinutes = input?.registrationCloseOffsetMinutes ?? null;
+  if (registrationCloseOffsetMinutes !== null) {
+    if (!Number.isInteger(registrationCloseOffsetMinutes) || registrationCloseOffsetMinutes < 0) {
+      throw new InvariantViolation(
+        'Registration close window must be a non-negative whole number of minutes before start.',
+      );
+    }
+    if (registrationClosesAt) {
+      throw new InvariantViolation(
+        'Set either an absolute registration close time or a relative window before start, not both.',
+      );
+    }
+  }
+  const registrationOverride = input?.registrationOverride ?? null;
+  if (
+    registrationOverride !== null &&
+    registrationOverride !== 'open' &&
+    registrationOverride !== 'closed'
+  ) {
+    throw new InvariantViolation('Registration override must be "open", "closed", or null.');
   }
   const seriesName = input?.seriesName?.trim() || null;
   if (seriesName && seriesName.length > MAX_SERIES_NAME_LEN) {
@@ -255,6 +294,8 @@ function resolveExtensions(
   return {
     venueName,
     registrationClosesAt,
+    registrationCloseOffsetMinutes,
+    registrationOverride,
     seriesName,
     seriesPosition,
     seriesSize,
@@ -268,6 +309,63 @@ function resolveExtensions(
     paymentInstructions,
     paymentsOffPlatform: input?.paymentsOffPlatform ?? false,
   };
+}
+
+/**
+ * Read-only snapshot of the fields that decide whether registration is open.
+ * Shared by the aggregate and the web read-model loader so the predicate has a
+ * single implementation (the app layer can't drift from the domain rule).
+ */
+export interface RegistrationWindowState {
+  status: EventStatus;
+  startsAt: Date;
+  registrationClosesAt: Date | null;
+  registrationCloseOffsetMinutes: number | null;
+  registrationOverride: RegistrationOverride | null;
+}
+
+/**
+ * The resolved moment registration closes from the host's *schedule* alone:
+ * an absolute close time wins, else a relative "N minutes before start" window,
+ * else `null` (no scheduled close — open until the event starts). Does not
+ * consider the manual override or whether the event has already started — use
+ * {@link isRegistrationClosed} for the full "is it closed right now" answer.
+ */
+export function effectiveRegistrationClosesAt(state: {
+  startsAt: Date;
+  registrationClosesAt: Date | null;
+  registrationCloseOffsetMinutes: number | null;
+}): Date | null {
+  if (state.registrationClosesAt) return state.registrationClosesAt;
+  if (state.registrationCloseOffsetMinutes !== null) {
+    return new Date(state.startsAt.getTime() - state.registrationCloseOffsetMinutes * 60_000);
+  }
+  return null;
+}
+
+/**
+ * Whether signups are closed at `now`. Precedence (the single source of truth
+ * the DB/UI/domain all defer to):
+ *
+ *   1. `override === 'closed'`         → closed (host force-closed).
+ *   2. `override === 'open'`           → open until the event starts.
+ *   3. `status !== 'published'`        → closed (draft/cancelled/completed).
+ *   4. event has started               → closed.
+ *   5. scheduled close reached         → closed.
+ *   6. otherwise                       → open.
+ */
+export function isRegistrationClosed(
+  state: RegistrationWindowState,
+  now: Date = new Date(),
+): boolean {
+  if (state.registrationOverride === 'closed') return true;
+  if (state.registrationOverride === 'open') {
+    return state.startsAt.getTime() <= now.getTime();
+  }
+  if (state.status !== EventStatus.Published) return true;
+  if (state.startsAt.getTime() <= now.getTime()) return true;
+  const closeAt = effectiveRegistrationClosesAt(state);
+  return closeAt !== null && now.getTime() >= closeAt.getTime();
 }
 
 /**
@@ -545,6 +643,35 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   get registrationClosesAt(): Date | null {
     return this._extensions.registrationClosesAt;
   }
+  /** Minutes before {@link startsAt} that registration closes; `null` if unset. */
+  get registrationCloseOffsetMinutes(): number | null {
+    return this._extensions.registrationCloseOffsetMinutes;
+  }
+  /** Manual host override of the registration window; `null` follows the schedule. */
+  get registrationOverride(): RegistrationOverride | null {
+    return this._extensions.registrationOverride;
+  }
+  /** Resolved scheduled close time (absolute or start − offset); `null` if none. */
+  get effectiveRegistrationClosesAt(): Date | null {
+    return effectiveRegistrationClosesAt({
+      startsAt: this._startsAt,
+      registrationClosesAt: this._extensions.registrationClosesAt,
+      registrationCloseOffsetMinutes: this._extensions.registrationCloseOffsetMinutes,
+    });
+  }
+  /** True when signups are closed at `now` (override / status / start / window). */
+  registrationIsClosed(now: Date = new Date()): boolean {
+    return isRegistrationClosed(
+      {
+        status: this._status,
+        startsAt: this._startsAt,
+        registrationClosesAt: this._extensions.registrationClosesAt,
+        registrationCloseOffsetMinutes: this._extensions.registrationCloseOffsetMinutes,
+        registrationOverride: this._extensions.registrationOverride,
+      },
+      now,
+    );
+  }
   get seriesName(): string | null {
     return this._extensions.seriesName;
   }
@@ -654,6 +781,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     if (this.hasStarted()) {
       throw new InvariantViolation('Event has already started; signups are closed.');
     }
+    if (this.registrationIsClosed()) {
+      throw new InvariantViolation('Registration is closed for this event.');
+    }
     if (this._attendees.has(userId)) {
       throw new ConflictError('User has already joined this event.', {
         eventId: this.id,
@@ -689,6 +819,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     }
     if (this.hasStarted()) {
       throw new InvariantViolation('Event has already started; signups are closed.');
+    }
+    if (this.registrationIsClosed()) {
+      throw new InvariantViolation('Registration is closed for this event.');
     }
     const target = this._positionRoster.get(position) ?? 0;
     if (target <= 0) {
@@ -743,6 +876,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     }
     if (this.hasStarted()) {
       throw new InvariantViolation('Event has already started; signups are closed.');
+    }
+    if (this.registrationIsClosed()) {
+      throw new InvariantViolation('Registration is closed for this event.');
     }
     if (!this._capacity || this._capacity.kind === 'unlimited') {
       throw new InvariantViolation('This event has no capacity limit — join directly.');
@@ -813,6 +949,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     if (this.hasStarted()) {
       throw new InvariantViolation('Event has already started; team registration is closed.');
     }
+    if (this.registrationIsClosed()) {
+      throw new InvariantViolation('Registration is closed for this event.');
+    }
     if (!this._divisions.some((d) => d.id === divisionId)) {
       throw new NotFoundError('division', String(divisionId), 'Division not found on this event.');
     }
@@ -859,6 +998,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     }
     if (this.hasStarted()) {
       throw new InvariantViolation('Event has already started; free-agent signup is closed.');
+    }
+    if (this.registrationIsClosed()) {
+      throw new InvariantViolation('Registration is closed for this event.');
     }
     const division = this._divisions.find((d) => d.id === divisionId);
     if (!division) {

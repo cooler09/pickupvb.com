@@ -256,7 +256,13 @@ export async function editEventAction(
   // update payload so blank inputs don't clobber existing values when the
   // host doesn't open the Advanced panel.
   const venueName = fieldOrUndefined(formData, 'venueName');
+  // Registration-close window (mode radio is the source of truth). Note: the
+  // manual `registration_override` is owned by the manage-dashboard toggle and
+  // is intentionally NOT touched here, so editing the schedule never silently
+  // clears a host's "Close now / Reopen" choice.
+  const closeMode = fieldOrUndefined(formData, 'registrationCloseMode');
   const registrationClosesAtRaw = fieldOrUndefined(formData, 'registrationClosesAt');
+  const closeOffsetHoursRaw = fieldOrUndefined(formData, 'registrationCloseOffsetHours');
   const isSeries = field(formData, 'isSeries') === 'on';
   const isFundraiser = field(formData, 'isFundraiser') === 'on';
   const isExternal = field(formData, 'isExternal') === 'on';
@@ -270,9 +276,14 @@ export async function editEventAction(
     : null;
   const extUpdate: Record<string, unknown> = {
     venue_name: venueName ?? null,
-    registration_closes_at: registrationClosesAtRaw
-      ? new Date(registrationClosesAtRaw).toISOString()
-      : null,
+    registration_closes_at:
+      closeMode === 'absolute' && registrationClosesAtRaw
+        ? new Date(registrationClosesAtRaw).toISOString()
+        : null,
+    registration_close_offset_minutes:
+      closeMode === 'relative' && closeOffsetHoursRaw
+        ? Math.round(Number(closeOffsetHoursRaw) * 60)
+        : null,
     series_name: isSeries ? (fieldOrUndefined(formData, 'seriesName') ?? null) : null,
     series_position:
       isSeries && fieldOrUndefined(formData, 'seriesPosition')

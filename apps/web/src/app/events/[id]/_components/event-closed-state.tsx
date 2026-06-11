@@ -10,6 +10,14 @@ type Props = {
   attendeeCount: number;
   isHost: boolean;
   /**
+   * Registration is closed by the host's window / manual override while the
+   * event is still upcoming (published, not started). Renders a "Registration
+   * closed" notice — with a host-only Manage link to reopen — instead of the
+   * silent `null` that would otherwise leave the viewer wondering why there's
+   * no signup form.
+   */
+  registrationClosed: boolean;
+  /**
    * Whether the tournament has a host-created bracket. Non-hosts only get the
    * "View bracket" CTA once one exists; otherwise they're pointed at the
    * registered teams. Hosts always get it (the bracket page is where they build
@@ -30,6 +38,7 @@ export function EventClosedState({
   hasStarted,
   attendeeCount,
   isHost,
+  registrationClosed,
   bracketExists,
 }: Props) {
   if (status === 'cancelled') {
@@ -98,6 +107,29 @@ export function EventClosedState({
             </Link>
           )}
         </div>
+      </section>
+    );
+  }
+
+  if (registrationClosed) {
+    return (
+      <section
+        className="border-md-error/30 bg-md-error/10 text-fg rounded-shape-sm space-y-2 border p-4 text-sm"
+        role="status"
+      >
+        <p className="text-fg font-semibold">Registration is closed.</p>
+        <p className="text-muted text-xs">
+          {isHost
+            ? 'You’ve closed signups (or the registration window has passed). Reopen them from the manage dashboard.'
+            : 'The host has closed signups for this event.'}
+        </p>
+        {isHost && (
+          <div className="pt-1">
+            <Link href={`/events/${eventId}/manage` as Route} className={neutralButtonClass('sm')}>
+              Manage registration
+            </Link>
+          </div>
+        )}
       </section>
     );
   }
