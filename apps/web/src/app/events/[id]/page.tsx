@@ -450,6 +450,7 @@ export default async function EventDetailPage(props: {
           teams={event.teams}
           adHocRegistrations={adHocAllRegistrations}
           divisions={event.divisions.map((d) => ({ id: d.id, label: d.label }))}
+          viewerIsHost={isHostOfEvent}
         />
       )}
 

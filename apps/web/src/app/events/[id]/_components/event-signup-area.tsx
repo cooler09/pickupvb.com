@@ -238,6 +238,7 @@ export function EventSignupArea({
                   viewerRegistrations={adHocViewerRegistrations}
                   allRegistrations={adHocAllRegistrations}
                   paymentsOffPlatform={effectiveOffPlatform}
+                  viewerIsHost={event.canManage}
                   {...(effRsvp ? { resultCode: effRsvp } : {})}
                   {...(effRsvpMsg ? { resultMsg: effRsvpMsg } : {})}
                 />
