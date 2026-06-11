@@ -38,21 +38,39 @@ export function DisplaysPanel({ event }: { event: EventDetailReadModel }) {
   ];
 
   return (
-    <div className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-3 border p-4">
-      <div>
-        <h3 className="text-fg text-sm font-semibold">Displays for TVs &amp; tablets</h3>
-        <p className="text-muted text-xs">
-          A full-screen, auto-updating {noun} to leave running on a screen at the venue. Scan the
-          code to open it on a tablet, or copy the link.
-        </p>
-      </div>
-      <ul className="space-y-3">
+    // Collapsible disclosure — the QR rows take a lot of vertical space, so the
+    // panel ships collapsed by default and the host expands it when they're
+    // setting up a screen. Native <details> keeps this a server component (the
+    // QR rows are the only client bits). Mirrors the signup-section idiom.
+    <details className="group border-border-base bg-fg/2 rounded-shape-sm border">
+      <summary className="hover:bg-fg/5 flex cursor-pointer list-none items-start justify-between gap-3 p-4 select-none [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0">
+          <h3 className="text-fg text-sm font-semibold">Displays for TVs &amp; tablets</h3>
+          <p className="text-muted text-xs">
+            A full-screen, auto-updating {noun} to leave running on a screen at the venue. Scan the
+            code to open it on a tablet, or copy the link.
+          </p>
+        </div>
+        <svg
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="text-muted mt-0.5 h-4 w-4 shrink-0 transition-transform group-open:rotate-180"
+          aria-hidden
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </summary>
+      <ul className="space-y-3 px-4 pb-4">
         {rows.map((r) => (
           <li key={r.key}>
             <DisplayLinkRow title={r.title} path={r.path} />
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   );
 }
