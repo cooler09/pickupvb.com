@@ -7,7 +7,7 @@ import { isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
 import { getEventPricing, attendeeChargeBreakdownAsync } from '@/lib/event-pricing';
 import { getEventPayoutAccount } from '@/lib/event-payout';
-import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
+import { buildClaimEmailRedirect, buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
@@ -288,9 +288,13 @@ export async function startGuestTicketCheckout(eventId: string, formData: FormDa
   } = await supabase.auth.getUser();
   if (signedInUser) {
     await supabase.from('profiles').update({ display_name: displayName }).eq('id', signedInUser.id);
-    // Attach email so the receipt + future claim flow have it. Don't fail
-    // if Supabase rejects it (e.g. address already belongs to another user).
-    const { error: emailErr } = await supabase.auth.updateUser({ email });
+    // Attach email so the receipt + future claim flow have it. Route any
+    // Supabase confirmation link through the claim chain so a guest who clicks
+    // it lands on the set-password step instead of the default Site URL (which
+    // would strand them password-less). See docs/audits/anonymous-claim.md AC-2.
+    // Don't fail if Supabase rejects it (e.g. address belongs to another user).
+    const emailRedirectTo = await buildClaimEmailRedirect(`/events/${eventId}`);
+    const { error: emailErr } = await supabase.auth.updateUser({ email }, { emailRedirectTo });
     if (emailErr && !/already.*registered/i.test(emailErr.message)) {
       log.warn('[checkout/guest] email update failed', { error: emailErr.message });
     }

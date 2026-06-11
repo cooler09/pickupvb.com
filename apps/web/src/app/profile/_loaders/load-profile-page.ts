@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getCurrentUser } from '@/lib/server-auth';
+import { getCurrentUser, isAnonymousUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { relativeEventDay } from '@/lib/date-formats';
 import { type EventCardData } from '../../events/_components/event-card';
@@ -141,6 +141,10 @@ export async function loadProfilePage(
 
   const { supabase, user } = await getCurrentUser();
   if (!user) redirect('/login?next=/profile');
+  // Anonymous guests have a near-empty hub — nudge them to finish creating an
+  // account instead of showing a degraded page (mirrors requireRealUser).
+  // See docs/audits/anonymous-claim.md AC-8.
+  if (isAnonymousUser(user)) redirect('/claim?next=/profile');
 
   // Gamification Phase 1: reconcile this player's achievement badges on their
   // own profile view (idempotent), then read the full set for the trophy case.

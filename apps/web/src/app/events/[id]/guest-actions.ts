@@ -8,6 +8,7 @@ import { handlers } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
+import { buildClaimEmailRedirect } from '@/lib/server-redirects';
 import { getServerSupabase } from '@/lib/supabase';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 
@@ -109,9 +110,14 @@ export async function signupAsGuest(
       };
     }
 
-    // Triggers email confirmation via Supabase if confirmations are on.
-    // We don't fail the signup if this errors — the attendee row matters.
-    const { error: updErr } = await supabase.auth.updateUser({ email });
+    // Triggers email confirmation via Supabase if confirmations are on. Route
+    // the link through the claim chain so a guest who clicks it lands on the
+    // set-password step (turning the optional email into a one-click claim)
+    // rather than the default Site URL, which would strand them password-less.
+    // See docs/audits/anonymous-claim.md AC-2. We don't fail the signup if this
+    // errors — the attendee row matters.
+    const emailRedirectTo = await buildClaimEmailRedirect(`/events/${eventId}`);
+    const { error: updErr } = await supabase.auth.updateUser({ email }, { emailRedirectTo });
     if (updErr && !/already.*registered/i.test(updErr.message)) {
       log.warn('[guest-signup] updateUser email failed', { error: updErr.message });
     }

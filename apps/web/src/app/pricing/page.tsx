@@ -159,7 +159,7 @@ export default async function PricingPage() {
               </>
             ) : isAnon ? (
               <Link
-                href={'/claim' as Route}
+                href={'/claim?next=/pricing' as Route}
                 className={`${primaryButtonClass('md')} w-full text-center`}
               >
                 Finish creating your account
