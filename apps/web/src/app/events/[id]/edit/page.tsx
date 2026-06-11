@@ -6,6 +6,8 @@ import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { getEventPricing } from '@/lib/event-pricing';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { hasProBenefits } from '@/lib/admin';
+import { getHostStripeAccount } from '@/lib/host-stripe-account';
+import { hostPaidEventCount30d, FREE_PAID_EVENT_CAP_30D } from '@/lib/pro';
 import EditEventForm from './edit-event-form';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { SponsorPanel } from './sponsor-panel';
@@ -70,6 +72,22 @@ export default async function EditEventPage(props: {
   const pricing = await getEventPricing(id);
   const pricingLocked = await isPricingLocked(id);
   const viewerHasProBenefits = await hasProBenefits(user.id);
+
+  // Pre-publish readiness signals — parity with the create form
+  // (new/page.tsx). Surfaced proactively in the edit form's pricing sections so
+  // a host who edits an event into a paid state learns *before* submit whether
+  // they can actually charge, instead of getting the server gate's error
+  // (edit/actions.ts). `getHostStripeAccount` returns the account id only when
+  // `charges_enabled` is true.
+  const canCollectPayments = (await getHostStripeAccount(user.id)) !== null;
+  // The free-tier paid-event cap only bites on a free→paid flip; derive whether
+  // the event is currently free so the cap banner mirrors the server's
+  // `curPriceCents === 0` guard. `hasPaidDivision` drives the tournament/league
+  // banner (per-division prices aren't edited on this form).
+  const currentlyFree = (pricing?.priceCents ?? 0) === 0;
+  const hasPaidDivision = (pricing?.priceCents ?? 0) > 0;
+  const atPaidEventCap =
+    !viewerHasProBenefits && (await hostPaidEventCount30d(user.id)) >= FREE_PAID_EVENT_CAP_30D;
 
   const [
     { data: sponsorRow },
@@ -183,6 +201,10 @@ export default async function EditEventPage(props: {
         isOpenPlay={event.type === 'open_play'}
         pricingLocked={pricingLocked}
         viewerHasProBenefits={viewerHasProBenefits}
+        canCollectPayments={canCollectPayments}
+        atPaidEventCap={atPaidEventCap}
+        currentlyFree={currentlyFree}
+        hasPaidDivision={hasPaidDivision}
         initial={{
           title: event.title,
           description: event.description ?? '',
