@@ -186,9 +186,83 @@ export function effectiveSetTargetScore(
 }
 
 /**
+ * How a match's games combine into a result.
+ *
+ * - `best_of`  — first side to win a **majority** of `gameCount` games wins;
+ *   stop early once clinched. A winner is always required, so this is the
+ *   only mode legal for elimination / playoff matches. `gameCount` is odd
+ *   (1 / 3 / 5).
+ * - `total_games` — play **all** `gameCount` games; the side that won more
+ *   games wins, and an **equal split is a completed tie** (no winner). The
+ *   classic "two games to 25, both count" pool format. Pool play only —
+ *   ties are resolved at the standings level, not by advancement, so this
+ *   must never be used where a match feeds a downstream slot. `gameCount`
+ *   may be even (2 / 4). See ADR 0040.
+ */
+export type MatchPlayMode = 'best_of' | 'total_games';
+
+/** Outcome of resolving a match's sets under a {@link MatchPlayMode}. */
+export interface MatchResult {
+  /** Winning team id, or `null` for a not-yet-decided match **or** a tie. */
+  readonly winner: string | null;
+  /**
+   * Whether the match has reached a terminal state. `true` with a `null`
+   * winner means a **tie** (only possible in `total_games`); `true` with a
+   * non-null winner is a normal win; `false` means more games are needed.
+   */
+  readonly complete: boolean;
+  /** `true` only for a completed `total_games` match with equal game wins. */
+  readonly tie: boolean;
+}
+
+/**
+ * Resolve a match from its sets, given the game count and play mode.
+ *
+ * Generic: does not enforce volleyball-specific scoring (25, win-by-2). Each
+ * game is "won" by whichever side scored more; a tied game score is invalid
+ * and rejected by the caller (`Bracket.recordResult`) before this runs.
+ *
+ *  - `best_of`: clinch at `floor(gameCount/2) + 1` game wins (early stop).
+ *  - `total_games`: terminal once all `gameCount` games are present; winner =
+ *    more game wins, equal split ⇒ tie.
+ */
+export function determineResult(
+  sets: ReadonlyArray<MatchSet>,
+  teamAId: string | null,
+  teamBId: string | null,
+  gameCount: number,
+  mode: MatchPlayMode = 'best_of',
+): MatchResult {
+  const pending: MatchResult = { winner: null, complete: false, tie: false };
+  if (!teamAId || !teamBId) return pending;
+  let aWins = 0;
+  let bWins = 0;
+  for (const s of sets) {
+    if (s.teamAScore === s.teamBScore) continue;
+    if (s.teamAScore > s.teamBScore) aWins += 1;
+    else bWins += 1;
+  }
+
+  if (mode === 'total_games') {
+    if (sets.length < gameCount) return pending;
+    if (aWins > bWins) return { winner: teamAId, complete: true, tie: false };
+    if (bWins > aWins) return { winner: teamBId, complete: true, tie: false };
+    return { winner: null, complete: true, tie: true };
+  }
+
+  // best_of: clinch on a majority, stop early.
+  const needed = Math.floor(gameCount / 2) + 1;
+  if (aWins >= needed) return { winner: teamAId, complete: true, tie: false };
+  if (bWins >= needed) return { winner: teamBId, complete: true, tie: false };
+  return pending;
+}
+
+/**
  * Compute the match winner from its sets given a best-of-N format.
  * Returns null while neither side has clinched a majority.
  *
+ * Thin back-compat wrapper over {@link determineResult} in `best_of` mode —
+ * existing callers that only need the winner id keep working unchanged.
  * Generic: does not enforce volleyball-specific scoring (25, win-by-2).
  * Each set is "won" by whichever side scored more; ties are invalid.
  */
@@ -198,17 +272,5 @@ export function determineWinner(
   teamBId: string | null,
   bestOf: number,
 ): string | null {
-  if (!teamAId || !teamBId) return null;
-  if (sets.length === 0) return null;
-  const needed = Math.floor(bestOf / 2) + 1;
-  let aWins = 0;
-  let bWins = 0;
-  for (const s of sets) {
-    if (s.teamAScore === s.teamBScore) return null;
-    if (s.teamAScore > s.teamBScore) aWins += 1;
-    else bWins += 1;
-    if (aWins >= needed) return teamAId;
-    if (bWins >= needed) return teamBId;
-  }
-  return null;
+  return determineResult(sets, teamAId, teamBId, bestOf, 'best_of').winner;
 }

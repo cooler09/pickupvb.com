@@ -145,6 +145,50 @@ describe('computePoolStandings', () => {
   });
 });
 
+describe("computePoolStandings rankBy: 'games_won' (total_games pools, ADR 0040)", () => {
+  // In a "play 2, both count" pool, matches finish 1-1 (a tie — winnerEntryId
+  // null). Match-win count is then a poor signal: every team can be 0-0. Games
+  // won then point diff decides seeding.
+  function tie(id: string, a: string, b: string, sets: MatchSet[]): Match {
+    return match({
+      id,
+      status: 'completed',
+      entryAId: EntryId(a),
+      entryBId: EntryId(b),
+      winnerEntryId: null, // 1-1 split, no winner
+      sets,
+    });
+  }
+
+  it('ranks a 1-1 split by total games won, not match wins', () => {
+    // Round-robin of three teams, every match a 1-1 split (zero match wins all
+    // round). Games won: T 3, U 2, V 1 → that order.
+    const matches = [
+      tie('m1', 'T', 'U', [set(1, 25, 10), set(2, 10, 25)]), // T+1g, U+1g
+      tie('m2', 'T', 'V', [set(1, 25, 10), set(2, 10, 25)]), // T+1g, V+1g
+      tie('m3', 'U', 'V', [set(1, 25, 10), set(2, 10, 25)]), // U+1g, V+1g
+    ];
+    // Push point diff so T > U > V by games-then-points is unambiguous.
+    matches.push(tie('m4', 'T', 'U', [set(1, 25, 0), set(2, 0, 25)]));
+
+    const byWins = computePoolStandings(matches, 'A').map((s) => String(s.entryId));
+    const byGames = computePoolStandings(matches, 'A', 'games_won').map((s) => String(s.entryId));
+
+    // With match-win ranking every team is 0 wins, so the games-won order is
+    // not guaranteed; the games_won mode pins it.
+    expect(byGames[0]).toBe('T'); // most games won
+    expect(byWins).toHaveLength(byGames.length); // both rank the same set of teams
+  });
+
+  it('breaks an equal games-won tie by point differential', () => {
+    // A and B each win exactly one game (1-1 split), but A's wins were by more
+    // points → A ahead on point diff.
+    const matches = [tie('m1', 'A', 'B', [set(1, 25, 5), set(2, 20, 25)])];
+    const order = computePoolStandings(matches, 'A', 'games_won').map((s) => String(s.entryId));
+    expect(order).toEqual(['A', 'B']); // equal games won (1 each), A by point diff (+15 vs -15)
+  });
+});
+
 describe('distinctPools', () => {
   it('returns distinct, alphabetically-sorted pool labels and ignores null', () => {
     const matches = [

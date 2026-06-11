@@ -63,6 +63,58 @@ describe('Bracket.create', () => {
     ).toThrow(ValidationError);
   });
 
+  // ---- poolPlayMode 'total_games' (ADR 0040) -------------------------
+
+  it('defaults poolPlayMode to best_of', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff');
+    expect(b.config.poolPlayMode).toBe('best_of');
+  });
+
+  it('accepts total_games pool_play_playoff with even bestOf + an odd playoffBestOf', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      poolPlayMode: 'total_games',
+      bestOf: 2,
+      playoffBestOf: 3,
+    });
+    expect(b.config.poolPlayMode).toBe('total_games');
+    expect(b.config.bestOf).toBe(2);
+  });
+
+  it('accepts total_games round_robin without a playoffBestOf (no playoff stage)', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'round_robin', {
+      poolPlayMode: 'total_games',
+      bestOf: 2,
+    });
+    expect(b.config.poolPlayMode).toBe('total_games');
+  });
+
+  it('rejects total_games on an elimination format', () => {
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'single_elimination', {
+        poolPlayMode: 'total_games',
+        bestOf: 2,
+      }),
+    ).toThrow(ValidationError);
+  });
+
+  it('rejects total_games with an odd bestOf (use best_of instead)', () => {
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'round_robin', {
+        poolPlayMode: 'total_games',
+        bestOf: 3,
+      }),
+    ).toThrow(ValidationError);
+  });
+
+  it('rejects total_games pool_play_playoff without an explicit playoffBestOf', () => {
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+        poolPlayMode: 'total_games',
+        bestOf: 2,
+      }),
+    ).toThrow(ValidationError);
+  });
+
   it('defaults poolSchedule to round_robin', () => {
     const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff');
     expect(b.config.poolSchedule).toBe('round_robin');
@@ -1546,5 +1598,81 @@ describe('rankAcrossPools + generatePlayoffFromRanked (ADR 0032)', () => {
     const pairings = r1.map((m) => new Set([m.entryAId, m.entryBId]));
     expect(pairings.some((p) => p.has(tid(1)) && p.has(tid(4)))).toBe(true);
     expect(pairings.some((p) => p.has(tid(2)) && p.has(tid(3)))).toBe(true);
+  });
+});
+
+// ---- recordResult: total_games pool mode (ADR 0040) ------------------
+
+describe('Bracket.recordResult — total_games (play 2, ties allowed)', () => {
+  /** Active round-robin of `n` teams playing 2 games each, both counting. */
+  function activeTotalGames(n: number): Bracket {
+    const ids = mkIdFactory();
+    const b = Bracket.create(
+      'b-tg' as BracketId,
+      'event-tg' as EventId,
+      'division-tg' as DivisionId,
+      'round_robin',
+      { poolPlayMode: 'total_games', bestOf: 2 },
+    );
+    b.seedTeams(seedTeams(n).map((s) => s.entryId));
+    b.generate(ids);
+    b.publish();
+    expect(b.status).toBe('active');
+    return b;
+  }
+
+  it('completes a 1-1 split as a tie (status completed, no winner)', () => {
+    const b = activeTotalGames(3);
+    const m = b.matches.find((x) => x.status === 'pending' && x.entryAId && x.entryBId)!;
+    b.recordResult({
+      matchId: m.id,
+      sets: [
+        { setNumber: 1, teamAScore: 25, teamBScore: 20 },
+        { setNumber: 2, teamAScore: 18, teamBScore: 25 },
+      ],
+    });
+    const done = b.matches.find((x) => x.id === m.id)!;
+    expect(done.status).toBe('completed');
+    expect(done.winnerEntryId).toBeNull();
+  });
+
+  it('stays in_progress after only one of the two games', () => {
+    const b = activeTotalGames(3);
+    const m = b.matches.find((x) => x.status === 'pending' && x.entryAId && x.entryBId)!;
+    b.recordResult({ matchId: m.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 20 }] });
+    expect(b.matches.find((x) => x.id === m.id)!.status).toBe('in_progress');
+  });
+
+  it('completes a 2-0 sweep with a winner', () => {
+    const b = activeTotalGames(3);
+    const m = b.matches.find((x) => x.status === 'pending' && x.entryAId && x.entryBId)!;
+    const a = m.entryAId!;
+    b.recordResult({
+      matchId: m.id,
+      sets: [
+        { setNumber: 1, teamAScore: 25, teamBScore: 20 },
+        { setNumber: 2, teamAScore: 25, teamBScore: 18 },
+      ],
+    });
+    const done = b.matches.find((x) => x.id === m.id)!;
+    expect(done.status).toBe('completed');
+    expect(done.winnerEntryId).toBe(a);
+  });
+
+  it('completes the whole round-robin even when every match ties', () => {
+    const b = activeTotalGames(3); // 3 matches
+    for (let i = 0; i < 10; i++) {
+      const m = b.matches.find((x) => x.status === 'pending' && x.entryAId && x.entryBId);
+      if (!m) break;
+      b.recordResult({
+        matchId: m.id,
+        sets: [
+          { setNumber: 1, teamAScore: 25, teamBScore: 10 },
+          { setNumber: 2, teamAScore: 10, teamBScore: 25 },
+        ],
+      });
+    }
+    expect(b.matches.every((m) => m.status === 'completed')).toBe(true);
+    expect(b.status).toBe('completed');
   });
 });

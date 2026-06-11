@@ -39,6 +39,10 @@ export function MatchCard(props: {
   viewerId: string | null;
   /** Host is Pro → the "Score live" launcher is offered (ADR 0023). */
   liveScoringEnabled?: boolean;
+  /** total_games pool match (ADR 0040): a 1-1 split is a valid tie. The live
+   *  scoreboard can't yet record a tie, so its launcher is suppressed here —
+   *  the manual result form handles every outcome. */
+  allowsTie?: boolean;
 }) {
   const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
   const a = bindBracketActions(scope);
@@ -55,6 +59,9 @@ export function MatchCard(props: {
 
   const aWins = m.sets.filter((s) => s.teamAScore > s.teamBScore).length;
   const bWins = m.sets.filter((s) => s.teamBScore > s.teamAScore).length;
+  // A completed match with no winner is a tie (only happens in total_games
+  // pools, ADR 0040). Surface it explicitly — neither team row is the winner.
+  const isTie = m.status === 'completed' && !winner && !!teamA && !!teamB;
 
   // Resolve this match's *effective* length (per-match override → playoff-stage
   // default → bracket default) so the score form offers exactly enough set
@@ -125,6 +132,12 @@ export function MatchCard(props: {
         <TeamRow team={teamB} wins={bWins} isWinner={winner === m.entryBId} />
       </ul>
 
+      {isTie && (
+        <p className="text-muted mt-2 text-xs font-medium">
+          Tie ({aWins}–{bWins}) — both games count toward the standings.
+        </p>
+      )}
+
       {m.status !== 'completed' && m.status !== 'bye' && <LiveScore matchId={String(m.id)} />}
 
       {m.sets.length > 0 && (
@@ -140,26 +153,31 @@ export function MatchCard(props: {
         </p>
       )}
 
-      {props.liveScoringEnabled && canEdit && m.status !== 'bye' && teamA && teamB && (
-        <div className="mt-2">
-          <ScoreLiveButton
-            kind="bracket"
-            matchId={String(m.id)}
-            teamA={teamA.name}
-            teamB={teamB.name}
-            bestOf={matchBestOf}
-            {...(liveTargetScore != null ? { targetScore: liveTargetScore } : {})}
-            {...(liveTargetScores ? { targetScores: liveTargetScores } : {})}
-            {...(scope.kind === 'standalone'
-              ? { bracketId: scope.bracketId, returnPath: `/brackets/${scope.bracketId}` }
-              : {
-                  eventId: scope.eventId,
-                  divisionId: scope.divisionId,
-                  returnPath: `/events/${scope.eventId}/bracket?division=${scope.divisionId}`,
-                })}
-          />
-        </div>
-      )}
+      {props.liveScoringEnabled &&
+        !props.allowsTie &&
+        canEdit &&
+        m.status !== 'bye' &&
+        teamA &&
+        teamB && (
+          <div className="mt-2">
+            <ScoreLiveButton
+              kind="bracket"
+              matchId={String(m.id)}
+              teamA={teamA.name}
+              teamB={teamB.name}
+              bestOf={matchBestOf}
+              {...(liveTargetScore != null ? { targetScore: liveTargetScore } : {})}
+              {...(liveTargetScores ? { targetScores: liveTargetScores } : {})}
+              {...(scope.kind === 'standalone'
+                ? { bracketId: scope.bracketId, returnPath: `/brackets/${scope.bracketId}` }
+                : {
+                    eventId: scope.eventId,
+                    divisionId: scope.divisionId,
+                    returnPath: `/events/${scope.eventId}/bracket?division=${scope.divisionId}`,
+                  })}
+            />
+          </div>
+        )}
 
       {canEdit && m.status !== 'bye' && teamA && teamB && (
         <details className="mt-2">

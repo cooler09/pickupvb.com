@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  determineResult,
   determineWinner,
   effectiveSetTargetScore,
   type Match,
@@ -50,6 +51,70 @@ describe('determineWinner', () => {
     expect(determineWinner(sets([25, 10]), null, 'B', 1)).toBeNull();
     expect(determineWinner(sets([25, 10]), 'A', null, 1)).toBeNull();
     expect(determineWinner([], 'A', 'B', 3)).toBeNull();
+  });
+});
+
+describe("determineResult mode: 'total_games' (play all N, ties allowed — ADR 0040)", () => {
+  it('is not complete until all games are played', () => {
+    expect(determineResult(sets([25, 20]), 'A', 'B', 2, 'total_games')).toEqual({
+      winner: null,
+      complete: false,
+      tie: false,
+    });
+  });
+
+  it('completes as a TIE on a 1-1 split (no winner)', () => {
+    expect(determineResult(sets([25, 20], [18, 25]), 'A', 'B', 2, 'total_games')).toEqual({
+      winner: null,
+      complete: true,
+      tie: true,
+    });
+  });
+
+  it('completes with the side that won more games', () => {
+    expect(determineResult(sets([25, 20], [25, 18]), 'A', 'B', 2, 'total_games')).toEqual({
+      winner: 'A',
+      complete: true,
+      tie: false,
+    });
+    expect(determineResult(sets([20, 25], [18, 25]), 'A', 'B', 2, 'total_games')).toEqual({
+      winner: 'B',
+      complete: true,
+      tie: false,
+    });
+  });
+
+  it('does not stop early: a 2-0 lead in a best-of-4 total still waits for game 4', () => {
+    expect(determineResult(sets([25, 0], [25, 0], [25, 0]), 'A', 'B', 4, 'total_games')).toEqual({
+      winner: null,
+      complete: false,
+      tie: false,
+    });
+    // …then game 4 finalizes it (3-1).
+    expect(
+      determineResult(sets([25, 0], [25, 0], [25, 0], [0, 25]), 'A', 'B', 4, 'total_games'),
+    ).toEqual({ winner: 'A', complete: true, tie: false });
+  });
+
+  it('stays unresolved without both participants', () => {
+    expect(determineResult(sets([25, 20], [25, 18]), null, 'B', 2, 'total_games')).toEqual({
+      winner: null,
+      complete: false,
+      tie: false,
+    });
+  });
+
+  it("mode 'best_of' clinches on a majority and matches determineWinner", () => {
+    expect(determineResult(sets([25, 20], [25, 18]), 'A', 'B', 3, 'best_of')).toEqual({
+      winner: 'A',
+      complete: true,
+      tie: false,
+    });
+    expect(determineResult(sets([25, 20]), 'A', 'B', 3, 'best_of')).toEqual({
+      winner: null,
+      complete: false,
+      tie: false,
+    });
   });
 });
 

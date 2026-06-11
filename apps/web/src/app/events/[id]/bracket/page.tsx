@@ -116,6 +116,7 @@ export default async function BracketPage(props: {
         status: bracket.status,
         format: bracket.format,
         bestOf: bracket.config.bestOf,
+        poolPlayMode: bracket.config.poolPlayMode,
         targetScore: bracket.config.targetScore,
         targetScores: bracket.config.targetScores,
         playoffBestOf: bracket.config.playoffBestOf,

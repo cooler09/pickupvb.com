@@ -5,7 +5,9 @@ import {
   rankAcrossPools,
   type BracketFormat,
   type Match,
+  type MatchPlayMode,
   type PoolStanding,
+  type StandingsRankBy,
 } from '@pickupvb/domain';
 import { AddMatchButton } from './add-match-button';
 import { MatchCard } from './match-card';
@@ -128,8 +130,18 @@ export function BoardView(props: {
   /** Pool play: teams advancing per pool — lets the host re-seed the playoff
    *  (ADR 0032). Omitted ⇒ no re-seed affordance. */
   advancePerPool?: number;
+  /** Pool-stage scoring mode (ADR 0040). `total_games` ⇒ pool matches can tie
+   *  (1-1) and standings rank by games won. Omitted ⇒ `best_of`. */
+  poolPlayMode?: MatchPlayMode;
 }) {
   const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
+  // total_games pools rank by games won (ties are common); a pool match in such
+  // a format may finish tied, so the live launcher is suppressed for it (the
+  // scoreboard can't yet record a tie — manual entry handles it).
+  const rankBy: StandingsRankBy = props.poolPlayMode === 'total_games' ? 'games_won' : 'match_wins';
+  const tieEligible = (m: Match): boolean =>
+    props.poolPlayMode === 'total_games' &&
+    (props.format === 'round_robin' || (props.format === 'pool_play_playoff' && m.pool !== null));
   const a = bindBracketActions(scope);
   const teams = props.teams ?? [];
   // Host/owner structural edits (fix a matchup, court, length) are a live-bracket
@@ -209,9 +221,9 @@ export function BoardView(props: {
   if (canReseedPlayoff) {
     try {
       const standingsByPool = distinctPools(poolMatches).map((p) =>
-        computePoolStandings(props.matches, p),
+        computePoolStandings(props.matches, p, rankBy),
       );
-      playoffSeedTeams = rankAcrossPools(standingsByPool, props.advancePerPool!)
+      playoffSeedTeams = rankAcrossPools(standingsByPool, props.advancePerPool!, rankBy)
         .map((id) => {
           const t = props.teamById.get(String(id));
           return t ? { entryId: String(id), name: t.name } : null;
@@ -244,6 +256,7 @@ export function BoardView(props: {
           isHost={props.isHost}
           viewerId={props.viewerId}
           liveScoringEnabled={props.liveScoringEnabled ?? false}
+          allowsTie={tieEligible(m)}
         />
         {hostEdit(m)}
       </div>
@@ -273,7 +286,10 @@ export function BoardView(props: {
       )}
       <div className="flex items-center justify-between gap-2">
         <p className="text-muted text-sm">
-          Best of {props.bestOf} • {props.status === 'completed' ? 'Final results' : 'In progress'}
+          {props.poolPlayMode === 'total_games'
+            ? `${props.bestOf} games · both count`
+            : `Best of ${props.bestOf}`}{' '}
+          • {props.status === 'completed' ? 'Final results' : 'In progress'}
         </p>
         <div className="flex items-center gap-2">
           {props.highlightMatchId && (
@@ -327,6 +343,8 @@ export function BoardView(props: {
           liveScoringEnabled={props.liveScoringEnabled ?? false}
           hostEdit={hostEdit}
           canAddGame={canAddGame}
+          rankBy={rankBy}
+          tieEligible={tieEligible}
         />
       )}
 
@@ -421,14 +439,19 @@ function PoolsView(props: {
   hostEdit?: (m: Match) => ReactNode;
   /** Host may append a game to a pool on the live board (ADR 0032). */
   canAddGame?: boolean;
+  /** Standings ordering (ADR 0040) — `games_won` for total_games pools. */
+  rankBy?: StandingsRankBy;
+  /** Per-match: is a tie a valid outcome (total_games pool)? */
+  tieEligible?: (m: Match) => boolean;
 }) {
   const pools = distinctPools(props.matches);
+  const rankBy = props.rankBy ?? 'match_wins';
   const allTeams = props.teams ?? [];
   return (
     <div className="space-y-6">
       {pools.map((pool) => {
         const poolMatches = props.matches.filter((m) => m.pool === pool);
-        const standings = computePoolStandings(props.matches, pool);
+        const standings = computePoolStandings(props.matches, pool, rankBy);
         const sortedPoolMatches = poolMatches
           .slice()
           .sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber);
@@ -456,7 +479,7 @@ function PoolsView(props: {
                 />
               )}
             </div>
-            <PoolStandingsTable standings={standings} teamById={props.teamById} />
+            <PoolStandingsTable standings={standings} teamById={props.teamById} rankBy={rankBy} />
             <div className="flex flex-wrap gap-2">
               {sortedPoolMatches.map((m, i) => {
                 const isHighlighted = props.highlightMatchId === String(m.id);
@@ -488,6 +511,7 @@ function PoolsView(props: {
                       isHost={props.isHost}
                       viewerId={props.viewerId}
                       liveScoringEnabled={props.liveScoringEnabled ?? false}
+                      allowsTie={props.tieEligible?.(m) ?? false}
                     />
                     {props.hostEdit?.(m)}
                   </div>
@@ -550,10 +574,16 @@ function ReorderControls(props: {
 function PoolStandingsTable(props: {
   standings: ReadonlyArray<PoolStanding>;
   teamById: ReadonlyMap<string, TeamLite>;
+  /** `games_won` ⇒ show games W/L/Tie (total_games pools, ADR 0040). */
+  rankBy?: StandingsRankBy;
 }) {
   if (props.standings.length === 0) {
     return <p className="text-muted text-xs">No standings yet.</p>;
   }
+  // For total_games pools, match wins are mostly ties — show games won/lost and
+  // a tie count instead, matching the games-won ranking (ADR 0040).
+  const gamesMode = props.rankBy === 'games_won';
+  const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
   return (
     <table className="w-full text-xs">
       <thead className="text-muted">
@@ -564,15 +594,31 @@ function PoolStandingsTable(props: {
           <th scope="col" className="px-2 py-1 text-left">
             Team
           </th>
-          <th scope="col" className="px-2 py-1 text-right">
-            W
-          </th>
-          <th scope="col" className="px-2 py-1 text-right">
-            L
-          </th>
-          <th scope="col" className="px-2 py-1 text-right">
-            Set diff
-          </th>
+          {gamesMode ? (
+            <>
+              <th scope="col" className="px-2 py-1 text-right" title="Games won">
+                GW
+              </th>
+              <th scope="col" className="px-2 py-1 text-right" title="Games lost">
+                GL
+              </th>
+              <th scope="col" className="px-2 py-1 text-right" title="Tied matches">
+                T
+              </th>
+            </>
+          ) : (
+            <>
+              <th scope="col" className="px-2 py-1 text-right">
+                W
+              </th>
+              <th scope="col" className="px-2 py-1 text-right">
+                L
+              </th>
+              <th scope="col" className="px-2 py-1 text-right">
+                Set diff
+              </th>
+            </>
+          )}
           <th scope="col" className="px-2 py-1 text-right">
             Pt diff
           </th>
@@ -581,18 +627,25 @@ function PoolStandingsTable(props: {
       <tbody>
         {props.standings.map((s, i) => {
           const team = props.teamById.get(String(s.entryId));
+          const ties = s.matchesPlayed - s.wins - s.losses;
           return (
             <tr key={String(s.entryId)} className="border-border-base/40 border-b">
               <td className="text-muted px-2 py-1 tabular-nums">{i + 1}</td>
               <td className="text-fg px-2 py-1">{team?.name ?? '—'}</td>
-              <td className="px-2 py-1 text-right tabular-nums">{s.wins}</td>
-              <td className="px-2 py-1 text-right tabular-nums">{s.losses}</td>
-              <td className="px-2 py-1 text-right tabular-nums">
-                {s.setDiff > 0 ? `+${s.setDiff}` : s.setDiff}
-              </td>
-              <td className="px-2 py-1 text-right tabular-nums">
-                {s.pointDiff > 0 ? `+${s.pointDiff}` : s.pointDiff}
-              </td>
+              {gamesMode ? (
+                <>
+                  <td className="px-2 py-1 text-right tabular-nums">{s.setsWon}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{s.setsLost}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{ties}</td>
+                </>
+              ) : (
+                <>
+                  <td className="px-2 py-1 text-right tabular-nums">{s.wins}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{s.losses}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{signed(s.setDiff)}</td>
+                </>
+              )}
+              <td className="px-2 py-1 text-right tabular-nums">{signed(s.pointDiff)}</td>
             </tr>
           );
         })}

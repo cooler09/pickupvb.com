@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { BracketFormat, BracketStatus, Match } from '@pickupvb/domain';
+import type { BracketFormat, BracketStatus, Match, MatchPlayMode } from '@pickupvb/domain';
 import { useEventManageCaps } from '../../_components/use-event-manage-caps';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from './board-view';
@@ -22,6 +22,7 @@ type BracketVm = {
   status: BracketStatus;
   format: BracketFormat;
   bestOf: number;
+  poolPlayMode: MatchPlayMode;
   targetScore: number | null;
   targetScores: ReadonlyArray<number> | null;
   playoffBestOf: number | null;
@@ -116,6 +117,7 @@ export function BracketWorkspace(props: {
             scope={eventScope(eventId, divisionId)}
             format={bracket.format}
             bestOf={bracket.bestOf}
+            poolPlayMode={bracket.poolPlayMode}
             targetScore={bracket.targetScore}
             matches={bracket.matches}
             teams={registeredTeams}
@@ -143,6 +145,7 @@ export function BracketWorkspace(props: {
             teamById={teamById}
             teams={registeredTeams}
             bestOf={bracket.bestOf}
+            poolPlayMode={bracket.poolPlayMode}
             targetScore={bracket.targetScore}
             targetScores={bracket.targetScores}
             playoffBestOf={bracket.playoffBestOf}

@@ -29,11 +29,30 @@ import {
   assignCourtsAndSlots,
 } from './generators.js';
 import type { BracketId, Match, MatchId, MatchSet, Seed } from './match.js';
-import { determineWinner, effectiveBestOf } from './match.js';
-import { computePoolStandings, distinctPools, rankAcrossPools } from './standings.js';
+import { determineResult, effectiveBestOf, type MatchPlayMode } from './match.js';
+import {
+  computePoolStandings,
+  distinctPools,
+  rankAcrossPools,
+  type StandingsRankBy,
+} from './standings.js';
 
 export interface BracketConfig {
   bestOf: number;
+  /**
+   * Pool-stage scoring mode (ADR 0040). `round_robin` / `pool_play_playoff`
+   * only — ignored by elimination formats.
+   *
+   *  - `best_of` (default): first side to win a majority of `bestOf` games
+   *    wins the match; a winner is always produced. `bestOf` is odd (1/3/5).
+   *  - `total_games`: play **all** `bestOf` games; both/all count; the side
+   *    that won more games wins, and an **equal split is a completed tie**
+   *    (no winner), resolved at the standings level. The classic "two games
+   *    to 25, both count" pool format. `bestOf` may be even (2/4), and the
+   *    playoff stage must set its own odd {@link playoffBestOf} (the playoff
+   *    must resolve a winner). See {@link ALLOWED_TOTAL_GAMES}.
+   */
+  poolPlayMode: MatchPlayMode;
   byeStrategy: ByeStrategy;
   /**
    * Points a game is played to (e.g. 25 / 21 / 15). Informational (shown +
@@ -105,6 +124,7 @@ export interface BracketConfig {
 
 export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
   bestOf: 3,
+  poolPlayMode: 'best_of',
   byeStrategy: 'top_seeds',
   targetScore: null,
   targetScores: null,
@@ -120,8 +140,16 @@ export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
   courtsByPool: {},
 };
 
-/** `bestOf` values the host can pick. Other odd values are rejected at create-time. */
+/** `bestOf` values the host can pick in `best_of` mode. Other odd values are rejected at create-time. */
 export const ALLOWED_BEST_OF: ReadonlyArray<number> = [1, 3, 5];
+
+/**
+ * `bestOf` (game-count) values allowed in `total_games` pool mode — play all N
+ * games, ties permitted. Even counts only: an odd "total games" collapses to
+ * best-of (a 2-0 in 3 already clinches), so the host should pick `best_of` for
+ * those. See {@link BracketConfig.poolPlayMode}.
+ */
+export const ALLOWED_TOTAL_GAMES: ReadonlyArray<number> = [2, 4];
 
 export interface RecordResultInput {
   readonly matchId: MatchId;
@@ -202,7 +230,7 @@ export class Bracket extends AggregateRoot<BracketId> {
     format: BracketFormat,
     config: Partial<BracketConfig> = {},
   ): Bracket {
-    const merged = Bracket.mergeAndValidateConfig(config);
+    const merged = Bracket.mergeAndValidateConfig(config, format);
     const b = new Bracket(id, eventId, divisionId, null, format, merged, 'setup', [], []);
     b.raise(new BracketCreated(b.id));
     return b;
@@ -219,16 +247,51 @@ export class Bracket extends AggregateRoot<BracketId> {
     format: BracketFormat,
     config: Partial<BracketConfig> = {},
   ): Bracket {
-    const merged = Bracket.mergeAndValidateConfig(config);
+    const merged = Bracket.mergeAndValidateConfig(config, format);
     const b = new Bracket(id, null, null, ownerUserId, format, merged, 'setup', [], []);
     b.raise(new BracketCreated(b.id));
     return b;
   }
 
   /** Merge over defaults and validate the create-time config invariants. */
-  private static mergeAndValidateConfig(config: Partial<BracketConfig>): BracketConfig {
+  private static mergeAndValidateConfig(
+    config: Partial<BracketConfig>,
+    format: BracketFormat,
+  ): BracketConfig {
     const merged: BracketConfig = { ...DEFAULT_BRACKET_CONFIG, ...config };
-    if (!ALLOWED_BEST_OF.includes(merged.bestOf)) {
+    if (merged.poolPlayMode !== 'best_of' && merged.poolPlayMode !== 'total_games') {
+      throw new ValidationError(`poolPlayMode must be 'best_of' or 'total_games'.`, {
+        poolPlayMode: merged.poolPlayMode,
+      });
+    }
+    if (merged.poolPlayMode === 'total_games') {
+      // total_games is a pool-stage mode — it produces ties, which only a
+      // standings-ranked stage can absorb. Elimination formats must resolve a
+      // winner every match, so they can't opt in.
+      if (format !== 'round_robin' && format !== 'pool_play_playoff') {
+        throw new ValidationError(
+          `poolPlayMode 'total_games' is only valid for round_robin or pool_play_playoff; ` +
+            `got format '${format}'.`,
+          { poolPlayMode: merged.poolPlayMode, format },
+        );
+      }
+      if (!ALLOWED_TOTAL_GAMES.includes(merged.bestOf)) {
+        throw new ValidationError(
+          `In total_games mode, bestOf (games per match) must be one of ` +
+            `${ALLOWED_TOTAL_GAMES.join(', ')}; got ${merged.bestOf}.`,
+          { bestOf: merged.bestOf, allowed: ALLOWED_TOTAL_GAMES },
+        );
+      }
+      // The playoff must still resolve a winner; with an even pool `bestOf` it
+      // can't fall back to it, so an explicit odd playoffBestOf is required.
+      if (format === 'pool_play_playoff' && merged.playoffBestOf === null) {
+        throw new ValidationError(
+          `pool_play_playoff with total_games pools must set an odd playoffBestOf ` +
+            `(the playoff must resolve a winner).`,
+          { poolPlayMode: merged.poolPlayMode },
+        );
+      }
+    } else if (!ALLOWED_BEST_OF.includes(merged.bestOf)) {
       throw new ValidationError(
         `bestOf must be one of ${ALLOWED_BEST_OF.join(', ')}; got ${merged.bestOf}.`,
         { bestOf: merged.bestOf, allowed: ALLOWED_BEST_OF },
@@ -468,7 +531,8 @@ export class Bracket extends AggregateRoot<BracketId> {
       );
     }
     const pools = distinctPools(poolMatches);
-    const standingsByPool = pools.map((p) => computePoolStandings(this._matches, p));
+    const rankBy = this.standingsRankBy;
+    const standingsByPool = pools.map((p) => computePoolStandings(this._matches, p, rankBy));
     // Per-pool feasibility (TT-16, defense-in-depth): every pool must field at
     // least advancePerPool finishers, else the cross-seed can't fill the
     // bracket. Name the short pool rather than letting rankAcrossPools throw the
@@ -486,7 +550,7 @@ export class Bracket extends AggregateRoot<BracketId> {
     // Auto cross-seed: overall finish across pools (pool winners ranked above
     // runners-up, by record within a tier) → standard 1-vs-N bracket. The host
     // can override the result with `seedPlayoff`. See ADR 0032.
-    const ranked = rankAcrossPools(standingsByPool, this._config.advancePerPool);
+    const ranked = rankAcrossPools(standingsByPool, this._config.advancePerPool, rankBy);
     const maxPoolRound = poolMatches.reduce((acc, m) => Math.max(acc, m.round), 0);
     const playoff = generatePlayoffFromRanked(ranked, idFactory, maxPoolRound);
     this._matches = [...this._matches, ...playoff];
@@ -633,29 +697,56 @@ export class Bracket extends AggregateRoot<BracketId> {
         throw new ValidationError('Sets cannot be tied.');
       }
     }
-    const winner = determineWinner(
+    const result = determineResult(
       input.sets,
       match.entryAId,
       match.entryBId,
       effectiveBestOf(match, this._config),
+      this.playModeFor(match),
     );
 
-    // Reverting an existing wired-forward result first.
-    if (match.winnerEntryId && match.winnerEntryId !== winner) {
+    // Reverting an existing wired-forward result first. A `total_games` tie
+    // completes with no winner and never wired anything, so only a real prior
+    // winner that changed needs unwiring.
+    if (match.winnerEntryId && match.winnerEntryId !== result.winner) {
       this.unwireAdvancement(match);
     }
 
     match.sets = input.sets.map((s) => ({ ...s }));
-    if (winner) {
-      match.winnerEntryId = winner as EntryId;
+    if (result.complete) {
+      match.winnerEntryId = (result.winner as EntryId | null) ?? null;
       match.status = 'completed';
-      this.applyAdvancement(match);
-      this.raise(new MatchResultRecorded(this.id, match.id, winner));
+      // A tie (total_games, equal game wins) advances nothing — those matches
+      // never feed a downstream slot — and carries no winner to broadcast, so
+      // skip advancement and the analytics result event for it.
+      if (result.winner) {
+        this.applyAdvancement(match);
+        this.raise(new MatchResultRecorded(this.id, match.id, result.winner));
+      }
       this.maybeComplete();
     } else {
       match.winnerEntryId = null;
       match.status = input.sets.length > 0 ? 'in_progress' : 'pending';
     }
+  }
+
+  /**
+   * Resolve the {@link MatchPlayMode} for a single match. `total_games`
+   * (play-all, ties allowed) applies only to **pool-stage** matches of a
+   * pool-bearing format — a round-robin's matches, or a pool_play_playoff's
+   * pool matches (`pool !== null`). Everything that must advance a winner
+   * (elimination rounds, the playoff stage) stays `best_of`.
+   */
+  private playModeFor(match: Match): MatchPlayMode {
+    if (this._config.poolPlayMode !== 'total_games') return 'best_of';
+    if (this._format === 'round_robin') return 'total_games';
+    if (this._format === 'pool_play_playoff' && match.pool !== null) return 'total_games';
+    return 'best_of';
+  }
+
+  /** Pool standings ranking implied by the configured pool play mode. */
+  private get standingsRankBy(): StandingsRankBy {
+    return this._config.poolPlayMode === 'total_games' ? 'games_won' : 'match_wins';
   }
 
   /** Wipe a match's result (and its forward advancement). */
