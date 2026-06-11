@@ -44,7 +44,7 @@ export function DisplayShell({
   return (
     <div
       data-theme="dark"
-      className="bg-bg text-fg fixed inset-0 z-[60] flex flex-col overflow-hidden"
+      className="bg-background text-fg fixed inset-0 z-[60] flex flex-col overflow-hidden"
     >
       <header className="border-border-base flex items-center justify-between gap-4 border-b px-6 py-3">
         <div className="min-w-0">
