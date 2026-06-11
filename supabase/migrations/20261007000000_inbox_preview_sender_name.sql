@@ -19,7 +19,13 @@
 -- is unchanged. Additive — callers that ignore the new column keep working.
 -- `gen:types` should be run after deploy; the generated types are hand-edited in
 -- the same PR to add the column so `pnpm typecheck` sees it.
+--
+-- Note: adding a column to the RETURNS TABLE changes the function's result type,
+-- which CREATE OR REPLACE cannot do (Postgres 42P13 "cannot change return type
+-- of existing function"). Drop the existing function first, then recreate.
 -- ============================================================================
+
+drop function if exists public.get_inbox(int);
 
 create or replace function public.get_inbox(p_limit int default 50)
 returns table (

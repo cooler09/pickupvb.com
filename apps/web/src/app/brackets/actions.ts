@@ -338,6 +338,8 @@ export async function editStandaloneMatchFromForm(
   if (a !== null) patch.entryAId = a === '' || a === 'tbd' ? null : String(a);
   const b = formData.get('entry_b');
   if (b !== null) patch.entryBId = b === '' || b === 'tbd' ? null : String(b);
+  const work = formData.get('work_team');
+  if (work !== null) patch.workTeamId = work === '' || work === 'tbd' ? null : String(work);
   const court = formData.get('court');
   if (court !== null) patch.court = String(court).trim() || null;
   const bo = Number(formData.get('best_of') ?? '');

@@ -765,6 +765,14 @@ export function generatePoolPlay(
     (options.courtsByPool && Object.values(options.courtsByPool).some((l) => l.length > 0))
   ) {
     assignCourtsAndSlots(out, options.courtLabels ?? [], options.courtsByPool ?? {});
+    // Court scheduling assigns time slots; a team idle in a slot can ref a match
+    // running in it. This fills refs that `assignIdleWorkTeams` couldn't (even
+    // pools have no per-round idle team) using cross-pool / cross-court
+    // availability. Slots are required, so it only runs once courts exist.
+    if (options.assignWorkTeam) {
+      const allPoolTeamIds = new Set<EntryId>(pools.flat().map((s) => s.entryId));
+      fillWorkTeamsBySlot(out, allPoolTeamIds);
+    }
   }
   return out;
 }
@@ -796,6 +804,74 @@ function assignIdleWorkTeams(matches: Match[], poolSeeds: ReadonlyArray<Seed>): 
       for (const m of roundMatches) m.workTeamId = work;
     }
   }
+}
+
+/**
+ * Slot-aware ref fill: for any pool match that still has no work team after the
+ * per-round idle assignment, assign a team that is **not playing in that
+ * match's time slot** (so it can physically referee). This is what lets
+ * **even-sized pools** get refs — they have no per-round idle team, but once
+ * courts/slots are assigned a team from another pool (or another court rotation
+ * in the same pool) is often free during a given slot.
+ *
+ * Only fills `workTeamId == null` matches (additive — never overrides the
+ * idle-team assignment) and only matches carrying a `slot`. Assignment is
+ * balanced by how many matches each team already refs and prefers a same-pool
+ * team, so ref duty spreads evenly and stays local when possible. When no team
+ * is free in a slot (a single even pool playing fully in parallel), the ref
+ * stays null — physically unavoidable; the host assigns one manually.
+ *
+ * Mutates `matches` in place. Requires slots to be assigned first
+ * (see {@link assignCourtsAndSlots}).
+ */
+function fillWorkTeamsBySlot(matches: Match[], allTeamIds: ReadonlySet<EntryId>): void {
+  const refCount = new Map<EntryId, number>();
+  const bySlot = new Map<number, Match[]>();
+  for (const m of matches) {
+    if (m.slot == null) continue;
+    const list = bySlot.get(m.slot) ?? [];
+    list.push(m);
+    bySlot.set(m.slot, list);
+  }
+
+  for (const slot of [...bySlot.keys()].sort((a, b) => a - b)) {
+    const slotMatches = bySlot.get(slot)!;
+    const playing = new Set<EntryId>();
+    for (const m of slotMatches) {
+      if (m.entryAId) playing.add(m.entryAId);
+      if (m.entryBId) playing.add(m.entryBId);
+    }
+    const free: EntryId[] = [];
+    for (const t of allTeamIds) if (!playing.has(t)) free.push(t);
+    if (free.length === 0) continue;
+
+    for (const m of slotMatches) {
+      if (m.workTeamId !== null) continue;
+      if (m.status === 'bye' || !m.entryAId || !m.entryBId) continue;
+      // Pick the free team with the fewest ref duties, preferring one in this
+      // match's pool, breaking ties deterministically by id.
+      const best = [...free].sort((x, y) => {
+        const samePoolX = teamPool(matches, x) === m.pool ? 0 : 1;
+        const samePoolY = teamPool(matches, y) === m.pool ? 0 : 1;
+        if (samePoolX !== samePoolY) return samePoolX - samePoolY;
+        const cx = refCount.get(x) ?? 0;
+        const cy = refCount.get(y) ?? 0;
+        if (cx !== cy) return cx - cy;
+        return x < y ? -1 : x > y ? 1 : 0;
+      })[0]!;
+      m.workTeamId = best;
+      refCount.set(best, (refCount.get(best) ?? 0) + 1);
+    }
+  }
+}
+
+/** The pool label a team plays in (from its first match), or null. Lets the
+ *  slot-fill prefer a same-pool ref without threading seed→pool maps through. */
+function teamPool(matches: ReadonlyArray<Match>, team: EntryId): string | null {
+  for (const m of matches) {
+    if (m.entryAId === team || m.entryBId === team) return m.pool;
+  }
+  return null;
 }
 
 /**

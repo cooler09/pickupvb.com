@@ -818,16 +818,21 @@ export function FormatPickerForm(props: {
                 </span>
               </label>
             )}
-            <label className="inline-flex basis-full items-center gap-2 text-sm">
+            <label className="inline-flex basis-full items-start gap-2 text-sm">
               <input
                 type="checkbox"
                 name="require_work_team"
                 checked={requireWorkTeam}
                 onChange={(e) => setRequireWorkTeam(e.target.checked)}
-                className="border-border-base bg-bg rounded border"
+                className="border-border-base bg-bg mt-0.5 rounded border"
               />
               <span className="text-fg/80">
-                Assign a ref / work team per match (the idle team in each pool round)
+                Assign a ref / work team per match
+                <span className="text-muted mt-0.5 block text-xs">
+                  Auto-fills a free team — the sit-out in odd pools, or (once courts are set) a team
+                  not playing that time slot. Even pools playing fully in parallel have no free
+                  team, so set those manually with the “Ref / work team” picker on each match.
+                </span>
               </span>
             </label>
             {/* Courts — one list per pool. Each court is its own field

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { JsonLd } from '@/components/json-ld';
 import { ScoreboardSetupForm } from './_components/setup-form.js';
+import { ScoreboardJoinForm } from './_components/join-form.js';
 
 /**
  * SEO-facing landing page for the free live score tracker. The setup
@@ -50,7 +51,7 @@ const faqs = [
   },
   {
     q: 'How do players join from a phone?',
-    a: 'Each game gets a short room code. Share the URL (e.g. pickupvb.com/s/ABCD) and any phone can open the remote — taps on either device update both in real time.',
+    a: 'Each game gets a short room code shown on the scoreboard. Players can scan the QR in the Share panel, open the shared link (e.g. pickupvb.com/s/ABCD), or come to this page and type the code under “Keep score from your phone.” Any phone that joins can tap to score — every device stays in sync in real time.',
   },
   {
     q: 'Is the score saved anywhere?',
@@ -110,6 +111,8 @@ export default function ScoreboardSetupPage() {
       </header>
 
       <ScoreboardSetupForm />
+
+      <ScoreboardJoinForm />
 
       <div className="text-muted border-border-base rounded-md border border-dashed p-4 text-xs">
         <p className="text-fg font-medium">How it works</p>

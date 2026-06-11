@@ -12,10 +12,15 @@ import type { BracketScope, TeamLite } from './labels';
 
 /**
  * Host/owner control for manually editing one match in a `draft` or live
- * bracket (ADR 0032): swap either team (or set "TBD"), set the court, and
- * override the match length (best-of + play-to) for just this match. Also
- * removes the match. Works for both event and standalone scope (TT-11) via the
- * scope-bound actions.
+ * bracket (ADR 0032): swap either team (or set "TBD"), assign the ref / work
+ * team, set the court, and override the match length (best-of + play-to) for
+ * just this match. Also removes the match. Works for both event and standalone
+ * scope (TT-11) via the scope-bound actions.
+ *
+ * The ref picker is the manual fallback to auto-assignment (the idle team in odd
+ * pools, or a slot-free team once courts are configured) — it works for any
+ * format and pool size, since even pools playing fully in parallel have no team
+ * free to ref automatically.
  *
  * Plain `<form action>` submits to the flash-param redirect actions, so the
  * page re-renders (closing the modal) on completion — no client result state.
@@ -26,6 +31,7 @@ export function MatchEditor(props: {
     id: string;
     entryAId: string | null;
     entryBId: string | null;
+    workTeamId: string | null;
     court: string | null;
     bestOf: number | null;
     targetScore: number | null;
@@ -62,6 +68,7 @@ export function MatchEditor(props: {
           <form action={edit} className="space-y-3">
             <TeamSelect name="entry_a" label="Team A" value={match.entryAId} teams={props.teams} />
             <TeamSelect name="entry_b" label="Team B" value={match.entryBId} teams={props.teams} />
+            <RefSelect value={match.workTeamId} teams={props.teams} />
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-fg/80">Court</span>
               <input
@@ -136,6 +143,29 @@ function TeamSelect(props: {
         className="border-border-base bg-bg rounded border px-2 py-1"
       >
         <option value="tbd">— TBD —</option>
+        {props.teams.map((t) => (
+          <option key={t.entryId} value={t.entryId}>
+            {t.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** Ref / work-team picker. Empty value clears the assignment (the action maps
+ *  "" / "tbd" → null). Separate from {@link TeamSelect} for the "— No ref —"
+ *  default label, since most matches have no ref unless one is assigned. */
+function RefSelect(props: { value: string | null; teams: ReadonlyArray<TeamLite> }) {
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-fg/80">Ref / work team</span>
+      <select
+        name="work_team"
+        defaultValue={props.value ?? ''}
+        className="border-border-base bg-bg rounded border px-2 py-1"
+      >
+        <option value="">— No ref —</option>
         {props.teams.map((t) => (
           <option key={t.entryId} value={t.entryId}>
             {t.name}
