@@ -101,6 +101,7 @@ export function DraftWorkspace(props: {
             id: String(m.id),
             entryAId: m.entryAId,
             entryBId: m.entryBId,
+            workTeamId: m.workTeamId,
             court: m.court,
             bestOf: m.bestOf,
             targetScore: m.targetScore,

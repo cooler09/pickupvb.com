@@ -807,6 +807,64 @@ describe('generatePoolPlay', () => {
       expect(m.workTeamId).not.toBe(m.entryBId);
     }
   });
+
+  // Slot-aware ref fill: even pools have no per-round idle team, but once courts
+  // assign time slots a team not playing in a slot can ref a match running in it.
+  const teamsPlayingInSlot = (matches: ReadonlyArray<{ slot: number | null }>) => {
+    const map = new Map<number, Set<string>>();
+    for (const m of matches as ReadonlyArray<Match>) {
+      if (m.slot == null) continue;
+      const set = map.get(m.slot) ?? new Set<string>();
+      if (m.entryAId) set.add(String(m.entryAId));
+      if (m.entryBId) set.add(String(m.entryBId));
+      map.set(m.slot, set);
+    }
+    return map;
+  };
+
+  it('fills a slot-free ref for even pools once courts limit parallelism', () => {
+    // 8 teams / 2 pools of 4 (even → no idle team) on 2 courts. The two pools
+    // stagger into different slots, so each pool's teams are free during the
+    // other pool's slots → every match gets a cross-pool ref.
+    const matches = generatePoolPlay(
+      seedTeams(8),
+      2,
+      {
+        schedule: 'round_robin',
+        gamesPerTeam: null,
+        assignWorkTeam: true,
+        courtLabels: ['C1', 'C2'],
+      },
+      mkIdFactory(),
+    );
+    const playing = teamsPlayingInSlot(matches);
+    for (const m of matches) {
+      expect(m.slot).not.toBeNull();
+      // A ref is assigned and is not one of the two teams in the match…
+      expect(m.workTeamId).not.toBeNull();
+      expect(m.workTeamId).not.toBe(m.entryAId);
+      expect(m.workTeamId).not.toBe(m.entryBId);
+      // …and crucially is free during this match's time slot.
+      expect(playing.get(m.slot!)!.has(String(m.workTeamId))).toBe(false);
+    }
+  });
+
+  it('leaves refs null when an even pool plays fully in parallel', () => {
+    // One even pool of 8 with 4 courts: every round's 4 matches share one slot,
+    // so all 8 teams play every slot — no team is ever free to ref.
+    const matches = generatePoolPlay(
+      seedTeams(8),
+      1,
+      {
+        schedule: 'round_robin',
+        gamesPerTeam: null,
+        assignWorkTeam: true,
+        courtLabels: ['C1', 'C2', 'C3', 'C4'],
+      },
+      mkIdFactory(),
+    );
+    for (const m of matches) expect(m.workTeamId).toBeNull();
+  });
 });
 
 // ---- Bracket.create requireWorkTeam default -------------------------

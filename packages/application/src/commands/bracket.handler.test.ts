@@ -339,6 +339,30 @@ describe('Host-gated structural handlers (ADR 0032)', () => {
     expect(m.bestOf).toBe(3);
   });
 
+  it('EditMatchHandler assigns and clears the ref / work team', async () => {
+    const bracket = draftElim4();
+    const match = bracket.matches.find((m) => m.entryAId && m.entryBId)!;
+    // A team from a different match — a realistic ref isn't playing this match.
+    const refId = bracket.matches.find((m) => m.id !== match.id && m.entryAId)!.entryAId!;
+    const repo = new HostBracketRepo(bracket);
+    const handler = new EditMatchHandler(hostEvents(), repo);
+
+    await handler.execute(
+      new EditMatchCommand(String(DIVISION_ID), HOST, String(match.id), {
+        workTeamId: String(refId),
+      }),
+    );
+    expect(String(repo.saved!.matches.find((x) => x.id === match.id)!.workTeamId)).toBe(
+      String(refId),
+    );
+
+    // Passing null clears it (the "— No ref —" path from the match editor).
+    await handler.execute(
+      new EditMatchCommand(String(DIVISION_ID), HOST, String(match.id), { workTeamId: null }),
+    );
+    expect(repo.saved!.matches.find((x) => x.id === match.id)!.workTeamId).toBeNull();
+  });
+
   it('CreateBracketHandler rejects a double-elim field below the floor of 4', async () => {
     const repo = new CountRepo(3);
     await expect(

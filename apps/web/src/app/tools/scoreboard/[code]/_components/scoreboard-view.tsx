@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import * as RadixDialog from '@radix-ui/react-dialog';
+import { QRCodeSVG } from 'qrcode.react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useScoreboardSync } from '../../_lib/use-scoreboard-sync.js';
@@ -242,6 +243,7 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
 
       {shareOpen && (
         <ShareModal
+          code={code}
           url={shareUrl}
           onClose={() => setShareOpen(false)}
           onCopy={onCopyUrl}
@@ -303,7 +305,7 @@ function TopBar({
           onClick={onShare}
           className={`rounded-md border ${border} px-3 py-1.5 hover:bg-current/10`}
         >
-          Remote link
+          Add scorekeepers
         </button>
         <button
           type="button"
@@ -715,12 +717,14 @@ function BoundWinnerActions({
 }
 
 function ShareModal({
+  code,
   url,
   onClose,
   onCopy,
   onShare,
   theme,
 }: {
+  code: string;
   url: string;
   onClose: () => void;
   onCopy: () => void;
@@ -739,12 +743,27 @@ function ShareModal({
         <RadixDialog.Content
           className={`md-dialog-motion rounded-shape-md fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 ${surface} p-6 shadow-2xl`}
         >
-          <RadixDialog.Title className="text-lg font-semibold">
-            Remote control link
-          </RadixDialog.Title>
+          <RadixDialog.Title className="text-lg font-semibold">Add scorekeepers</RadixDialog.Title>
           <RadixDialog.Description className="mt-1 text-sm opacity-70">
-            Open this URL on any phone — taps there update this scoreboard live.
+            Anyone at the gym can keep score from their phone — scan the code, open the link, or
+            type the code at pickupvb.com/tools/scoreboard. Every device stays in sync.
           </RadixDialog.Description>
+
+          {/* Scan-or-type panel: QR is the fast path; the 4-char code is the
+              read-it-aloud fallback for anyone who can't scan. */}
+          <div className="mt-4 flex flex-col items-center gap-3 rounded-md border border-current/15 bg-current/5 p-4 sm:flex-row sm:items-center sm:gap-5">
+            <div className="rounded-md bg-white p-2">
+              <QRCodeSVG value={url} size={120} marginSize={0} />
+            </div>
+            <div className="text-center sm:text-left">
+              <p className="text-xs font-medium tracking-wide uppercase opacity-60">Room code</p>
+              <p className="text-display-sm font-mono font-bold tracking-[0.25em]">{code}</p>
+              <p className="mt-1 text-xs opacity-70">
+                Scan to open the remote, or enter this code on the scoreboard page.
+              </p>
+            </div>
+          </div>
+
           <div className="mt-4 rounded-md border border-current/15 bg-current/5 p-3 font-mono text-sm break-all">
             {url}
           </div>
