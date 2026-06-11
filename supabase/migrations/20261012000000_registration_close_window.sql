@@ -33,6 +33,13 @@ alter table public.events
   add column if not exists registration_close_offset_minutes integer,
   add column if not exists registration_override             text;
 
+-- Drop-then-add so the file is re-runnable (Postgres has no
+-- `ADD CONSTRAINT IF NOT EXISTS`); a prior partial apply leaves no residue.
+alter table public.events
+  drop constraint if exists events_registration_close_offset_nonneg,
+  drop constraint if exists events_registration_override_enum,
+  drop constraint if exists events_registration_close_one_window;
+
 alter table public.events
   add constraint events_registration_close_offset_nonneg
     check (
@@ -47,14 +54,25 @@ alter table public.events
     check (num_nonnulls(registration_closes_at, registration_close_offset_minutes) <= 1);
 
 -- ---- Rebuild events_view so the new columns reach the read model ------------
+-- `select e.*` freezes the column list at view-creation time, so the new
+-- columns only surface after a rebuild. Body copied verbatim from the current
+-- authoritative definition (20260802000000_collapse_attendees_free_agents.sql)
+-- — the attendee/team counts go through event_participants / event_team_entries
+-- (the legacy event_attendees / event_teams tables were collapsed away).
 drop view if exists public.events_view;
 create view public.events_view as
 select
   e.*,
   st_x(e.geo::geometry) as longitude,
   st_y(e.geo::geometry) as latitude,
-  (select count(*) from public.event_attendees a where a.event_id = e.id)::int as attendee_count,
-  (select count(*) from public.event_teams    t where t.event_id = e.id)::int as team_count
+  (select count(*)
+     from public.event_participants p
+     join public.event_divisions d on d.id = p.division_id
+    where d.event_id = e.id and p.role = 'attendee')::int as attendee_count,
+  (select count(*)
+     from public.event_team_entries t
+     join public.event_divisions d on d.id = t.division_id
+    where d.event_id = e.id and t.deleted_at is null)::int as team_count
 from public.events e;
 grant select on public.events_view to anon, authenticated;
 
