@@ -33,13 +33,14 @@ async function candidateUserIds(
   const now = new Date().toISOString();
 
   // Attendees of recently-finished events (their attendance counts just changed).
-  const { data: attendeeRows } = await admin
-    .from('event_participants')
-    .select('user_id, division:event_divisions!inner(event:events!inner(ends_at, status))')
-    .eq('role', 'attendee')
-    .gte('division.event.ends_at', since)
-    .lte('division.event.ends_at', now)
-    .limit(MAX_CANDIDATES_PER_RUN);
+  // Team-aware (BA-9): the `event_attendee_ids` union behind this RPC counts
+  // open-play attendees, free agents, rostered team members, and team captains
+  // alike — the same "who attended" definition the grant RPCs use — so team
+  // tournaments / leagues reconcile via the cron, not just open play.
+  const { data: attendeeRows } = await admin.rpc('badge_reconcile_candidate_ids', {
+    p_since: since,
+    p_now: now,
+  });
 
   // Hosts who published recently (First Whistle).
   const { data: hostRows } = await admin

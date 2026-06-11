@@ -8,32 +8,74 @@ catalog/rules, the reconcile handler + repository, the
 authoring + manual-award flows, the à-la-carte unlock, the easter eggs, and the
 trophy-case UI.
 
-## Status — 2026-06-10 (new audit; two remediation bundles landed)
+## Status — 2026-06-10 (new audit; three remediation bundles landed)
 
 Subsystem is well-factored and matches the ADR: thresholds live only in the TS
 catalog, grants are idempotent, the admin-client usage is the sanctioned
 session-less path, and host-badge label/description run through the moderation
-chokepoints. **0 P1.** Audit found **4 P2 + 4 P3**.
+chokepoints. Initial audit found **4 P2 + 4 P3**; a follow-up troubleshooting
+session (a team-event on_attend badge that never granted) surfaced **BA-9 (P1)**
+— on_attend grants only ever saw open-play `event_participants`, so the feature
+was silently dead for every tournament/league and every free agent.
 
 **Fixed 2026-06-10 (uncommitted, quad-green — migrations deploy-gated):** BA-1,
-BA-2, BA-5, BA-8 (bundle 1) and BA-6, BA-7 (bundle 2). **Open:** BA-3
-(verification debt — needs a live-DB run, deploy-gated) and BA-4 (deferred — see
-its note). See the remediation log below.
+BA-2, BA-5, BA-8 (bundle 1); BA-6, BA-7 (bundle 2); **BA-9 (bundle 3)**.
+**Open:** BA-3 (verification debt — needs a live-DB run, deploy-gated) and BA-4
+(deferred — see its note). See the remediation log below.
 
-| ID   | Sev | One-line                                                                     | Status      |
-| ---- | --- | ---------------------------------------------------------------------------- | ----------- |
-| BA-1 | P2  | Seasoned/Champion/Podium don't exclude `cancelled` events                    | ✅ fixed    |
-| BA-2 | P2  | "Hide a badge" is unreachable — RPC + column + view filter all ship dead     | ✅ fixed    |
-| BA-3 | P2  | The tournament/league stat joins have never been run or tested against data  | ⏳ open     |
-| BA-4 | P2  | `/profile` runs two multi-table SECURITY DEFINER RPCs uncached on every load | ⏳ deferred |
-| BA-5 | P3  | `BadgeRepository.hasBadge` is dead code (no call sites)                      | ✅ fixed    |
-| BA-6 | P3  | on_attend host-badge grants fire no `badge.earned` bell and no unlock toast  | ✅ fixed    |
-| BA-7 | P3  | Retroactively-added on_attend badges miss attendees of events >7 days old    | ✅ fixed    |
-| BA-8 | P3  | `per_host` loyalty count groups all null-`host_id` events together           | ✅ fixed    |
+| ID   | Sev | One-line                                                                      | Status      |
+| ---- | --- | ----------------------------------------------------------------------------- | ----------- |
+| BA-9 | P1  | on_attend grants are blind to team events (tournaments/leagues) + free agents | ✅ fixed    |
+| BA-1 | P2  | Seasoned/Champion/Podium don't exclude `cancelled` events                     | ✅ fixed    |
+| BA-2 | P2  | "Hide a badge" is unreachable — RPC + column + view filter all ship dead      | ✅ fixed    |
+| BA-3 | P2  | The tournament/league stat joins have never been run or tested against data   | ⏳ open     |
+| BA-4 | P2  | `/profile` runs two multi-table SECURITY DEFINER RPCs uncached on every load  | ⏳ deferred |
+| BA-5 | P3  | `BadgeRepository.hasBadge` is dead code (no call sites)                       | ✅ fixed    |
+| BA-6 | P3  | on_attend host-badge grants fire no `badge.earned` bell and no unlock toast   | ✅ fixed    |
+| BA-7 | P3  | Retroactively-added on_attend badges miss attendees of events >7 days old     | ✅ fixed    |
+| BA-8 | P3  | `per_host` loyalty count groups all null-`host_id` events together            | ✅ fixed    |
 
 ---
 
 ## Findings
+
+### BA-9 (P1) — on_attend grants are blind to team events and free agents
+
+The on_attend auto-grant RPCs decide "who attended event X" by joining **only**
+`event_participants` with `role = 'attendee'`
+([20261010000000_on_attend_badge_grants.sql#L50-L58](../../supabase/migrations/20261010000000_on_attend_badge_grants.sql#L50-L58)).
+That row only exists for **open-play individual signups**. The two registration
+shapes it misses:
+
+- **Team events (every tournament + league).** Teams register into
+  `event_team_entries` (+ `event_team_entry_members`, + the entry's
+  `captain_id`); no `event_participants` row is ever written. Leagues store
+  teams in the same tables (`league_schedule_matches.home_entry_id` /
+  `away_entry_id` → `event_team_entries`). So an on_attend badge on a team event
+  reached **nobody**.
+- **Free agents.** They _are_ in `event_participants`, but with
+  `role = 'free_agent'`, which the `= 'attendee'` filter excludes.
+
+Confirmed against dev (event `dd1fa3ba-…`, a finished team tournament with a
+"Test badges 2026" on_attend badge): 4 `event_team_entries`, **0**
+`event_participants` rows, **0** grants of the badge to anyone. The reconcile
+cron's candidate query
+([reconcile/route.ts#L36-L42](../../apps/web/src/app/api/badges/reconcile/route.ts#L36-L42))
+had the identical blind spot, so the nightly safety net couldn't paper over it
+either.
+
+**Fix (shipped — see remediation bundle 3):** centralize the "attended event X"
+definition in one SQL helper, `event_attendee_ids(uuid)`, as the union of (A)
+`event_participants` role in (`attendee`, `free_agent`), (B) rostered team
+members with an account, (C) team captains with an account — excluding
+soft-deleted entries and account-less rows. Both grant RPCs and a new
+`badge_reconcile_candidate_ids(since, now)` (called by the cron) read from that
+one definition. Free agents are **included** deliberately: the badge already
+treats registration as the attendance proxy (open-play attendees earn it on
+signup with no verified check-in), and a picked-up free agent becomes a team
+member who'd earn it anyway — excluding the pool would mean "played pickup, no
+badge." Strict mode is a one-token change (drop `'free_agent'` from the role
+filter in both directions).
 
 ### BA-1 (P2) — Seasoned / Champion / Podium count cancelled events
 
@@ -255,3 +297,27 @@ replace` is rejected) to `RETURNING` the rows it actually inserted (the
 Still open: BA-3 (live-DB verification of the tournament/league joins — can't be
 a unit test; deploy-gated) and BA-4 (deferred — watermark throttle trades
 against the instant unlock toast; see its note above).
+
+### 2026-06-10 — third bundle (BA-9), uncommitted, quad-green
+
+- **BA-9** — new migration
+  [20261011000000_on_attend_badge_grants_team_aware.sql](../../supabase/migrations/20261011000000_on_attend_badge_grants_team_aware.sql)
+  adds `event_attendee_ids(uuid)` — one SECURITY DEFINER helper that is the
+  single source of truth for "who attended event X": the union of individual
+  participants (`attendee` + `free_agent`), rostered team members with an
+  account, and team captains with an account (soft-deleted / account-less rows
+  excluded). `create or replace`s `grant_attended_event_badges` (user→events
+  form of the same union, kept index-friendly for the profile-view hot path) and
+  `grant_attended_badges_for_event` (now grants via `event_attendee_ids`), and
+  adds `badge_reconcile_candidate_ids(since, now)`. The reconcile cron
+  [route.ts](../../apps/web/src/app/api/badges/reconcile/route.ts) now builds its
+  attendee candidate set from that RPC instead of an `event_participants`/
+  `attendee`-only query, so team-event members reconcile via the nightly run
+  too. Generated types hand-edited for the two new functions (regen on next
+  `gen:types`).
+- **Verification:** SQL-resident, so there is no domain/application unit-test
+  surface (the existing badge unit tests cover the TS catalog/handler, not the
+  grant SQL). Verify post-deploy against dev with the probe in the journal entry
+  ([2026-06-10-bundle-team-aware-on-attend-badges.md](../journal/2026-06-10-bundle-team-aware-on-attend-badges.md));
+  an e2e (team registration → finished event → captain/member holds the badge)
+  is the durable follow-up but is deploy-gated and not yet authored.

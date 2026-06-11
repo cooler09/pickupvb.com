@@ -22,7 +22,7 @@ write one, see [README.md](README.md).
 
 ## Active month
 
-- **June 2026** — 141 individual entries, `2026-06-01-…` through the latest. The
+- **June 2026** — 142 individual entries, `2026-06-01-…` through the latest. The
   most recent shipped work; not yet digested.
 
 ## Navigating by topic / initiative
