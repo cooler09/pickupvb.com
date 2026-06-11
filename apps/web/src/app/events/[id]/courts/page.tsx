@@ -9,6 +9,8 @@ import { assertEventVisibleOrNotFound, isEventPubliclyVisible } from '@/lib/even
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { DisplayShell } from '../_components/display-shell';
+import { LiveScoresProvider } from '../_components/live-scores-provider';
+import { LeagueScheduleRealtimeRefresher } from '../_components/league-schedule-realtime-refresher';
 import { BracketRealtimeRefresher } from '../bracket/_components/realtime-refresher';
 import { CourtBoardView } from './_components/court-board-view';
 import { buildCourtBoard } from '../_lib/court-board';
@@ -87,11 +89,13 @@ export default async function CourtsPage(props: {
   const courtMatches = boards.flatMap((b) => b.matches);
   const board = buildCourtBoard(courtMatches);
   const liveCount = courtMatches.filter((m) => m.status === 'live').length;
-  // Realtime refreshers for actively-running tournament divisions (leagues have
-  // none — reload parity with the schedule page).
+  // Realtime refreshers: actively-running tournament divisions watch their
+  // bracket; league divisions watch their schedule. Either re-renders the board.
   const liveDivisionIds = boards
     .filter((b) => b.kind === 'tournament' && b.status === 'active')
     .map((b) => b.id);
+  const leagueDivisionIds = boards.filter((b) => b.kind === 'league').map((b) => b.id);
+  const allDivisionIds = event.divisions.map((d) => d.id);
 
   const proHost = !!event.hostUserId && (await isPro(event.hostUserId));
   const displayMode = pickQuery(searchParams, 'display') === '1' && proHost;
@@ -102,7 +106,13 @@ export default async function CourtsPage(props: {
       {liveDivisionIds.map((divisionId) => (
         <BracketRealtimeRefresher key={divisionId} divisionId={divisionId} bracketId={null} />
       ))}
-      <CourtBoardView board={board} />
+      {leagueDivisionIds.map((divisionId) => (
+        <LeagueScheduleRealtimeRefresher key={divisionId} divisionId={divisionId} />
+      ))}
+      {/* Live in-progress scores across every division (ADR 0023, Pro-gated). */}
+      <LiveScoresProvider enabled={proHost} divisionIds={allDivisionIds}>
+        <CourtBoardView board={board} />
+      </LiveScoresProvider>
     </>
   );
 

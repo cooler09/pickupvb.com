@@ -13,6 +13,7 @@ import { assertEventVisibleOrNotFound, isEventPubliclyVisible } from '@/lib/even
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { DisplayShell } from '../_components/display-shell';
+import { LeagueScheduleRealtimeRefresher } from '../_components/league-schedule-realtime-refresher';
 import { ScheduleWorkspace } from './_components/schedule-workspace';
 import { type ScheduleMatchVm } from './_components/match-row';
 import { StandingsSection, type LeagueStandingRow } from './_components/standings-section';
@@ -210,6 +211,7 @@ export default async function SchedulePage(props: {
         }`}
         exitHref={schedulePath}
       >
+        <LeagueScheduleRealtimeRefresher divisionId={selectedDivision.id} />
         <div className="space-y-6">
           <StandingsSection rows={standingsRows} />
           <ScheduleWorkspace
@@ -305,6 +307,8 @@ export default async function SchedulePage(props: {
           {noticeMsg && <span className="ml-1 opacity-80">— {noticeMsg}</span>}
         </div>
       )}
+
+      <LeagueScheduleRealtimeRefresher divisionId={selectedDivision.id} />
 
       <StandingsSection rows={standingsRows} />
 

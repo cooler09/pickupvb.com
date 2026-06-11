@@ -1,0 +1,26 @@
+-- ============================================================================
+-- League schedule realtime: REPLICA IDENTITY FULL on league_schedule_matches.
+--
+-- Context: the league schedule now has a realtime refresher (tournament-displays
+-- follow-up) — a browser subscription on `league_schedule_matches` filtered by
+-- `division_id` that calls router.refresh() so spectator schedule / court /
+-- dashboard surfaces update live as results land. The table is already in the
+-- `supabase_realtime` publication and has a public `for select using (true)`
+-- policy (20260803000000), so INSERT/UPDATE events already deliver — those carry
+-- the full new-row image, which is enough to evaluate the `division_id` filter
+-- (same reason the bracket refresher works without REPLICA IDENTITY FULL).
+--
+-- DELETE is the gap: a deleted row's pre-image only carries the replica-identity
+-- columns (the primary key by default), so a `division_id`-filtered subscriber
+-- never sees DELETEs — a host clearing the schedule or removing a match would
+-- leave a left-running display stale until reload. FULL includes every column
+-- in the pre-image so the filter matches. Mirrors the same treatment given to
+-- `match_live_scores` (20260815000000).
+--
+-- Impact: additive — no schema/RLS change, only the table's replica identity.
+-- Slightly larger WAL pre-images for UPDATE/DELETE on this low-write table;
+-- negligible. No app code depends on this landing (the refresher already works
+-- for the INSERT/UPDATE cases); it only completes DELETE delivery.
+-- ============================================================================
+
+alter table public.league_schedule_matches replica identity full;

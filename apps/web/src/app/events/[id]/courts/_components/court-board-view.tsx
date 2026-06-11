@@ -1,4 +1,5 @@
 import type { CourtBoard, CourtColumn, CourtMatch } from '../../_lib/court-board';
+import { LiveScore } from '../../_components/live-score';
 
 /**
  * Presentational court board (tournament-displays slice B). Server component —
@@ -53,7 +54,10 @@ function CourtCard({ col }: { col: CourtColumn }) {
       </div>
 
       {col.now ? (
-        <MatchLine m={col.now} emphasis />
+        <div>
+          <MatchLine m={col.now} emphasis />
+          <LiveScore matchId={col.now.id} />
+        </div>
       ) : (
         <p className="text-muted text-sm">No match in progress.</p>
       )}
@@ -92,6 +96,7 @@ function UnassignedSection({
             {now.map((m) => (
               <li key={m.id} className="border-border-base bg-bg rounded-shape-sm border p-3">
                 <MatchLine m={m} emphasis />
+                <LiveScore matchId={m.id} />
               </li>
             ))}
           </ul>

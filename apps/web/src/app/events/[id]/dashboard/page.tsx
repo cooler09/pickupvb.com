@@ -9,6 +9,8 @@ import { assertEventVisibleOrNotFound, isEventPubliclyVisible } from '@/lib/even
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { DisplayShell } from '../_components/display-shell';
+import { LiveScoresProvider } from '../_components/live-scores-provider';
+import { LeagueScheduleRealtimeRefresher } from '../_components/league-schedule-realtime-refresher';
 import { BracketRealtimeRefresher } from '../bracket/_components/realtime-refresher';
 import { loadDivisionBoards } from '../_lib/load-division-boards';
 import { DivisionSummaryCard } from './_components/division-summary-card';
@@ -99,6 +101,8 @@ export default async function DashboardPage(props: {
   const liveDivisionIds = boards
     .filter((b) => b.kind === 'tournament' && b.status === 'active')
     .map((b) => b.id);
+  const leagueDivisionIds = boards.filter((b) => b.kind === 'league').map((b) => b.id);
+  const allDivisionIds = boards.map((b) => b.id);
 
   const proHost = !!event.hostUserId && (await isPro(event.hostUserId));
   const displayMode = pickQuery(searchParams, 'display') === '1' && proHost;
@@ -109,11 +113,17 @@ export default async function DashboardPage(props: {
       {liveDivisionIds.map((divisionId) => (
         <BracketRealtimeRefresher key={divisionId} divisionId={divisionId} bracketId={null} />
       ))}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {boards.map((b) => (
-          <DivisionSummaryCard key={b.id} board={b} eventId={event.id} />
-        ))}
-      </div>
+      {leagueDivisionIds.map((divisionId) => (
+        <LeagueScheduleRealtimeRefresher key={divisionId} divisionId={divisionId} />
+      ))}
+      {/* Live in-progress scores across every division (ADR 0023, Pro-gated). */}
+      <LiveScoresProvider enabled={proHost} divisionIds={allDivisionIds}>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {boards.map((b) => (
+            <DivisionSummaryCard key={b.id} board={b} eventId={event.id} />
+          ))}
+        </div>
+      </LiveScoresProvider>
     </>
   );
 

@@ -34,59 +34,95 @@ type LiveRow = { match_id: string; live_state: unknown };
 export function LiveScoresProvider({
   enabled,
   divisionId,
+  divisionIds,
   bracketId,
   children,
 }: {
   enabled: boolean;
   /** Event path: subscribe to all live scores under this division. */
   divisionId?: string;
+  /** Multi-division surfaces (court board / dashboard): subscribe to every
+   *  division at once. Takes precedence over `divisionId` when non-empty. */
+  divisionIds?: string[];
   /** Standalone bracket (ADR 0025): subscribe by bracket_id instead. */
   bracketId?: string;
   children: ReactNode;
 }) {
   const [scores, setScores] = useState<LiveScoreMap>(() => new Map());
 
+  // Stable dependency key so a fresh `divisionIds` array literal each render
+  // (the page passes `divisions.map(...)`) doesn't churn the subscription.
+  const divisionsKey =
+    divisionIds && divisionIds.length > 0 ? [...divisionIds].sort().join(',') : '';
+
   useEffect(() => {
     if (!enabled) return;
-    // Event subscribes by division_id; standalone by bracket_id. Both columns
-    // carry REPLICA IDENTITY FULL so DELETE/UPDATE match the non-PK filter.
-    const filterColumn = divisionId ? 'division_id' : 'bracket_id';
-    const filterValue = divisionId ?? bracketId;
-    if (!filterValue) return;
+    // Target: an explicit multi-division list wins, else a single division
+    // (bracket / standings), else a standalone bracket id (ADR 0025). Both
+    // columns carry REPLICA IDENTITY FULL so DELETE/UPDATE match the non-PK
+    // filter; INSERT/UPDATE deliver regardless via the new-row image.
+    const divisions = divisionsKey ? divisionsKey.split(',') : divisionId ? [divisionId] : [];
+    const useBracket = divisions.length === 0 && !!bracketId;
+    if (divisions.length === 0 && !useBracket) return;
+
     const supabase = createSupabaseBrowserClient();
     let cancelled = false;
 
-    const channel = supabase.channel(`live-scores:${filterColumn}:${filterValue}`).on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'match_live_scores',
-        filter: `${filterColumn}=eq.${filterValue}`,
-      },
-      (payload) => {
-        setScores((prev) => {
-          const next = new Map(prev);
-          if (payload.eventType === 'DELETE') {
-            const old = payload.old as Partial<LiveRow>;
-            if (old.match_id) next.delete(old.match_id);
-          } else {
-            const row = payload.new as LiveRow;
-            next.set(row.match_id, row.live_state as LiveMatchScore);
-          }
-          return next;
-        });
-      },
+    const onChange = (payload: { eventType: string; new: unknown; old: unknown }) => {
+      setScores((prev) => {
+        const next = new Map(prev);
+        if (payload.eventType === 'DELETE') {
+          const old = payload.old as Partial<LiveRow>;
+          if (old.match_id) next.delete(old.match_id);
+        } else {
+          const row = payload.new as LiveRow;
+          next.set(row.match_id, row.live_state as LiveMatchScore);
+        }
+        return next;
+      });
+    };
+
+    let channel = supabase.channel(
+      divisions.length
+        ? `live-scores:divisions:${divisionsKey || divisionId}`
+        : `live-scores:bracket:${bracketId}`,
     );
+    if (divisions.length) {
+      // One listener per division on a single channel (no reliance on the `in`
+      // filter); all feed the same match-keyed map.
+      for (const dv of divisions) {
+        channel = channel.on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'match_live_scores',
+            filter: `division_id=eq.${dv}`,
+          },
+          onChange,
+        );
+      }
+    } else {
+      channel = channel.on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'match_live_scores',
+          filter: `bracket_id=eq.${bracketId}`,
+        },
+        onChange,
+      );
+    }
     channel.subscribe();
 
     // Initial snapshot so matches already in progress show immediately, not
     // only after their next point.
     void (async () => {
-      const { data } = await supabase
-        .from('match_live_scores')
-        .select('match_id, live_state')
-        .eq(filterColumn, filterValue);
+      const base = supabase.from('match_live_scores').select('match_id, live_state');
+      const { data } = await (divisions.length
+        ? base.in('division_id', divisions)
+        : base.eq('bracket_id', bracketId!));
       if (cancelled || !data) return;
       setScores((prev) => {
         const next = new Map(prev);
@@ -101,7 +137,7 @@ export function LiveScoresProvider({
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [enabled, divisionId, bracketId]);
+  }, [enabled, divisionId, divisionsKey, bracketId]);
 
   return <LiveScoresContext.Provider value={scores}>{children}</LiveScoresContext.Provider>;
 }

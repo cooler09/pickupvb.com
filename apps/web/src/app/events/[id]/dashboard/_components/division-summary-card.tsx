@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import type { CourtMatch } from '../../_lib/court-board';
 import type { DivisionBoard, DivisionStanding } from '../../_lib/load-division-boards';
+import { LiveScore } from '../../_components/live-score';
 
 /**
  * One division's at-a-glance state on the all-divisions dashboard
@@ -35,7 +36,7 @@ export function DivisionSummaryCard({ board, eventId }: { board: DivisionBoard; 
       {board.standings.length > 0 && <StandingsMini rows={board.standings} />}
 
       {board.live.length > 0 ? (
-        <MatchMiniList label="Now playing" matches={board.live} />
+        <MatchMiniList label="Now playing" matches={board.live} live />
       ) : board.next.length > 0 && !board.champion ? (
         <MatchMiniList label="Up next" matches={board.next} />
       ) : null}
@@ -121,7 +122,16 @@ function StandingsMini({ rows }: { rows: DivisionStanding[] }) {
   );
 }
 
-function MatchMiniList({ label, matches }: { label: string; matches: CourtMatch[] }) {
+function MatchMiniList({
+  label,
+  matches,
+  live,
+}: {
+  label: string;
+  matches: CourtMatch[];
+  /** Render the in-progress box score under each row (live matches only). */
+  live?: boolean;
+}) {
   return (
     <div className="space-y-1">
       <p className="text-muted text-[11px] font-semibold tracking-wide uppercase">{label}</p>
@@ -132,6 +142,7 @@ function MatchMiniList({ label, matches }: { label: string; matches: CourtMatch[
             <span className="text-muted mx-1.5 text-xs">vs</span>
             <span className="text-fg">{m.teamB ?? 'TBD'}</span>
             {m.court && <span className="text-muted ml-2 text-xs">· {m.court}</span>}
+            {live && <LiveScore matchId={m.id} className="mt-1" />}
           </li>
         ))}
       </ul>
