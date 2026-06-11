@@ -6,7 +6,7 @@ import { ConflictError, NotFoundError, UnauthorizedError } from '@pickupvb/domai
 import { requireRealUser } from '@/lib/server-auth';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 
-type State = { error?: string; ok?: boolean };
+type State = { error?: string };
 
 /**
  * Soft-delete a team. Captain-only.

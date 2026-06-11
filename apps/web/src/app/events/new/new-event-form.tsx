@@ -9,7 +9,13 @@ import { ErrorActionLink } from '@/components/error-action-link';
 import { Alert } from '@/components/alert';
 import { useAlertReveal } from '@/components/use-alert-reveal';
 import { createEventAction, type CreateEventState } from './actions';
-import { chk, SubmitButton, val, type CapacityKind } from './_components/form-primitives';
+import {
+  chk,
+  DEFAULT_POSITION_ROSTER,
+  SubmitButton,
+  val,
+  type CapacityKind,
+} from './_components/form-primitives';
 import TemplatesSection from './_components/templates-section';
 import EventTypeSection from './_components/event-type-section';
 import BasicsSection from './_components/basics-section';
@@ -22,16 +28,6 @@ const initialState: CreateEventState = {};
 /** Default event length when auto-filling the end time from a picked start. */
 const DEFAULT_EVENT_DURATION_MS = 2 * 60 * 60 * 1000;
 
-/** Sensible defaults for indoor 6's: 1 setter, 2 outsides, 1 opposite, 2 middles, 1 libero. */
-const DEFAULT_POSITION_ROSTER: Record<EventPosition, number> = {
-  [EventPosition.Setter]: 1,
-  [EventPosition.Outside]: 2,
-  [EventPosition.Opposite]: 1,
-  [EventPosition.Middle]: 2,
-  [EventPosition.Libero]: 1,
-  [EventPosition.DefensiveSpecialist]: 0,
-};
-
 export default function NewEventForm({
   hostableGroups = [],
   canCollectPayments = false,
@@ -40,6 +36,7 @@ export default function NewEventForm({
   templateValues,
   templateStatus,
   viewerHasProBenefits,
+  atPaidEventCap = false,
 }: {
   hostableGroups?: { id: string; name: string }[];
   /**
@@ -54,6 +51,12 @@ export default function NewEventForm({
   templateValues?: Record<string, string>;
   templateStatus?: string;
   viewerHasProBenefits: boolean;
+  /**
+   * True when a free host has already used their rolling-30d paid-event
+   * allowance. Surfaced contextually inside the pricing section once a price is
+   * entered, rather than as an always-on banner at the top of the form (CE-10).
+   */
+  atPaidEventCap?: boolean;
 }) {
   const [state, formAction] = useFormState(createEventAction, {
     ...initialState,
@@ -217,6 +220,7 @@ export default function NewEventForm({
         paymentsOffPlatform={paymentsOffPlatform}
         setPaymentsOffPlatform={setPaymentsOffPlatform}
         viewerHasProBenefits={viewerHasProBenefits}
+        atPaidEventCap={atPaidEventCap}
       />
 
       <VisibilitySection

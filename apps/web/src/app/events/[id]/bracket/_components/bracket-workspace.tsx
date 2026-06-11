@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { BracketFormat, BracketStatus, Match } from '@pickupvb/domain';
+import type { BracketFormat, BracketStatus, Match, MatchPlayMode } from '@pickupvb/domain';
 import { useEventManageCaps } from '../../_components/use-event-manage-caps';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from './board-view';
 import { eventScope } from './bracket-action-binding';
+import { BracketViewSkeleton } from './bracket-view-skeleton';
 import { DraftWorkspace } from './draft-workspace';
 import { LatestMatchTracker } from './latest-match-tracker';
 import { NoBracketView } from './no-bracket-view';
@@ -21,6 +22,7 @@ type BracketVm = {
   status: BracketStatus;
   format: BracketFormat;
   bestOf: number;
+  poolPlayMode: MatchPlayMode;
   targetScore: number | null;
   targetScores: ReadonlyArray<number> | null;
   playoffBestOf: number | null;
@@ -73,6 +75,14 @@ export function BracketWorkspace(props: {
   }, [registeredTeams]);
 
   const isHost = caps.canManage;
+  // False until `useEventManageCaps` resolves the viewer. The host-conditional
+  // text views below hold back their spectator copy until then so a host never
+  // flashes a "the host hasn't…" message before their controls load (UX-1).
+  const capsResolved = caps.resolved;
+
+  // Computed once and shared by the tracker + the board's highlight (was called
+  // twice).
+  const latestMatchId = bracket ? pickLatestMatchId(bracket.matches) : null;
 
   return (
     <>
@@ -82,6 +92,7 @@ export function BracketWorkspace(props: {
           divisionId={divisionId}
           registeredTeams={registeredTeams}
           isHost={isHost}
+          capsResolved={capsResolved}
         />
       )}
 
@@ -95,6 +106,7 @@ export function BracketWorkspace(props: {
           seeds={bracket.seeds}
           registeredTeams={registeredTeams}
           isHost={isHost}
+          capsResolved={capsResolved}
         />
       )}
 
@@ -105,11 +117,14 @@ export function BracketWorkspace(props: {
             scope={eventScope(eventId, divisionId)}
             format={bracket.format}
             bestOf={bracket.bestOf}
+            poolPlayMode={bracket.poolPlayMode}
             targetScore={bracket.targetScore}
             matches={bracket.matches}
             teams={registeredTeams}
             seeds={bracket.seeds}
           />
+        ) : !capsResolved ? (
+          <BracketViewSkeleton />
         ) : (
           <p className="text-muted text-sm">
             The host is finalizing the bracket. Check back shortly.
@@ -119,7 +134,7 @@ export function BracketWorkspace(props: {
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
         <LiveScoresProvider enabled={props.liveScoringEnabled} divisionId={divisionId}>
           <LatestMatchTracker
-            matchId={pickLatestMatchId(bracket.matches)}
+            matchId={latestMatchId}
             autoScroll={false}
             initialFocusId={props.focusId}
           />
@@ -130,6 +145,7 @@ export function BracketWorkspace(props: {
             teamById={teamById}
             teams={registeredTeams}
             bestOf={bracket.bestOf}
+            poolPlayMode={bracket.poolPlayMode}
             targetScore={bracket.targetScore}
             targetScores={bracket.targetScores}
             playoffBestOf={bracket.playoffBestOf}
@@ -140,7 +156,7 @@ export function BracketWorkspace(props: {
             viewerId={caps.viewerId}
             status={bracket.status}
             format={bracket.format}
-            highlightMatchId={props.focusId ?? pickLatestMatchId(bracket.matches)}
+            highlightMatchId={props.focusId ?? latestMatchId}
             liveScoringEnabled={props.liveScoringEnabled}
           />
         </LiveScoresProvider>

@@ -79,7 +79,7 @@ export function EventMetaSection({
               {themeTags.map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-xs font-medium text-fuchsia-900"
+                  className="rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-xs font-medium text-fuchsia-700 dark:text-fuchsia-300"
                 >
                   #{tag}
                 </span>

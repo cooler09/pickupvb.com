@@ -1,10 +1,9 @@
-import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { getServerSupabase } from '@/lib/supabase';
 import { isClubGroup } from '@/lib/club';
 import { primaryButtonClass } from '@/components/primary-button';
 import { loadClubDashboard, type ClubTotals } from './_loaders/load-club-dashboard';
+import { requireGroupManager } from '../_lib/require-group-manager';
 
 // Dynamic via `getServerSupabase()` (reads cookies); no `force-dynamic` needed.
 export const metadata = {
@@ -19,29 +18,7 @@ function usd(cents: number): string {
 export default async function GroupAnalyticsPage(props: { params: Promise<{ id: string }> }) {
   // The route segment is the group SLUG (like the rest of /groups/[id]).
   const { id: slug } = await props.params;
-
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/groups/${slug}/analytics`);
-
-  const { data: groupRow } = await supabase
-    .from('groups')
-    .select('id, name')
-    .eq('slug', slug)
-    .maybeSingle();
-  if (!groupRow) notFound();
-  const group = groupRow as { id: string; name: string };
-
-  const { data: roleRow } = await supabase
-    .from('group_members')
-    .select('role')
-    .eq('group_id', group.id)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const role = (roleRow as { role: string } | null)?.role;
-  if (role !== 'owner' && role !== 'admin') redirect(`/groups/${slug}`);
+  const { group } = await requireGroupManager(slug, `/groups/${slug}/analytics`);
 
   const club = await isClubGroup(group.id);
 
@@ -157,7 +134,7 @@ export default async function GroupAnalyticsPage(props: { params: Promise<{ id: 
 function Header({ name }: { name: string }) {
   return (
     <header className="space-y-1">
-      <h1 className="text-headline-lg font-bold">Club analytics</h1>
+      <h1 className="text-headline-sm font-bold">Club analytics</h1>
       <p className="text-muted text-sm">
         Earnings and engagement across <span className="font-medium">{name}</span>&apos;s events.
       </p>

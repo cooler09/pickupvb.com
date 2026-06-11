@@ -39,6 +39,10 @@ export function MatchCard(props: {
   viewerId: string | null;
   /** Host is Pro → the "Score live" launcher is offered (ADR 0023). */
   liveScoringEnabled?: boolean;
+  /** total_games pool match (ADR 0040): a 1-1 split is a valid tie. The live
+   *  scoreboard can't yet record a tie, so its launcher is suppressed here —
+   *  the manual result form handles every outcome. */
+  allowsTie?: boolean;
 }) {
   const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
   const a = bindBracketActions(scope);
@@ -55,6 +59,9 @@ export function MatchCard(props: {
 
   const aWins = m.sets.filter((s) => s.teamAScore > s.teamBScore).length;
   const bWins = m.sets.filter((s) => s.teamBScore > s.teamAScore).length;
+  // A completed match with no winner is a tie (only happens in total_games
+  // pools, ADR 0040). Surface it explicitly — neither team row is the winner.
+  const isTie = m.status === 'completed' && !winner && !!teamA && !!teamB;
 
   // Resolve this match's *effective* length (per-match override → playoff-stage
   // default → bracket default) so the score form offers exactly enough set
@@ -75,12 +82,29 @@ export function MatchCard(props: {
   const lengthDiffersFromDefault =
     matchBestOf !== props.bestOf || matchTargetScore !== (props.targetScore ?? null);
 
+  // The live scoreboard honours per-set targets (e.g. [25, 25, 15]), so resolve
+  // each set's effective target (per-match override → playoff → pool → global,
+  // ADR 0032) for the match's full length. `effectiveSetTargetScore` only
+  // returns null when no target is configured anywhere — and then for every
+  // set — so the array is either fully resolved or empty; a partial mix can't
+  // occur. Pass the array only when the targets genuinely vary across sets,
+  // otherwise the single `targetScore` (set 1) is enough.
+  const setTargets = Array.from({ length: matchBestOf }, (_, i) =>
+    effectiveSetTargetScore(m, i + 1, targetDefaults),
+  );
+  const liveTargetScore = setTargets[0] ?? null;
+  const resolvedSetTargets = setTargets.every((t): t is number => t != null) ? setTargets : null;
+  const liveTargetScores =
+    resolvedSetTargets && new Set(resolvedSetTargets).size > 1 ? resolvedSetTargets : null;
+
   const setsToShow = Math.max(matchBestOf, m.sets.length + 1);
 
   return (
     <div
       className={`rounded-shape-sm border p-3 text-sm ${
-        m.status === 'completed' ? 'border-green-500/30 bg-green-500/5' : 'border-border-base bg-bg'
+        m.status === 'completed'
+          ? 'border-md-success/30 bg-md-success/5'
+          : 'border-border-base bg-bg'
       }`}
     >
       <div className="text-muted mb-2 flex items-center justify-between text-xs">
@@ -108,6 +132,12 @@ export function MatchCard(props: {
         <TeamRow team={teamB} wins={bWins} isWinner={winner === m.entryBId} />
       </ul>
 
+      {isTie && (
+        <p className="text-muted mt-2 text-xs font-medium">
+          Tie ({aWins}–{bWins}) — both games count toward the standings.
+        </p>
+      )}
+
       {m.status !== 'completed' && m.status !== 'bye' && <LiveScore matchId={String(m.id)} />}
 
       {m.sets.length > 0 && (
@@ -123,24 +153,31 @@ export function MatchCard(props: {
         </p>
       )}
 
-      {props.liveScoringEnabled && canEdit && m.status !== 'bye' && teamA && teamB && (
-        <div className="mt-2">
-          <ScoreLiveButton
-            kind="bracket"
-            matchId={String(m.id)}
-            teamA={teamA.name}
-            teamB={teamB.name}
-            bestOf={matchBestOf}
-            {...(scope.kind === 'standalone'
-              ? { bracketId: scope.bracketId, returnPath: `/brackets/${scope.bracketId}` }
-              : {
-                  eventId: scope.eventId,
-                  divisionId: scope.divisionId,
-                  returnPath: `/events/${scope.eventId}/bracket?division=${scope.divisionId}`,
-                })}
-          />
-        </div>
-      )}
+      {props.liveScoringEnabled &&
+        !props.allowsTie &&
+        canEdit &&
+        m.status !== 'bye' &&
+        teamA &&
+        teamB && (
+          <div className="mt-2">
+            <ScoreLiveButton
+              kind="bracket"
+              matchId={String(m.id)}
+              teamA={teamA.name}
+              teamB={teamB.name}
+              bestOf={matchBestOf}
+              {...(liveTargetScore != null ? { targetScore: liveTargetScore } : {})}
+              {...(liveTargetScores ? { targetScores: liveTargetScores } : {})}
+              {...(scope.kind === 'standalone'
+                ? { bracketId: scope.bracketId, returnPath: `/brackets/${scope.bracketId}` }
+                : {
+                    eventId: scope.eventId,
+                    divisionId: scope.divisionId,
+                    returnPath: `/events/${scope.eventId}/bracket?division=${scope.divisionId}`,
+                  })}
+            />
+          </div>
+        )}
 
       {canEdit && m.status !== 'bye' && teamA && teamB && (
         <details className="mt-2">
@@ -162,6 +199,7 @@ export function MatchCard(props: {
                     type="number"
                     min="0"
                     defaultValue={existing?.teamAScore ?? ''}
+                    aria-label={`${teamA?.name ?? 'Team A'}, set ${i + 1} score`}
                     className="border-border-base bg-bg w-16 rounded border px-1 py-0.5"
                   />
                   <span className="text-muted">{'–'}</span>
@@ -170,13 +208,17 @@ export function MatchCard(props: {
                     type="number"
                     min="0"
                     defaultValue={existing?.teamBScore ?? ''}
+                    aria-label={`${teamB?.name ?? 'Team B'}, set ${i + 1} score`}
                     className="border-border-base bg-bg w-16 rounded border px-1 py-0.5"
                   />
                 </div>
               );
             })}
             <div className="flex gap-2 pt-1">
-              <SubmitButton className="bg-primary text-primary-fg rounded px-2 py-0.5 text-xs disabled:opacity-50">
+              <SubmitButton
+                pendingChildren="Saving…"
+                className="bg-primary text-primary-fg rounded px-2 py-0.5 text-xs disabled:opacity-50"
+              >
                 Save
               </SubmitButton>
               {m.status === 'completed' && (
@@ -203,7 +245,7 @@ function TeamRow(props: {
   return (
     <li
       className={`flex items-center justify-between gap-2 rounded px-2 py-1 ${
-        props.isWinner ? 'text-fg bg-green-500/10 font-medium' : 'text-fg/80'
+        props.isWinner ? 'text-fg bg-md-success/10 font-medium' : 'text-fg/80'
       }`}
     >
       <span className="truncate">

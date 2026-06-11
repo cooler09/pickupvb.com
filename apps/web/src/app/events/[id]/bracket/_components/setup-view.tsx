@@ -5,6 +5,8 @@ import { primaryButtonClass } from '@/components/primary-button';
 import { FormModal } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
 import { bindBracketActions, eventScope } from './bracket-action-binding';
+import { BracketViewSkeleton } from './bracket-view-skeleton';
+import { DeleteBracketDanger } from './delete-bracket-danger';
 import { FORMAT_LABEL, type BracketScope, type TeamLite } from './labels';
 import { SeedingList } from './seeding-list';
 import { WalkInTeamForm } from './walk-in-team-form';
@@ -18,11 +20,16 @@ export function SetupView(props: {
   seeds: ReadonlyArray<{ entryId: string; seed: number }>;
   registeredTeams: ReadonlyArray<TeamLite>;
   isHost: boolean;
+  /** False while the event page's `useEventManageCaps` is still resolving — hold
+   *  the spectator copy until then so a host doesn't flash it (UX-1). Defaults to
+   *  true for the standalone page, whose ownership is resolved server-side. */
+  capsResolved?: boolean;
 }) {
   const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
   const a = bindBracketActions(scope);
   const standalone = scope.kind === 'standalone';
   if (!props.isHost) {
+    if (props.capsResolved === false) return <BracketViewSkeleton />;
     return (
       <p className="text-muted text-sm">
         The host is still setting up the bracket. Check back shortly.
@@ -65,7 +72,14 @@ export function SetupView(props: {
   // create path doesn't enforce a count — sees the issue here instead of a late
   // generator error.
   const genCheck = validateTeamCountForFormat(props.bracketFormat, orderedTeams.length);
-  const canGenerate = genCheck.ok;
+  const teamCountReady = genCheck.ok;
+  // Generation reads the *saved* seeds: the domain throws "Need at least 2
+  // seeded teams" when none are saved, and a team added/dropped after the last
+  // save wouldn't be reflected. So Generate is a two-step flow — save the
+  // seeding below first, then generate. Gate the button on `seedingSaved` (seeds
+  // exist AND match the current registration) and say so, so the host isn't
+  // surprised by a generator error after clicking an enabled-looking button.
+  const canGenerate = teamCountReady && seedingSaved;
 
   return (
     <section className="space-y-4">
@@ -76,31 +90,46 @@ export function SetupView(props: {
       <div className="border-primary/40 bg-primary/5 rounded-shape-sm flex flex-wrap items-center justify-between gap-3 border p-4">
         <div className="space-y-0.5">
           <p className="text-fg text-sm font-semibold">
-            {canGenerate ? 'Ready to generate' : 'Not ready to generate'}
+            {canGenerate
+              ? 'Ready to generate'
+              : !teamCountReady
+                ? 'Not ready to generate'
+                : 'Save your seeding first'}
           </p>
           <p className="text-muted text-xs">
             Format:{' '}
             <span className="text-fg/80 font-medium">{FORMAT_LABEL[props.bracketFormat]}</span> ·{' '}
-            {orderedTeams.length} team{orderedTeams.length === 1 ? '' : 's'} seeded
+            {orderedTeams.length} team{orderedTeams.length === 1 ? '' : 's'}
+            {seedingSaved ? ' seeded' : ''}
           </p>
-          {!genCheck.ok && (
+          {!teamCountReady && (
             <p className="text-md-error text-xs" role="alert">
               {genCheck.reason}
             </p>
           )}
+          {teamCountReady && !seedingSaved && (
+            <p className="text-md-warning text-xs">
+              Save the seeding order below first — generation uses the saved seeds.
+            </p>
+          )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <form action={a.generate}>
-            <SubmitButton disabled={!canGenerate} className={primaryButtonClass('md')}>
-              Generate bracket
-            </SubmitButton>
-          </form>
-          <form action={a.reset}>
-            <SubmitButton className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-2 text-sm disabled:opacity-50">
-              Discard
-            </SubmitButton>
-          </form>
-        </div>
+        {/* Generate is the only action here. There is intentionally no
+            "Discard": in `setup` there are no generated matches yet and seeds
+            persist, so `reset` is a no-op that only flashed "reset to setup" —
+            the misleading affordance was removed (UX-2). The meaningful
+            post-generate cases keep their own controls (the draft "Discard" and
+            the live board's "Reset bracket"). Note: changing format or deleting
+            an event bracket after create is a separate gap (UX-15), not what
+            this button did. */}
+        <form action={a.generate}>
+          <SubmitButton
+            disabled={!canGenerate}
+            pendingChildren="Generating…"
+            className={primaryButtonClass('md')}
+          >
+            Generate bracket
+          </SubmitButton>
+        </form>
       </div>
 
       {(newlyAdded.length > 0 || droppedSeedCount > 0) && (
@@ -161,6 +190,14 @@ export function SetupView(props: {
           )}
         </FormModal>
       </div>
+
+      {/* Delete / start-over (UX-15). Event scope only — standalone keeps its
+          own page-level delete (TT-12), so `a.delete` is undefined there. */}
+      {a.delete && (
+        <div className="border-border-base/60 border-t pt-4">
+          <DeleteBracketDanger deleteAction={a.delete} />
+        </div>
+      )}
     </section>
   );
 }
@@ -202,7 +239,12 @@ function SeedingForm(props: {
             </span>
           </span>
         ) : (
-          <span className="text-fg text-sm font-semibold">Seeding order</span>
+          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-fg text-sm font-semibold">Seeding order</span>
+            <span className="text-md-warning text-xs font-medium">
+              Save required before generating
+            </span>
+          </span>
         )}
         <span className="text-muted group-hover/seed:text-fg shrink-0 text-xs font-medium">
           <span className="group-open/seed:hidden">Edit</span>
@@ -212,7 +254,10 @@ function SeedingForm(props: {
       <div className="space-y-2 px-4 pb-4">
         <p className="text-muted text-xs">
           Top of the list is seed 1. Drag or use the arrows to reorder, click <em>Randomize</em> to
-          shuffle, or save the current order as-is.
+          shuffle, or save the current order as-is.{' '}
+          <span className="text-fg/80 font-medium">
+            You must save the seeding before you can generate the bracket.
+          </span>
         </p>
         <form action={a.seedFromForm} className="space-y-2">
           <SeedingList

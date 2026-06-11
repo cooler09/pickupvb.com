@@ -230,6 +230,35 @@ describe('Team.removeMember', () => {
   });
 });
 
+describe('Team.rename', () => {
+  it('updates the name', () => {
+    const team = makeTeam('Hitters');
+    team.rename('Diggers');
+    expect(team.name).toBe('Diggers');
+  });
+
+  it('trims whitespace from the new name', () => {
+    const team = makeTeam();
+    team.rename('  Spikers  ');
+    expect(team.name).toBe('Spikers');
+  });
+
+  it('rejects an empty name', () => {
+    const team = makeTeam();
+    expect(() => team.rename('')).toThrow(InvariantViolation);
+  });
+
+  it('rejects a whitespace-only name', () => {
+    const team = makeTeam();
+    expect(() => team.rename('   ')).toThrow(InvariantViolation);
+  });
+
+  it('hard-blocks a profane name rather than masking it (ADR 0030)', () => {
+    const team = makeTeam();
+    expect(() => team.rename('Shit Squad')).toThrow(ValidationError);
+  });
+});
+
 describe('Team.setExtraMemberCount', () => {
   it('accepts a valid non-negative integer', () => {
     const team = makeTeam();

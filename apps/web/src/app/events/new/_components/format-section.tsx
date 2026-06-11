@@ -11,7 +11,7 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { EventPosition, EventType } from '@pickupvb/domain';
 import { cardClass, cardSubClass, cardTitleClass, type CapacityKind } from './form-primitives';
-import DivisionsRepeater from './divisions-repeater';
+import DivisionsRepeater, { anyDivisionPaidFromValues } from './divisions-repeater';
 import ExternalFields from './external-fields';
 import OpenPlayBody from './open-play-body';
 import { PaymentSettingsSubsection, PricingSubsection } from './payment-fields';
@@ -31,6 +31,7 @@ export default function FormatSection({
   paymentsOffPlatform,
   setPaymentsOffPlatform,
   viewerHasProBenefits,
+  atPaidEventCap,
 }: {
   type: EventType;
   isExternal: boolean;
@@ -46,13 +47,16 @@ export default function FormatSection({
   paymentsOffPlatform: boolean;
   setPaymentsOffPlatform: (v: boolean) => void;
   viewerHasProBenefits: boolean;
+  atPaidEventCap: boolean;
 }) {
   const byPosition = capacityKind === 'by_position';
   const isLeague = type === EventType.League;
   // Per-division prices live in the divisions repeater; the payment-settings
   // subsection (a sibling) needs to know if any are non-zero so it can warn
-  // a host without Stripe before they submit. The repeater reports it up.
-  const [hasPaidDivision, setHasPaidDivision] = useState(false);
+  // a host without Stripe before they submit. The repeater reports changes up
+  // via onPaidChange; seed the initial value from `values` so an applied
+  // template with paid divisions is reflected on mount (CE-1).
+  const [hasPaidDivision, setHasPaidDivision] = useState(() => anyDivisionPaidFromValues(values));
   const showPricing = !isExternal && type === EventType.OpenPlay;
   // Tournament and league divisions both collect their own per-division price
   // below; keep the event-level payment settings (refund window, fee
@@ -103,6 +107,7 @@ export default function FormatSection({
               requireAtLeastOne
               requireRoster={isLeague}
               onPaidChange={setHasPaidDivision}
+              {...(values ? { initialValues: values } : {})}
               {...(fieldErrors ? { fieldErrors } : {})}
             />
           </>
@@ -117,6 +122,7 @@ export default function FormatSection({
             paymentsOffPlatform={paymentsOffPlatform}
             setPaymentsOffPlatform={setPaymentsOffPlatform}
             viewerHasProBenefits={viewerHasProBenefits}
+            atPaidEventCap={atPaidEventCap}
           />
         )}
         {showPaymentSettings && (
@@ -128,6 +134,7 @@ export default function FormatSection({
             paymentsOffPlatform={paymentsOffPlatform}
             setPaymentsOffPlatform={setPaymentsOffPlatform}
             viewerHasProBenefits={viewerHasProBenefits}
+            atPaidEventCap={atPaidEventCap}
           />
         )}
       </section>

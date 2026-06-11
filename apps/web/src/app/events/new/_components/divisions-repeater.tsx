@@ -18,6 +18,7 @@ import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
 } from '@/components/field-styles';
+import { SkillTierOptions } from './form-primitives';
 
 type TeamRegistrationMode = 'ad_hoc' | 'roster' | 'none';
 type Composition = 'solo' | 'team' | 'pair_draw' | 'partners';
@@ -94,11 +95,69 @@ const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
   ...defaults,
 });
 
+/**
+ * Reconstruct division rows from a previously-submitted / template `values`
+ * map. The server action reads the same `div_${i}_*` keys, so this is the
+ * inverse of that parse. Used to seed the repeater when a saved template is
+ * applied and the form remounts (CE-1) — without it, applying a tournament
+ * template dropped every division and left a single blank row.
+ */
+function rowsFromValues(values: Record<string, string> | undefined, requireRoster: boolean): Row[] {
+  if (!values) return [];
+  const count = Math.max(0, Math.floor(Number(values.div_count ?? 0)) || 0);
+  const out: Row[] = [];
+  for (let i = 0; i < count; i++) {
+    const label = values[`div_${i}_label`];
+    if (label === undefined) continue; // row was added then cleared at save time
+    const savedMode = values[`div_${i}_teamRegistrationMode`];
+    const teamRegistrationMode: TeamRegistrationMode = requireRoster
+      ? 'roster'
+      : savedMode === 'roster'
+        ? 'roster'
+        : savedMode === 'none'
+          ? 'none'
+          : 'ad_hoc';
+    out.push(
+      blankRow(i, {
+        label,
+        surface: values[`div_${i}_surface`] || 'indoor',
+        format: values[`div_${i}_format`] || 'sixes',
+        gender: values[`div_${i}_gender`] || 'coed',
+        skillTier: values[`div_${i}_skillTier`] || 'bb',
+        ageGroup: values[`div_${i}_ageGroup`] || 'adult',
+        teamComposition: values[`div_${i}_teamComposition`] || 'team',
+        capacityKind: values[`div_${i}_capacityKind`] === 'fixed' ? 'fixed' : 'unlimited',
+        maxSpots: values[`div_${i}_maxSpots`] ?? '',
+        priceUsd: values[`div_${i}_priceUsd`] ?? '',
+        priceUnit: values[`div_${i}_priceUnit`] === 'per_player' ? 'per_player' : 'per_team',
+        prizeText: values[`div_${i}_prizeText`] ?? '',
+        // The checkbox submits `1` only when checked; absent means unchecked.
+        allowFreeAgents: values[`div_${i}_allowFreeAgents`] === '1',
+        teamRegistrationMode,
+      }),
+    );
+  }
+  return out;
+}
+
+/** Whether any division in a `values` map carries a non-zero entry price — lets
+ *  the parent initialize its "has a paid division" state without waiting for the
+ *  repeater to fire `onPaidChange` (CE-1, template apply). */
+export function anyDivisionPaidFromValues(values: Record<string, string> | undefined): boolean {
+  if (!values) return false;
+  const count = Math.max(0, Math.floor(Number(values.div_count ?? 0)) || 0);
+  for (let i = 0; i < count; i++) {
+    if (Number(values[`div_${i}_priceUsd`] ?? 0) > 0) return true;
+  }
+  return false;
+}
+
 export default function DivisionsRepeater({
   defaultSurface,
   requireAtLeastOne = false,
   requireRoster = false,
   onPaidChange,
+  initialValues,
   fieldErrors,
 }: {
   defaultSurface?: string;
@@ -120,6 +179,13 @@ export default function DivisionsRepeater({
    */
   requireRoster?: boolean;
   /**
+   * Previously-submitted / template `values` (the `div_${i}_*` keys the server
+   * action reads). Used to seed the rows when a saved template is applied and
+   * the form remounts (CE-1). Only read on mount, so the form's own
+   * echo-on-error (no remount, client rows survive) is unaffected.
+   */
+  initialValues?: Record<string, string>;
+  /**
    * Server-side validation errors keyed by Zod path. Division errors arrive
    * as `divisions.${idx}.${field}` (e.g. `divisions.0.label`) — those keys
    * are looked up per-row and surfaced via `aria-invalid` + `<FieldError>`.
@@ -133,8 +199,16 @@ export default function DivisionsRepeater({
       surface: defaultSurface ?? 'indoor',
       ...(requireRoster ? { teamRegistrationMode: 'roster' as const } : {}),
     });
-  const [rows, setRows] = useState<Row[]>(() => (requireAtLeastOne ? [newRow(0)] : []));
-  const [nextKey, setNextKey] = useState(requireAtLeastOne ? 1 : 1);
+  const [rows, setRows] = useState<Row[]>(() => {
+    const seeded = rowsFromValues(initialValues, requireRoster);
+    if (seeded.length > 0) return seeded;
+    return requireAtLeastOne ? [newRow(0)] : [];
+  });
+  // Seeded rows reuse their index as `key` (0…n-1), so the next free key is the
+  // count; falls back to 1 (after the single seeded/required row 0).
+  const [nextKey, setNextKey] = useState(
+    () => rowsFromValues(initialValues, requireRoster).length || 1,
+  );
 
   // Commit a new row set and report whether any division now charges money, so
   // the sibling payment-settings subsection can warn before submit.
@@ -177,7 +251,6 @@ export default function DivisionsRepeater({
           key={row.key}
           className="border-border-base bg-highlight/20 space-y-2 rounded-md border border-dashed p-3"
         >
-          <input type="hidden" name={`div_${idx}_present`} value="1" />
           <div className="flex items-center justify-between gap-2">
             <span className="text-muted text-xs font-semibold tracking-wide uppercase">
               Division {requireAtLeastOne ? idx + 1 : idx + 2}
@@ -256,13 +329,7 @@ export default function DivisionsRepeater({
                 onChange={(e) => patch(row.key, { skillTier: e.target.value })}
                 className={inputClass}
               >
-                <option value="c">C</option>
-                <option value="b">B</option>
-                <option value="bb">BB</option>
-                <option value="bb3">BB-3</option>
-                <option value="a">A</option>
-                <option value="aa">AA</option>
-                <option value="open">Open</option>
+                <SkillTierOptions />
               </select>
             </div>
             <div>

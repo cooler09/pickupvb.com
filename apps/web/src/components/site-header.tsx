@@ -135,6 +135,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
             <NavDropdown
               label="Host"
               items={[
+                { href: '/host', label: 'Dashboard' },
                 { href: '/events/new', label: 'Host an event' },
                 { href: '/tools', label: 'Host tools' },
               ]}

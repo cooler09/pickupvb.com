@@ -4363,6 +4363,7 @@ export type Database = {
           last_read_at: string;
           preview: string;
           preview_sender_id: string;
+          preview_sender_name: string;
           title: string;
         }[];
       };
@@ -4372,9 +4373,21 @@ export type Database = {
       };
       get_or_create_dm: { Args: { p_other_id: string }; Returns: string };
       gettransactionid: { Args: never; Returns: unknown };
+      event_attendee_ids: {
+        Args: { p_event_id: string };
+        Returns: { user_id: string }[];
+      };
+      badge_reconcile_candidate_ids: {
+        Args: { p_since: string; p_now: string };
+        Returns: { user_id: string }[];
+      };
+      grant_attended_badges_for_event: {
+        Args: { p_event_id: string };
+        Returns: undefined;
+      };
       grant_attended_event_badges: {
         Args: { p_user_id: string };
-        Returns: undefined;
+        Returns: { badge_key: string; label: string }[];
       };
       host_paid_event_count_30d: {
         Args: { p_user_id: string };

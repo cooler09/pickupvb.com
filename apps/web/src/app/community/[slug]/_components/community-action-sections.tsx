@@ -9,6 +9,7 @@ import {
   errorTonalButtonClass,
 } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
+import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import type { HostedEvent, PendingClaim } from '../_loaders/load-community-detail-page';
 import {
   approveListingClaimFromForm,
@@ -167,6 +168,7 @@ export function ReportSection({ detail }: { detail: Detail }) {
         >
           <select
             name="reason"
+            aria-label="Reason for report"
             className="border-border-base bg-md-surface-container text-fg w-full rounded-md border px-2 py-1.5 text-xs"
           >
             <option value="spam">Spam or misleading</option>
@@ -210,15 +212,20 @@ export function ManageSection({ detail }: { detail: Detail }) {
             <SubmitButton className={neutralButtonClass('sm')}>Unhide</SubmitButton>
           </form>
         ) : null}
-        <form
-          action={deleteListingFromForm.bind(null, detail.id, detail.slug)}
-          className="flex items-center gap-2"
-        >
-          <label className="flex items-center gap-1 text-xs">
-            <input type="checkbox" name="confirm" />
-            Confirm
-          </label>
-          <SubmitButton className={errorTonalButtonClass('sm')}>Delete</SubmitButton>
+        <form action={deleteListingFromForm.bind(null, detail.id, detail.slug)}>
+          {/* The confirm modal is the user-facing guard; the hidden field keeps
+              the server action's defensive `confirm` check satisfied. */}
+          <input type="hidden" name="confirm" value="on" />
+          <ConfirmSubmitButton
+            label="Delete"
+            pendingLabel="Deleting…"
+            confirmTitle="Delete this listing?"
+            confirmMessage="This permanently removes the community listing. This can't be undone."
+            confirmLabel="Delete listing"
+            cancelLabel="Keep listing"
+            destructive
+            className={errorTonalButtonClass('sm')}
+          />
         </form>
       </div>
       {detail.reportCount > 0 && (

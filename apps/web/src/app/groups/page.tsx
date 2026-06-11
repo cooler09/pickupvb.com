@@ -4,6 +4,7 @@ import { Pagination } from '@/components/pagination';
 import { primaryButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
 import { EmptyState } from '@/components/empty-state';
+import { Alert } from '@/components/alert';
 import { NewGroupButton } from './_components/new-group-button';
 import { GroupCard } from './_components/group-card';
 import { GroupsFollowProvider, GroupFollowButton } from './_components/groups-follow';
@@ -31,11 +32,12 @@ export const metadata = {
 const PAGE_SIZE = 24;
 
 export default async function GroupsIndexPage(props: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; deleted?: string }>;
 }) {
   const searchParams = await props.searchParams;
   const supabase = createSupabaseAnonClient();
   const q = (searchParams.q ?? '').trim();
+  const justDeleted = searchParams.deleted === '1';
   const pageNum = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
   const from = (pageNum - 1) * PAGE_SIZE;
 
@@ -49,6 +51,7 @@ export default async function GroupsIndexPage(props: {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
+      {justDeleted && <Alert variant="success">Group deleted.</Alert>}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-headline-sm font-bold">

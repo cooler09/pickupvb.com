@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/empty-state';
 import { PlayersFollowProvider, FollowButton } from './_components/players-follow';
 import { NearMeButton } from '../events/near-me-button';
 import { LocationSearch } from '../events/location-search';
+import { RadiusSelect } from '../events/radius-select';
 
 // Public listing; no viewer-specific state. Rendered with the sessionless
 // anon client so the route stays ISR-cacheable. Mutations elsewhere should
@@ -39,6 +40,7 @@ const PAGE_SIZE = 24;
 export default async function PlayersIndexPage(props: {
   searchParams: Promise<{
     q?: string;
+    position?: string;
     lat?: string;
     lng?: string;
     radiusKm?: string;
@@ -47,6 +49,10 @@ export default async function PlayersIndexPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const q = (searchParams.q ?? '').trim();
+  // PL-7: validate the position filter against the known enum so only a real
+  // position token reaches the query (it's interpolated into a PostgREST `or`).
+  const positionParam = (searchParams.position ?? '').trim();
+  const position = positionParam in POSITION_LABEL ? positionParam : '';
   const lat = Number.parseFloat(searchParams.lat ?? '');
   const lng = Number.parseFloat(searchParams.lng ?? '');
   const radiusKm = Number.parseFloat(searchParams.radiusKm ?? '') || 40;
@@ -56,12 +62,19 @@ export default async function PlayersIndexPage(props: {
   const profiles = new SupabaseProfileRepository(createSupabaseAnonClient());
   const { cards: players, total } = await profiles.searchDirectory({
     ...(q ? { nameLike: q } : {}),
+    ...(position ? { position } : {}),
     ...(hasLocation ? { near: { latitude: lat, longitude: lng, radiusKm } } : {}),
     limit: PAGE_SIZE,
     offset: (pageNum - 1) * PAGE_SIZE,
   });
-  const hasFilter = q.length > 0 || hasLocation;
-  const clearLocationHref = (q ? `/players?q=${encodeURIComponent(q)}` : '/players') as Route;
+  const hasFilter = q.length > 0 || position.length > 0 || hasLocation;
+  // Clearing the location preserves the active name + position filters.
+  const clearParams = new URLSearchParams();
+  if (q) clearParams.set('q', q);
+  if (position) clearParams.set('position', position);
+  const clearLocationHref = (
+    clearParams.toString() ? `/players?${clearParams.toString()}` : '/players'
+  ) as Route;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 py-4">
@@ -74,14 +87,31 @@ export default async function PlayersIndexPage(props: {
         </p>
       </header>
       <div className="flex flex-wrap items-center gap-2">
-        <form className="flex flex-1 items-center gap-2">
+        <form role="search" className="flex flex-1 flex-wrap items-center gap-2">
           <input
             type="search"
             name="q"
             placeholder="Search by name…"
+            aria-label="Search players by name"
             defaultValue={q}
             className={`${fieldInputClass} flex-1`}
           />
+          {/* PL-7: filter by playing position — the team-captain persona's key
+              recruiting signal. Lives inside the GET form so one Search submits
+              name + position together; positions come from `POSITION_LABEL`. */}
+          <select
+            name="position"
+            defaultValue={position}
+            aria-label="Filter players by position"
+            className={`${fieldInputClass} w-full sm:w-48`}
+          >
+            <option value="">Any position</option>
+            {Object.entries(POSITION_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
           {/* Preserve an active location across a name search (the GET form
               only submits its own fields). */}
           {hasLocation && (
@@ -95,16 +125,24 @@ export default async function PlayersIndexPage(props: {
             Search
           </button>
         </form>
-        <LocationSearch basePath="/players" />
+        {/* PL-8: distinct label ("Go") + players-specific SR label so this
+            location control doesn't read as a second ambiguous "Search". */}
+        <LocationSearch
+          basePath="/players"
+          inputLabel="Find players by city or ZIP code"
+          submitLabel="Go"
+        />
         <NearMeButton basePath="/players" />
       </div>
       {hasLocation && (
-        <p className="text-muted text-xs">
-          Showing players within {radiusKm} km of your location ·{' '}
+        <div className="text-muted flex flex-wrap items-center gap-1.5 text-xs">
+          <span>Showing players</span>
+          <RadiusSelect basePath="/players" value={radiusKm} />
+          <span>of your location ·</span>
           <Link href={clearLocationHref} className="text-primary hover:underline">
             Clear
           </Link>
-        </p>
+        </div>
       )}
       {players.length === 0 ? (
         hasFilter ? (

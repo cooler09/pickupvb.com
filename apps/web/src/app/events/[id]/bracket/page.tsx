@@ -3,11 +3,15 @@ import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { DivisionId, EventId, NotFoundError } from '@pickupvb/domain';
+import { Alert } from '@/components/alert';
+import { primaryButtonClass } from '@/components/primary-button';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { assertEventVisibleOrNotFound } from '@/lib/event-visibility';
 import { isPro } from '@/lib/pro';
 import { BracketWorkspace } from './_components/bracket-workspace';
+import { BracketStatusBadge } from './_components/bracket-status-badge';
+import { DivisionTabs } from './_components/division-tabs';
 import { NOTICE_LABEL } from './_components/labels';
 
 // No `force-dynamic` and no `cookies()` read: every load resolves the same
@@ -48,7 +52,9 @@ export default async function BracketPage(props: {
         <Link href={`/events/${event.id}`} className="text-primary text-sm hover:underline">
           {'← Back to event'}
         </Link>
-        <p className="text-muted text-sm">Brackets are only available for tournament events.</p>
+        <div className="border-border-base bg-bg rounded-shape-sm border p-6 text-center">
+          <p className="text-fg/80 text-sm">Brackets are only available for tournament events.</p>
+        </div>
       </div>
     );
   }
@@ -59,7 +65,17 @@ export default async function BracketPage(props: {
         <Link href={`/events/${event.id}`} className="text-primary text-sm hover:underline">
           {'← Back to event'}
         </Link>
-        <p className="text-muted text-sm">This tournament has no divisions configured yet.</p>
+        {/* Reachable in practice only by the host — give them a way forward
+            instead of a dead-end. The edit page enforces its own auth, so a
+            stray spectator just hits the gate (UX-12). */}
+        <div className="border-border-base bg-bg rounded-shape-sm space-y-3 border p-6 text-center">
+          <p className="text-fg/80 text-sm">
+            This tournament has no divisions yet. Add at least one division to build its bracket.
+          </p>
+          <Link href={`/events/${event.id}/edit`} className={primaryButtonClass('sm')}>
+            Set up divisions
+          </Link>
+        </div>
       </div>
     );
   }
@@ -68,13 +84,22 @@ export default async function BracketPage(props: {
   const selectedDivision = event.divisions.find((d) => d.id === divParam) ?? event.divisions[0]!;
   const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
-  const [bracket, registeredTeams] = await Promise.all([
+  const multiDivision = event.divisions.length > 1;
+  const [bracket, registeredTeams, divisionStatuses] = await Promise.all([
     repositories.bracketRepo.findByDivisionId(DivisionId(selectedDivision.id)),
     repositories.bracketRepo.listRegisteredTeams(
       EventId(event.id),
       DivisionId(selectedDivision.id),
     ),
+    // Per-division status pills for the tabs (UX-9) — only worth a query when
+    // there's more than one division (a single-division event has no tabs).
+    multiDivision
+      ? repositories.bracketRepo.listDivisionStatuses(event.divisions.map((d) => DivisionId(d.id)))
+      : Promise.resolve([]),
   ]);
+  const statusByDivision = multiDivision
+    ? new Map(divisionStatuses.map((s) => [s.divisionId, s.status]))
+    : undefined;
 
   // ADR 0023: live scoreboard scoring is a Pro-host perk, enabled for every
   // match in the event when the event's host is Pro. Viewer-independent —
@@ -91,6 +116,7 @@ export default async function BracketPage(props: {
         status: bracket.status,
         format: bracket.format,
         bestOf: bracket.config.bestOf,
+        poolPlayMode: bracket.config.poolPlayMode,
         targetScore: bracket.config.targetScore,
         targetScores: bracket.config.targetScores,
         playoffBestOf: bracket.config.playoffBestOf,
@@ -121,7 +147,10 @@ export default async function BracketPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-headline-sm font-bold">Bracket — {event.title}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-fg text-headline-lg font-bold">Bracket — {event.title}</h1>
+          <BracketStatusBadge status={bracket?.status} />
+        </div>
         {divisionSummary && <p className="text-fg/80 text-sm">{divisionSummary}</p>}
         <p className="text-muted text-sm">
           {registeredTeams.length} registered team
@@ -138,6 +167,28 @@ export default async function BracketPage(props: {
           >
             {'Open public spectator view →'}
           </Link>
+          <Link
+            href={`/events/${event.id}/courts` as Route}
+            className="text-primary text-xs hover:underline"
+          >
+            {'Court board →'}
+          </Link>
+          {/* Pro-host kiosk: chromeless, dark, full-screen for a gym TV / tablet
+              (tournament-displays slice A). New tab keeps this workspace open. */}
+          {liveScoringEnabled && (
+            <a
+              href={
+                event.divisions.length > 1
+                  ? `/events/${event.id}/bracket/watch?division=${selectedDivision.id}&display=1`
+                  : `/events/${event.id}/bracket/watch?display=1`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary text-xs hover:underline"
+            >
+              {'Display mode ↗'}
+            </a>
+          )}
           <ShareLink
             path={
               event.divisions.length > 1
@@ -150,40 +201,18 @@ export default async function BracketPage(props: {
         </div>
       </header>
 
-      {event.divisions.length > 1 && (
-        <nav aria-label="Divisions" className="border-border-base flex flex-wrap gap-1 border-b">
-          {event.divisions.map((d) => {
-            const active = d.id === selectedDivision.id;
-            return (
-              <Link
-                key={d.id}
-                href={`/events/${event.id}/bracket?division=${d.id}`}
-                aria-current={active ? 'page' : undefined}
-                className={`-mb-px rounded-t px-3 py-2 text-sm ${
-                  active
-                    ? 'border-border-base bg-bg text-fg border border-b-transparent font-medium'
-                    : 'text-muted hover:text-fg'
-                }`}
-              >
-                {d.label}
-              </Link>
-            );
-          })}
-        </nav>
-      )}
+      <DivisionTabs
+        divisions={event.divisions}
+        selectedId={selectedDivision.id}
+        basePath={`/events/${event.id}/bracket`}
+        {...(statusByDivision ? { statusByDivision } : {})}
+      />
 
       {notice && (
-        <div
-          role={notice.tone === 'success' ? 'status' : 'alert'}
-          className={`rounded border px-3 py-2 text-sm ${
-            notice.tone === 'success'
-              ? 'border-md-success/30 bg-md-success/10 text-md-success'
-              : 'border-md-error/30 bg-md-error/10 text-md-error'
-          }`}
-        >
+        <Alert variant={notice.tone}>
           {notice.text}
-          {noticeMsg && <span className="ml-1 opacity-80">— {noticeMsg}</span>}
-        </div>
+          {noticeMsg && <span className="opacity-80"> — {noticeMsg}</span>}
+        </Alert>
       )}
 
       <BracketWorkspace

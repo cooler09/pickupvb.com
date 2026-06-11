@@ -753,6 +753,16 @@ function buildCta(args: {
   if (event.type === 'open_play' && (hasStarted || event.status === 'completed')) {
     return { kind: 'anchor', hash: '#attendees', label: 'View attendees' };
   }
+  // Leagues run over a season; once it's underway (or done) the primary action
+  // is the weekly schedule, not registration. `signupsOpen` is already false
+  // here (hasStarted), so this must come before the `!signupsOpen` bail.
+  if (event.type === 'league' && (hasStarted || event.status === 'completed')) {
+    return {
+      kind: 'internal',
+      href: `/events/${event.id}/schedule` as Route,
+      label: 'View schedule',
+    };
+  }
   if (!signupsOpen) return null;
   if (event.isAttending) {
     return { kind: 'anchor', hash: '#signup', label: "You're in — view details" };
@@ -760,7 +770,10 @@ function buildCta(args: {
   if (event.spotsRemaining === 0) {
     return { kind: 'anchor', hash: '#signup', label: 'Join waitlist' };
   }
-  if (event.type === 'tournament') {
+  // Tournaments and leagues both register teams/free agents via the same
+  // "Register" panel — match its verb rather than falling through to the
+  // open-play "RSVP" / "Buy ticket" tail below.
+  if (event.type === 'tournament' || event.type === 'league') {
     return { kind: 'anchor', hash: '#signup', label: 'Register' };
   }
   if (paid) return { kind: 'anchor', hash: '#signup', label: 'Buy ticket' };

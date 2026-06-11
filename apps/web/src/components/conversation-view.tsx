@@ -1,6 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
@@ -14,6 +23,8 @@ import {
 import { primaryButtonClass, textButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
 import { ChatImage } from '@/components/chat-image';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { Alert } from '@/components/alert';
 import { useToast } from '@/components/toast';
 import {
   deleteChatMessage,
@@ -60,6 +71,11 @@ type Props = {
   /** DM only: the viewer has blocked the counterpart. Replaces the composer with
    * a banner so they don't type into a send that RLS will reject (audit M-9). */
   blocked?: boolean;
+  /** Tailwind height bounds for the scrolling message list. Defaults to the
+   * compact embedded-panel size (`max-h-96 min-h-48`) used on context pages; the
+   * full-page `/messages/[id]` thread passes a viewport-relative value so it isn't
+   * a tiny box in an empty column (audit MU-2). */
+  listHeightClass?: string;
 };
 
 type SenderCard = { name: string; avatar: string | null };
@@ -106,6 +122,23 @@ function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+/** Local-zone calendar-day key (YYYY-MM-DD) for grouping messages into days —
+ * pure (depends only on the ISO string), so it's safe to call in render. */
+function dayKey(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-CA');
+}
+
+/** Human label for a day-separator row, e.g. "Sat, Jun 7" (audit MU-8). Uses the
+ * viewer's local zone; absolute (no "Today"/"Yesterday") to stay pure — no `now`
+ * is read in render. */
+function dayDividerLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -145,6 +178,7 @@ export function ConversationView({
   initialNextBefore,
   participants,
   blocked = false,
+  listHeightClass = 'max-h-96 min-h-48',
 }: Props) {
   const [messages, setMessages] = useState<MessageView[]>(initialMessages);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -160,11 +194,22 @@ export function ConversationView({
   // Text fed to the sr-only polite live region (A5) when a message arrives
   // from someone else over Realtime.
   const [announcement, setAnnouncement] = useState('');
+  // A message from someone else arrived while the reader was scrolled up — show
+  // a "jump to latest" affordance instead of yanking the viewport (audit MU-11).
+  const [hasNewBelow, setHasNewBelow] = useState(false);
+  // Which message a confirm dialog is open for (delete / report), replacing the
+  // native `window.confirm` (audit MU-5).
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    kind: 'delete' | 'report';
+    messageId: string;
+  } | null>(null);
   const { show } = useToast();
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Composer textarea, for auto-growing it as the draft wraps (audit MU-6).
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   // Set by `loadOlder` just before prepending an older page, so the next layout
   // pass can restore the viewport to where the reader was instead of jumping
   // (audit M-8). Holds the pre-prepend scrollHeight + scrollTop.
@@ -290,6 +335,9 @@ export function ConversationView({
       const onInsert = (msg: { payload: unknown }) => {
         const view = onWrite(msg);
         if (!view || view.isDeleted || view.senderId === viewerId) return;
+        // Arrived while the reader is scrolled up — surface the jump affordance
+        // rather than auto-scrolling them away from what they're reading (MU-11).
+        if (!atBottomRef.current) setHasNewBelow(true);
         const who = view.senderName ?? 'New message';
         setAnnouncement(view.body ? `${who}: ${view.body}` : `${who} sent a photo`);
       };
@@ -327,7 +375,17 @@ export function ConversationView({
   const onScroll = useCallback(() => {
     const el = listRef.current;
     if (!el) return;
-    atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    atBottomRef.current = atBottom;
+    if (atBottom) setHasNewBelow(false);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    atBottomRef.current = true;
+    setHasNewBelow(false);
   }, []);
 
   // ---- Attachments --------------------------------------------------------
@@ -415,6 +473,8 @@ export function ConversationView({
     setMessages((prev) => mergeMessages(prev, [tempView]));
     setDraft('');
     setPending([]);
+    // Collapse the auto-grown composer back to one row (audit MU-6).
+    if (composerRef.current) composerRef.current.style.height = 'auto';
     const res = await sendChatMessage(conversationId, body, attachments, kind);
     setSending(false);
     if (!res.ok) {
@@ -475,8 +535,8 @@ export function ConversationView({
     [editDraft, kind],
   );
 
-  const remove = useCallback(async (messageId: string) => {
-    if (!window.confirm('Delete this message?')) return;
+  // Confirmed by the ConfirmDialog (audit MU-5), not the native window.confirm.
+  const performDelete = useCallback(async (messageId: string) => {
     const res = await deleteChatMessage(messageId);
     if (res.ok) {
       setMessages((prev) =>
@@ -489,10 +549,11 @@ export function ConversationView({
     }
   }, []);
 
-  const report = useCallback(
-    async (messageId: string) => {
-      if (!window.confirm('Report this message to the moderators?')) return;
-      const res = await reportChatMessage(messageId, null);
+  const performReport = useCallback(
+    // `reason` is the optional note collected by the dialog (audit MU-14) —
+    // previously always null.
+    async (messageId: string, reason: string | null) => {
+      const res = await reportChatMessage(messageId, reason);
       show(
         res.ok
           ? { variant: 'success', message: 'Reported. Thanks for flagging it.' }
@@ -507,127 +568,177 @@ export function ConversationView({
 
   return (
     <div className="border-border-base bg-md-surface-container rounded-shape-sm flex flex-col overflow-hidden border">
-      <div
-        ref={listRef}
-        onScroll={onScroll}
-        className="flex max-h-96 min-h-48 flex-col gap-3 overflow-y-auto p-3"
-      >
-        {hasMore && (
-          <button
-            type="button"
-            onClick={() => void loadOlder()}
-            disabled={loadingOlder}
-            className={`${textButtonClass('sm')} mx-auto`}
-          >
-            {loadingOlder ? 'Loading…' : 'Load earlier messages'}
-          </button>
-        )}
-        {empty && <p className="text-muted m-auto text-sm">No messages yet — say hi.</p>}
-        {messages.map((m) => {
-          const mine = m.senderId === viewerId;
-          // `senderName` is resolved when the view is built (load / broadcast),
-          // so render stays pure — never read the sender-card ref here.
-          const displayName = m.senderName ?? 'Member';
-          return (
-            <div key={m.id} className="flex items-start gap-2">
-              <span
-                aria-hidden
-                className="bg-fg/10 text-fg/70 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-              >
-                {initials(displayName)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="truncate text-sm font-medium">
-                    {displayName}
-                    {mine && <span className="text-muted font-normal"> (you)</span>}
-                  </span>
-                  <span className="text-muted text-xs">{timeLabel(m.createdAt)}</span>
-                  {m.isEdited && !m.isDeleted && (
-                    <span className="text-muted text-xs">(edited)</span>
-                  )}
-                </div>
-                {m.isDeleted ? (
-                  <p className="text-muted text-sm italic">Message deleted</p>
-                ) : editingId === m.id ? (
-                  <div className="mt-1 flex flex-col gap-1">
-                    <textarea
-                      value={editDraft}
-                      onChange={(e) => setEditDraft(e.target.value)}
-                      rows={2}
-                      className={fieldInputClass}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void saveEdit(m.id)}
-                        className={primaryButtonClass('sm')}
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingId(null);
-                          setEditDraft('');
-                        }}
-                        className={textButtonClass('sm')}
-                      >
-                        Cancel
-                      </button>
-                    </div>
+      <div className="relative">
+        <div
+          ref={listRef}
+          onScroll={onScroll}
+          className={`flex ${listHeightClass} flex-col gap-3 overflow-y-auto p-3`}
+        >
+          {hasMore && (
+            <button
+              type="button"
+              onClick={() => void loadOlder()}
+              disabled={loadingOlder}
+              className={`${textButtonClass('sm')} mx-auto`}
+            >
+              {loadingOlder ? 'Loading…' : 'Load earlier messages'}
+            </button>
+          )}
+          {empty && <p className="text-muted m-auto text-sm">No messages yet — say hi.</p>}
+          {messages.map((m, i) => {
+            const mine = m.senderId === viewerId;
+            // `senderName` is resolved when the view is built (load / broadcast),
+            // so render stays pure — never read the sender-card ref here.
+            const displayName = m.senderName ?? 'Member';
+            // A divider whenever the calendar day changes between adjacent
+            // messages, so a multi-day thread isn't one undifferentiated run (MU-8).
+            const showDay = i === 0 || dayKey(messages[i - 1]!.createdAt) !== dayKey(m.createdAt);
+            return (
+              <Fragment key={m.id}>
+                {showDay && (
+                  <div className="my-1 flex items-center gap-3">
+                    <span className="bg-border-base h-px flex-1" />
+                    <span className="text-muted shrink-0 text-xs">
+                      {dayDividerLabel(m.createdAt)}
+                    </span>
+                    <span className="bg-border-base h-px flex-1" />
                   </div>
-                ) : (
-                  <>
-                    {m.body && <p className="text-sm break-words whitespace-pre-wrap">{m.body}</p>}
-                    {m.attachments.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        {m.attachments.map((a) => (
-                          <ChatImage key={a.path} attachment={a} />
-                        ))}
-                      </div>
-                    )}
-                  </>
                 )}
-                {!m.isDeleted && editingId !== m.id && (
-                  <div className="mt-0.5 flex gap-3">
-                    {mine ? (
-                      <>
-                        {m.body && (
+                <div className="flex items-start gap-2">
+                  {m.senderAvatarUrl ? (
+                    <Image
+                      src={m.senderAvatarUrl}
+                      alt=""
+                      width={28}
+                      height={28}
+                      className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="bg-fg/10 text-fg/70 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                    >
+                      {initials(displayName)}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {displayName}
+                        {mine && <span className="text-muted font-normal"> (you)</span>}
+                      </span>
+                      <span className="text-muted text-xs">{timeLabel(m.createdAt)}</span>
+                      {m.isEdited && !m.isDeleted && (
+                        <span className="text-muted text-xs">(edited)</span>
+                      )}
+                    </div>
+                    {m.isDeleted ? (
+                      <p className="text-muted text-sm italic">Message deleted</p>
+                    ) : editingId === m.id ? (
+                      <div className="mt-1 flex flex-col gap-1">
+                        <textarea
+                          value={editDraft}
+                          onChange={(e) => setEditDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            // Match the composer's affordances (audit MU-7): Enter
+                            // saves, Shift+Enter newlines, Escape cancels.
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              void saveEdit(m.id);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              setEditingId(null);
+                              setEditDraft('');
+                            }
+                          }}
+                          rows={2}
+                          maxLength={4000}
+                          className={fieldInputClass}
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void saveEdit(m.id)}
+                            className={primaryButtonClass('sm')}
+                          >
+                            Save
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
-                              setEditingId(m.id);
-                              setEditDraft(m.body);
+                              setEditingId(null);
+                              setEditDraft('');
                             }}
-                            className="text-muted hover:text-fg text-xs"
+                            className={textButtonClass('sm')}
                           >
-                            Edit
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {m.body && (
+                          <p className="text-sm break-words whitespace-pre-wrap">{m.body}</p>
+                        )}
+                        {m.attachments.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {m.attachments.map((a) => (
+                              <ChatImage key={a.path} attachment={a} />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {!m.isDeleted && editingId !== m.id && (
+                      <div className="mt-0.5 flex gap-3">
+                        {mine ? (
+                          <>
+                            {m.body && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingId(m.id);
+                                  setEditDraft(m.body);
+                                }}
+                                className="text-muted hover:text-fg text-xs"
+                              >
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setPendingConfirm({ kind: 'delete', messageId: m.id })}
+                              className="text-muted hover:text-md-error text-xs"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setPendingConfirm({ kind: 'report', messageId: m.id })}
+                            className="text-muted hover:text-md-error text-xs"
+                          >
+                            Report
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => void remove(m.id)}
-                          className="text-muted hover:text-md-error text-xs"
-                        >
-                          Delete
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => void report(m.id)}
-                        className="text-muted hover:text-md-error text-xs"
-                      >
-                        Report
-                      </button>
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+                </div>
+              </Fragment>
+            );
+          })}
+        </div>
+        {hasNewBelow && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="bg-primary text-primary-fg shadow-elevation-2 hover:shadow-elevation-3 absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full px-3 py-1 text-xs font-medium transition-shadow"
+          >
+            New messages ↓
+          </button>
+        )}
       </div>
 
       {blocked ? (
@@ -696,8 +807,16 @@ export function ConversationView({
               </svg>
             </button>
             <textarea
+              ref={composerRef}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                // Auto-grow up to ~6 rows so a multi-line draft is visible
+                // instead of scrolling inside one row (audit MU-6).
+                const el = e.target;
+                el.style.height = 'auto';
+                el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -717,9 +836,39 @@ export function ConversationView({
         </>
       )}
       {error && (
-        <p role="alert" className="text-md-error text-xs">
-          {error}
-        </p>
+        <div className="border-border-base border-t p-2">
+          <Alert variant="error">{error}</Alert>
+        </div>
+      )}
+      {pendingConfirm && (
+        <ConfirmDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setPendingConfirm(null);
+          }}
+          title={pendingConfirm.kind === 'delete' ? 'Delete this message?' : 'Report this message?'}
+          description={
+            pendingConfirm.kind === 'delete'
+              ? 'This removes it for everyone. You can’t undo this.'
+              : 'Our moderators will review it.'
+          }
+          confirmLabel={pendingConfirm.kind === 'delete' ? 'Delete' : 'Report'}
+          danger={pendingConfirm.kind === 'delete'}
+          {...(pendingConfirm.kind === 'report'
+            ? {
+                reason: {
+                  label: 'Reason (optional)',
+                  placeholder: 'What’s wrong with this message?',
+                },
+              }
+            : {})}
+          onConfirm={(reason) => {
+            const c = pendingConfirm;
+            setPendingConfirm(null);
+            if (c.kind === 'delete') void performDelete(c.messageId);
+            else void performReport(c.messageId, reason);
+          }}
+        />
       )}
       {/* Visually-hidden polite live region: announces messages arriving from
           others over Realtime so screen-reader users hear new chat without a

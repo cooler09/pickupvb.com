@@ -24,7 +24,7 @@ import {
   type TeamRepository,
   type UserId,
 } from '@pickupvb/domain';
-import { RegisterTeamHandler } from './team.handler.js';
+import { RegisterTeamHandler, RenameTeamHandler } from './team.handler.js';
 
 const LOCATION = Location.create({
   addressLine: '1 Main',
@@ -244,5 +244,34 @@ describe('RegisterTeamHandler', () => {
 
     expect(events.saved).toHaveLength(1);
     expect(events.saved[0]!.teamEntries).toContainEqual(['team-1', 'div-1']);
+  });
+});
+
+describe('RenameTeamHandler', () => {
+  it('renames the team when the requester is the captain', async () => {
+    const teams = new InMemoryTeamRepo();
+    teams.put(makeTeam({ captainId: 'captain' }));
+    const handler = new RenameTeamHandler(teams);
+
+    await handler.execute({ teamId: 'team-1', name: 'New Name', requesterId: 'captain' });
+
+    expect(teams.saved).toHaveLength(1);
+    expect(teams.saved[0]!.name).toBe('New Name');
+  });
+
+  it('throws NotFoundError when the team does not exist', async () => {
+    const handler = new RenameTeamHandler(new InMemoryTeamRepo());
+    await expect(
+      handler.execute({ teamId: 'missing', name: 'X', requesterId: 'captain' }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('throws UnauthorizedError when the requester is not the captain', async () => {
+    const teams = new InMemoryTeamRepo();
+    teams.put(makeTeam({ captainId: 'captain' }));
+    const handler = new RenameTeamHandler(teams);
+    await expect(
+      handler.execute({ teamId: 'team-1', name: 'X', requesterId: 'someone-else' }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 });

@@ -5,8 +5,9 @@ import { primaryButtonClass } from '@/components/primary-button';
 import { useState } from 'react';
 import { sendTeamBroadcast } from '../broadcast-actions';
 import { useAlertReveal } from '@/components/use-alert-reveal';
+import { fieldInputClass } from '@/components/field-styles';
 
-type State = { ok?: boolean; error?: string };
+type State = { error?: string };
 const initialState: State = {};
 
 export function CaptainBroadcastPanel({
@@ -46,7 +47,7 @@ export function CaptainBroadcastPanel({
             type="text"
             maxLength={120}
             placeholder="Practice this Saturday"
-            className="border-border-base bg-bg w-full rounded-md border px-3 py-2 text-sm"
+            className={fieldInputClass}
           />
         </div>
         <div>
@@ -63,7 +64,7 @@ export function CaptainBroadcastPanel({
             rows={5}
             maxLength={2000}
             placeholder="Reminder — be there by 5:45 for warm-ups."
-            className="border-border-base bg-bg w-full rounded-md border px-3 py-2 text-sm"
+            className={fieldInputClass}
           />
         </div>
         {state.error && (

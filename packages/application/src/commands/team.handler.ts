@@ -17,6 +17,7 @@ import {
   CreateTeamCommand,
   RegisterTeamCommand,
   RemoveTeamMemberCommand,
+  RenameTeamCommand,
   SetTeamExtraMembersCommand,
   WithdrawTeamCommand,
 } from '../messages/index';
@@ -80,6 +81,24 @@ export class RemoveTeamMemberHandler {
       throw new UnauthorizedError('Only the team captain can manage the roster.');
     }
     team.removeMember(userId as UserId);
+    await this.repo.save(team);
+  }
+}
+
+/**
+ * Captain renames the team. The aggregate enforces the name rules (non-empty,
+ * profanity-blocked); this handler enforces captain-only authorization.
+ */
+export class RenameTeamHandler {
+  constructor(private readonly repo: TeamRepository) {}
+
+  async execute({ teamId, name, requesterId }: RenameTeamCommand): Promise<void> {
+    const team = await this.repo.findById(teamId as TeamId);
+    if (!team) throw new NotFoundError('team', teamId);
+    if (String(team.captainId) !== requesterId) {
+      throw new UnauthorizedError('Only the team captain can rename the team.');
+    }
+    team.rename(name);
     await this.repo.save(team);
   }
 }

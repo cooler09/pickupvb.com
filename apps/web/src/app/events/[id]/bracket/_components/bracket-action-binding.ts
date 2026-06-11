@@ -4,6 +4,7 @@ import {
   editBracketMatchFromForm,
   generateBracket,
   generatePlayoff,
+  deleteBracket,
   movePoolMatchFromForm,
   publishBracket,
   randomizeSeedFromForm,
@@ -60,6 +61,13 @@ export type BoundBracketActions = {
   /** Re-seed the playoff from a host-chosen order (overrides the auto cross-seed). */
   seedPlayoffFromForm: (formData: FormData) => void | Promise<void>;
   reset: () => void | Promise<void>;
+  /**
+   * Delete the bracket entirely (UX-15) — returns the division to format
+   * selection. **Event scope only.** Standalone brackets are deleted from their
+   * own page-level danger zone (TT-12), so this stays `undefined` for them and
+   * the shared danger zone simply doesn't render.
+   */
+  delete?: () => void | Promise<void>;
   /** Re-open a completed bracket so the host/owner can fix a result (TT-10). */
   reopen: () => void | Promise<void>;
   seedFromForm: (formData: FormData) => void | Promise<void>;
@@ -120,6 +128,7 @@ export function bindBracketActions(scope: BracketScope): BoundBracketActions {
     generatePlayoff: generatePlayoff.bind(null, e, d),
     seedPlayoffFromForm: seedBracketPlayoffFromForm.bind(null, e, d),
     reset: resetBracket.bind(null, e, d),
+    delete: deleteBracket.bind(null, e, d),
     reopen: reopenBracket.bind(null, e, d),
     seedFromForm: seedBracketFromForm.bind(null, e, d),
     randomizeSeedFromForm: randomizeSeedFromForm.bind(null, e, d),

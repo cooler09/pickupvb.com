@@ -60,7 +60,7 @@ function toCard(row: CardRow): ProfileCard {
 }
 
 const PLAYER_COLUMNS =
-  'id, handle, display_name, avatar_url, home_city, show_pro_badge, ' +
+  'id, handle, display_name, avatar_url, hero_image_url, created_at, discoverable, home_city, show_pro_badge, ' +
   'primary_position, secondary_position, tertiary_position, ' +
   'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url';
 
@@ -69,6 +69,9 @@ type PlayerRow = {
   handle: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  hero_image_url: string | null;
+  created_at: string | null;
+  discoverable: boolean | null;
   home_city: string | null;
   show_pro_badge: boolean | null;
   primary_position: string | null;
@@ -100,6 +103,9 @@ function toPlayer(row: PlayerRow): PlayerProfile {
     handle: row.handle ?? '',
     displayName: row.display_name ?? 'Player',
     avatarUrl: row.avatar_url,
+    heroImageUrl: row.hero_image_url,
+    createdAt: row.created_at,
+    discoverable: row.discoverable,
     homeCity: row.home_city,
     showProBadge: row.show_pro_badge,
     primaryPosition: row.primary_position,
@@ -146,7 +152,7 @@ export class SupabaseProfileRepository implements ProfileQueries {
 
   async searchDirectory({
     nameLike,
-    cityLike,
+    position,
     near,
     limit,
     offset,
@@ -164,8 +170,13 @@ export class SupabaseProfileRepository implements ProfileQueries {
     if (nameLike) {
       query = query.ilike('display_name', `%${escapeLike(nameLike)}%`);
     }
-    if (cityLike) {
-      query = query.ilike('home_city', `%${escapeLike(cityLike)}%`);
+    if (position) {
+      // PL-7 position filter: match any of the three position slots. `position`
+      // is a validated enum token (the page checks it against POSITION_LABEL),
+      // so it's safe to interpolate into the PostgREST `or` filter.
+      query = query.or(
+        `primary_position.eq.${position},secondary_position.eq.${position},tertiary_position.eq.${position}`,
+      );
     }
     if (near) {
       // Bounding box from the radius: ~111.32 km per degree of latitude;

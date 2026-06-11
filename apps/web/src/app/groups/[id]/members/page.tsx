@@ -1,10 +1,9 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
-import { getServerSupabase } from '@/lib/supabase';
 import { Pagination } from '@/components/pagination';
+import { Alert, type AlertVariant } from '@/components/alert';
 import { AddMemberForm } from './_components/add-member-form';
 import { MemberRowItem, type MemberListItem } from './_components/member-row-item';
+import { requireGroupManager } from '../_lib/require-group-manager';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -14,27 +13,35 @@ export const metadata = {
 
 const MEMBERS_PER_PAGE = 24;
 
+// Flash messages for member-op failures surfaced by `?member=<reason>` (GD-1).
+const MEMBER_FLASH: Record<string, { variant: AlertVariant; message: string }> = {
+  last_owner: {
+    variant: 'warning',
+    message:
+      'A group must keep at least one owner. Promote another member to owner before removing or demoting the last one.',
+  },
+  already: { variant: 'warning', message: 'That player is already a member of this group.' },
+  forbidden: {
+    variant: 'error',
+    message: "You don't have permission to manage this group's members.",
+  },
+  gone: { variant: 'warning', message: 'That member is no longer in this group.' },
+  error: { variant: 'error', message: 'Something went wrong. Please try again.' },
+};
+
 export default async function GroupMembersPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; member?: string }>;
 }) {
-  const params = await props.params;
+  const { id: slug } = await props.params;
   const searchParams = await props.searchParams;
   const page = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/groups/${params.id}/members`);
+  const flash = searchParams.member ? MEMBER_FLASH[searchParams.member] : undefined;
 
-  const groupQueries = new SupabaseGroupQueryRepository(supabase);
-  const group = await groupQueries.findDetailBySlug(params.id);
-  if (!group) notFound();
-
-  const myRole = await groupQueries.findViewerRole(group.id, user.id);
-  if (myRole !== 'owner' && myRole !== 'admin') {
-    redirect(`/groups/${group.slug}`);
-  }
+  const { groupQueries, group, role, userId } = await requireGroupManager(
+    slug,
+    `/groups/${slug}/members`,
+  );
 
   const memberCards = await groupQueries.listMembers(group.id);
   const members: MemberListItem[] = memberCards.map((m) => ({
@@ -51,7 +58,7 @@ export default async function GroupMembersPage(props: {
   }));
 
   const returnPath = `/groups/${group.slug}/members`;
-  const viewerIsOwner = myRole === 'owner';
+  const viewerIsOwner = role === 'owner';
 
   // Keep the full `members` list for the exclude set + count; only page the
   // rendered rows so a large group doesn't render every member at once.
@@ -65,6 +72,8 @@ export default async function GroupMembersPage(props: {
         </Link>
         <h1 className="text-headline-sm font-bold">Manage members</h1>
       </header>
+
+      {flash && <Alert variant={flash.variant}>{flash.message}</Alert>}
 
       <AddMemberForm
         groupId={group.id}
@@ -83,7 +92,7 @@ export default async function GroupMembersPage(props: {
               key={m.userId}
               groupId={group.id}
               member={m}
-              isSelf={m.userId === user.id}
+              isSelf={m.userId === userId}
               viewerIsOwner={viewerIsOwner}
               returnPath={returnPath}
             />

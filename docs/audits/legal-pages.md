@@ -17,15 +17,20 @@ improvements, and stale code. **This is a doc-content + chrome audit, not a
 substantive legal review** — it does not opine on whether the arbitration
 clause, liability cap, or governing-law choice are advisable.
 
-> **Status (2026-06-09):** First dedicated audit of this surface. **0 P1 · 3 P2
-> · 8 P3 — all open.** The substantive legal _facts_ all cross-check against the
-> code (trial length, refund windows, consent cookie, GPC, session-replay-off,
-> and every data-retention window match the implementation exactly — see
-> "What's already accurate" below). The findings are two real rendering bugs in
-> the shared layout (L-1 `<ol>` has no numbers, L-2 `<h3>` unstyled), one
-> subprocessor-list inconsistency (L-3 Terms omits PostHog), and a tail of P3
-> disclosure/SEO/stale-code items. Nothing here is legally load-bearing, but L-1
-> is visible on a live page. None fixed yet.
+> **Status (2026-06-09):** First dedicated audit of this surface — **all 11
+> findings (3 P2 + 8 P3) now FIXED, quad-green (typecheck/lint/test/build).**
+> The substantive legal _facts_ all cross-check against the code (trial length,
+> refund windows, consent cookie, GPC, session-replay-off, and every
+> data-retention window match the implementation exactly — see "What's already
+> accurate" below). Fixes: L-1/L-2 added `[&_ol]`/`[&_h3]` rules to the shared
+> legal layout; L-3 added PostHog to the Terms subprocessor list; L-4/L-9 added
+> the accessibility page to the sitemap and switched all four legal entries to
+> real document dates via a shared `legal-meta.ts`; L-5/L-6 disclosed
+> push-subscription data and dropped the never-sent SMS from the retention copy;
+> L-7 added a "Cookie preferences" footer control (re-opens the consent banner
+> by clearing the cookie) and reworded Privacy §5; L-8 added canonicals to the
+> other three pages; L-10/L-11 dropped the redundant `as Route` casts and fixed
+> the footer list keys. Uncommitted. See the **Remediation log** below.
 
 ---
 
@@ -68,7 +73,10 @@ Internal cross-references in the Terms (the "READ SECTION 14" pointer, the
 
 ## Findings
 
-### L-1 — Ordered list renders with no numbers or indent on the Refund Policy · **P2**
+> **All findings below were resolved on 2026-06-09** — see the Remediation log
+> at the bottom. Headings retain the original problem statement for context.
+
+### L-1 — Ordered list renders with no numbers or indent on the Refund Policy · **P2** · ✅ fixed 2026-06-09
 
 The shared layout restores list styling for `<ul>` only —
 `'[&_li]:my-1 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6'`
@@ -236,4 +244,51 @@ Harmless for a static list, but inconsistent.
 
 ## Remediation log
 
-_None yet — audit authored 2026-06-09._
+### 2026-06-09 — all 11 findings fixed (quad-green)
+
+Single bundle, `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all
+pass. Uncommitted (maintainer commits).
+
+- **L-1 (P2) — `<ol>` numbering.** Added `[&_ol]:my-3 [&_ol]:list-decimal
+[&_ol]:pl-6` alongside the existing `ul` rule in
+  [legal/layout.tsx](../../apps/web/src/app/legal/layout.tsx). The Refund
+  Policy's "How to request a refund" steps now render `1./2./3.` with indent.
+- **L-2 (P2) — `<h3>` styling.** Added `[&_h3]:text-title-md [&_h3]:mt-6
+[&_h3]:mb-2 [&_h3]:font-semibold` to the same layout; the Privacy Policy §1
+  subheads now sit on the M3 scale between `h2` and body.
+- **L-3 (P2) — Terms subprocessor list.** Inserted **PostHog** into the Terms
+  §11 sentence ([terms/page.tsx](../../apps/web/src/app/legal/terms/page.tsx))
+  so it matches Privacy §4.
+- **L-4 + L-9 (P3) — sitemap.** Added the `/legal/accessibility` entry and
+  switched all four legal entries' `lastModified` from build-time `now` to each
+  page's real document date, sourced from a new single-source
+  [legal/legal-meta.ts](../../apps/web/src/app/legal/legal-meta.ts)
+  (`LEGAL_LAST_UPDATED` + `legalLastUpdatedDate()`). The four pages now import
+  their displayed date from the same module, killing the duplicate-string drift.
+- **L-5 (P3) — push-subscription disclosure.** Added a "Push notification
+  subscription" bullet to Privacy §1 (collected) and a 90-day "last used"
+  retention bullet to §6 ([privacy/page.tsx](../../apps/web/src/app/legal/privacy/page.tsx)),
+  matching [20260701000000_retention_team_invites_push_subs.sql](../../supabase/migrations/20260701000000_retention_team_invites_push_subs.sql).
+- **L-6 (P3) — unused SMS copy.** Dropped "/ SMS" from the §6 notification-
+  delivery retention bullet (the channel is wired in the schema but never
+  dispatched — worker marks `sms` rows `skipped`). Re-add with a "phone number"
+  §1 entry if/when SMS ships.
+- **L-7 (P3) — consent re-open.** Added `reopenConsent()` to
+  [consent-banner-actions.ts](../../apps/web/src/components/consent-banner-actions.ts)
+  (deletes the `pickupvb_consent` cookie + `revalidatePath('/')`, so the
+  root-layout-gated banner re-mounts) and a **"Cookie preferences"** `<form>`
+  control in [site-footer.tsx](../../apps/web/src/components/site-footer.tsx).
+  Reworded Privacy §5 to point at it instead of "clear site cookies" (which
+  would also sign the user out).
+- **L-8 (P3) — canonicals.** Added `alternates: { canonical }` to terms,
+  privacy, and refunds `metadata` (accessibility already had one).
+- **L-10 (P3) — stale casts.** Removed the four `as Route` casts from the
+  footer's Legal links; the `/legal/*` static routes are already in the
+  `typedRoutes` union (typecheck confirms).
+- **L-11 (P3 nit) — keys.** Footer `links` map now keys on `link.href` to match
+  the sibling `extras` map.
+
+_Not verified in a running browser_ — changes are static (CSS utilities, copy,
+metadata, a cookie-clearing server action). The `<ol>`/`<h3>` rendering and the
+"Cookie preferences" → banner-reopen round-trip are worth an eyeball on dev
+after deploy.

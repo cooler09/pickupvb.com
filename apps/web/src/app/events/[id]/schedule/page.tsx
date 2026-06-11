@@ -12,6 +12,8 @@ import { handlers, repositories } from '@/lib/handlers';
 import { assertEventVisibleOrNotFound, isEventPubliclyVisible } from '@/lib/event-visibility';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { DisplayShell } from '../_components/display-shell';
+import { LeagueScheduleRealtimeRefresher } from '../_components/league-schedule-realtime-refresher';
 import { ScheduleWorkspace } from './_components/schedule-workspace';
 import { type ScheduleMatchVm } from './_components/match-row';
 import { StandingsSection, type LeagueStandingRow } from './_components/standings-section';
@@ -33,8 +35,12 @@ import { NOTICE_LABEL } from './_components/labels';
  */
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { id } = await props.params;
+  // The `?display=1` kiosk variant is the same content reframed for a TV —
+  // keep it out of the index and let the canonical (clean) URL carry the SEO.
+  const display = pickQuery(await props.searchParams, 'display') === '1';
   // Don't leak a scoped/unpublished event's title into <head>/OG — emit a
   // generic title unless the event is anon-visible (security audit P1 #14).
   if (!(await isEventPubliclyVisible(id))) {
@@ -45,7 +51,7 @@ export async function generateMetadata(props: {
     const title = `Schedule — ${event.title} · PickupVB`;
     const description = `Match schedule and live scores for ${event.title} on PickupVB.`;
     const canonical = `/events/${id}/schedule`;
-    const indexable = event.status !== 'draft' && event.status !== 'cancelled';
+    const indexable = !display && event.status !== 'draft' && event.status !== 'cancelled';
     return {
       title,
       description,
@@ -132,8 +138,10 @@ export default async function SchedulePage(props: {
   const returnPath = `/events/${event.id}/schedule?division=${selectedDivision.id}`;
   // ADR 0023: live scoreboard scoring is a Pro-host perk (re-checked server-side
   // by the finalize action). Enabled for every match in the event when the host
-  // is Pro. Viewer-independent — `isPro` is admin-client-backed.
-  const liveScoringEnabled = !!event.hostUserId && (await isPro(event.hostUserId));
+  // is Pro. Viewer-independent — `isPro` is admin-client-backed. The same Pro flag
+  // gates `?display=1` kiosk mode (tournament-displays slice A).
+  const proHost = !!event.hostUserId && (await isPro(event.hostUserId));
+  const liveScoringEnabled = proHost;
 
   const matches: ScheduleMatchVm[] = (schedule?.matches ?? []).map((m) => ({
     id: String(m.id),
@@ -170,6 +178,59 @@ export default async function SchedulePage(props: {
   const noticeMsg = pickQuery(searchParams, 'msg');
   const notice = noticeCode ? (NOTICE_LABEL[noticeCode] ?? null) : null;
 
+  const multiDivision = event.divisions.length > 1;
+  const schedulePath = (
+    multiDivision
+      ? `/events/${event.id}/schedule?division=${selectedDivision.id}`
+      : `/events/${event.id}/schedule`
+  ) as Route;
+  const displayPath = (
+    multiDivision
+      ? `/events/${event.id}/schedule?division=${selectedDivision.id}&display=1`
+      : `/events/${event.id}/schedule?display=1`
+  ) as Route;
+  const divisionSummary = [
+    selectedDivision.label,
+    selectedDivision.tierLabel ?? selectedDivision.skillTier,
+    selectedDivision.ageGroup,
+  ]
+    .filter((s) => !!s && s !== 'open')
+    .join(' · ');
+
+  // Display (kiosk) mode: chromeless, dark, wake-locked full-screen for a gym TV
+  // or a host tablet (Pro perk). Live in-progress scores tick via LiveScoresProvider;
+  // standings/finals refresh on reload — parity with the normal schedule page.
+  const displayMode = pickQuery(searchParams, 'display') === '1' && proHost && matches.length > 0;
+  if (displayMode) {
+    return (
+      <DisplayShell
+        title={`Schedule — ${event.title}`}
+        {...(divisionSummary ? { subtitle: divisionSummary } : {})}
+        meta={`${teams.length} team${teams.length === 1 ? '' : 's'} · ${matches.length} match${
+          matches.length === 1 ? '' : 'es'
+        }`}
+        exitHref={schedulePath}
+      >
+        <LeagueScheduleRealtimeRefresher divisionId={selectedDivision.id} />
+        <div className="space-y-6">
+          <StandingsSection rows={standingsRows} />
+          <ScheduleWorkspace
+            eventId={event.id}
+            divisionId={selectedDivision.id}
+            hostUserId={event.hostUserId}
+            hostGroupId={event.hostGroupId}
+            returnPath={returnPath}
+            timeZone={event.timeZone}
+            teams={teams}
+            matches={matches}
+            liveScoringEnabled={liveScoringEnabled}
+            display
+          />
+        </div>
+      </DisplayShell>
+    );
+  }
+
   return (
     <article className="mx-auto max-w-4xl space-y-6 p-4">
       <BreadcrumbJsonLd
@@ -189,6 +250,26 @@ export default async function SchedulePage(props: {
           {teams.length} registered team{teams.length === 1 ? '' : 's'} · {matches.length} match
           {matches.length === 1 ? '' : 'es'} on the slate
         </p>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Link
+            href={`/events/${event.id}/courts` as Route}
+            className="text-primary text-xs hover:underline"
+          >
+            {'Court board →'}
+          </Link>
+          {/* Pro-host kiosk: chromeless, dark, full-screen for a gym TV / tablet
+              (tournament-displays slice A). New tab keeps this page open. */}
+          {proHost && matches.length > 0 && (
+            <a
+              href={displayPath}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary text-xs hover:underline"
+            >
+              {'Display mode ↗'}
+            </a>
+          )}
+        </div>
       </header>
 
       {event.divisions.length > 1 && (
@@ -226,6 +307,8 @@ export default async function SchedulePage(props: {
           {noticeMsg && <span className="ml-1 opacity-80">— {noticeMsg}</span>}
         </div>
       )}
+
+      <LeagueScheduleRealtimeRefresher divisionId={selectedDivision.id} />
 
       <StandingsSection rows={standingsRows} />
 

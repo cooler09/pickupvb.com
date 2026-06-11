@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { addFriend, removeFriend } from '@/app/friends/actions';
-import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
+import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
 
 /**
  * Follow-from-the-directory support for `/players` (PL-2). The page itself
@@ -133,7 +133,7 @@ export function FollowButton({ playerId }: { playerId: string }) {
       // `relative z-10` lifts the button above the card's stretched-link
       // overlay so it captures its own click instead of navigating.
       className={`relative z-10 shrink-0 ${
-        isFollowing ? secondaryButtonClass('sm') : primaryButtonClass('sm')
+        isFollowing ? neutralButtonClass('sm') : primaryButtonClass('sm')
       }`}
     >
       {isFollowing ? '✓ Following' : '+ Follow'}

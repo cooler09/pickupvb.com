@@ -3,12 +3,14 @@ import {
   DEFAULT_LIVE_MATCH_CONFIG,
   commitSet,
   createLiveMatchScore,
+  currentSetNumber,
   increment,
   isSetWon,
   matchWinner,
   resetMatch,
   setsToWin,
   swapSides,
+  targetForSet,
   undoLastSet,
   type LiveMatchConfig,
   type LiveMatchScore,
@@ -69,6 +71,41 @@ describe('increment', () => {
   });
 });
 
+describe('currentSetNumber', () => {
+  it('is completed-sets + 1 (1-indexed)', () => {
+    const base = createLiveMatchScore(config({ bestOf: 5 }));
+    expect(currentSetNumber(base)).toBe(1);
+    expect(currentSetNumber({ ...base, setsA: 1, setsB: 1 })).toBe(3);
+  });
+});
+
+describe('targetForSet', () => {
+  it('falls back to the uniform target when no per-set array', () => {
+    expect(targetForSet(config({ targetScore: 21 }), 1)).toBe(21);
+    expect(targetForSet(config({ targetScore: 21 }), 9)).toBe(21);
+  });
+
+  it('uses the per-set entry when present', () => {
+    const c = config({ targetScore: 25, targetScores: [25, 25, 15] });
+    expect(targetForSet(c, 1)).toBe(25);
+    expect(targetForSet(c, 3)).toBe(15);
+  });
+
+  it('reuses the last entry for a set past the array end', () => {
+    const c = config({ targetScore: 25, targetScores: [25, 25, 15] });
+    expect(targetForSet(c, 4)).toBe(15);
+  });
+
+  it('clamps a set number below 1 to the first entry', () => {
+    const c = config({ targetScore: 25, targetScores: [21, 15] });
+    expect(targetForSet(c, 0)).toBe(21);
+  });
+
+  it('ignores an empty per-set array and uses the uniform target', () => {
+    expect(targetForSet(config({ targetScore: 25, targetScores: [] }), 1)).toBe(25);
+  });
+});
+
 describe('isSetWon', () => {
   it('requires reaching the target', () => {
     const s = {
@@ -88,6 +125,17 @@ describe('isSetWon', () => {
   it('clinches at exactly target when ahead by win-by', () => {
     const base = createLiveMatchScore(config({ targetScore: 25, winBy: 2 }));
     expect(isSetWon({ ...base, scoreA: 25, scoreB: 23 }, 'A')).toBe(true);
+  });
+
+  it('clinches the deciding set at its own per-set target (e.g. [25, 25, 15])', () => {
+    const base = createLiveMatchScore(config({ targetScore: 25, targetScores: [25, 25, 15] }));
+    // Set 1 (no sets completed) still needs 25 — 15 is not enough.
+    expect(isSetWon({ ...base, scoreA: 15, scoreB: 5 }, 'A')).toBe(false);
+    // Set 3 (one set each) clinches at 15.
+    const decider = { ...base, setsA: 1, setsB: 1, scoreA: 15, scoreB: 5 };
+    expect(isSetWon(decider, 'A')).toBe(true);
+    // Win-by still applies on the short set.
+    expect(isSetWon({ ...decider, scoreA: 15, scoreB: 14 }, 'A')).toBe(false);
   });
 });
 

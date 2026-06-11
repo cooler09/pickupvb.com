@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import * as RadixPopover from '@radix-ui/react-popover';
 import { primaryButtonClass } from '@/components/primary-button';
 import { useIsMounted } from '@/lib/use-is-mounted';
 
@@ -23,8 +24,10 @@ type Props = {
  *   • a "Share…" button that invokes the native sheet on mobile/PWA
  *   • quick links to SMS, WhatsApp, X, and email
  *
- * The popover uses `<details>` for built-in open/close state and outside-click
- * handling — no portal or focus-trap library required.
+ * Built on `@radix-ui/react-popover` (non-modal): Escape / outside-click
+ * dismissal and return-focus to the trigger come from the primitive
+ * (accessibility audit C7), so no hand-rolled `<details>` + document
+ * listeners are needed.
  */
 export function ShareLink({ path, title, code, label = 'Share' }: Props) {
   const mounted = useIsMounted();
@@ -32,29 +35,6 @@ export function ShareLink({ path, title, code, label = 'Share' }: Props) {
   const canShare =
     mounted && typeof navigator !== 'undefined' && typeof navigator.share === 'function';
   const [status, setStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-
-  // Close the popover when the user clicks anywhere outside.
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      const el = detailsRef.current;
-      if (!el || !el.open) return;
-      if (e.target instanceof Node && !el.contains(e.target)) {
-        el.open = false;
-      }
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && detailsRef.current?.open) {
-        detailsRef.current.open = false;
-      }
-    }
-    document.addEventListener('click', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('click', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, []);
 
   const url = origin ? `${origin}${path}` : path;
   const shareText = title ? `${title} — ${url}` : url;
@@ -86,65 +66,74 @@ export function ShareLink({ path, title, code, label = 'Share' }: Props) {
   const xHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(title ?? '')}&url=${encodeURIComponent(url)}`;
 
   return (
-    <details ref={detailsRef} className="group relative inline-block">
-      <summary
-        className="border-border-base bg-bg hover:bg-fg/5 text-fg inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium select-none [&::-webkit-details-marker]:hidden"
-        aria-label={`Share — ${url}`}
-      >
-        <ShareIcon />
-        {label}
-        {code && <span className="text-muted ml-0.5 font-mono text-xs">{code}</span>}
-      </summary>
+    <RadixPopover.Root>
+      <RadixPopover.Trigger asChild>
+        <button
+          type="button"
+          className="border-border-base bg-bg hover:bg-fg/5 text-fg inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium select-none"
+          aria-label={`Share — ${url}`}
+        >
+          <ShareIcon />
+          {label}
+          {code && <span className="text-muted ml-0.5 font-mono text-xs">{code}</span>}
+        </button>
+      </RadixPopover.Trigger>
+      <RadixPopover.Portal>
+        <RadixPopover.Content
+          align="end"
+          sideOffset={8}
+          aria-label="Share this page"
+          className="md-popover-motion border-border-base bg-md-surface-container rounded-shape-sm z-50 w-72 space-y-3 border p-3 shadow-lg"
+        >
+          <div>
+            <label className="text-muted mb-1 block text-[10px] font-semibold tracking-wide uppercase">
+              Link
+            </label>
+            <div className="flex items-stretch gap-1.5">
+              <input
+                type="text"
+                readOnly
+                value={url}
+                onFocus={(e) => e.currentTarget.select()}
+                className="border-border-base bg-bg text-fg focus-visible:border-primary focus-visible:ring-primary min-w-0 flex-1 rounded-md border px-2 py-1.5 font-mono text-xs outline-none focus-visible:ring-2"
+              />
+              <button
+                type="button"
+                onClick={copy}
+                className={`${primaryButtonClass('sm')} shrink-0`}
+              >
+                {status === 'copied' ? 'Copied ✓' : 'Copy'}
+              </button>
+            </div>
+            <span className="sr-only" aria-live="polite">
+              {status === 'copied' ? 'Link copied to clipboard.' : ''}
+            </span>
+          </div>
 
-      <div
-        role="dialog"
-        aria-label="Share this page"
-        className="border-border-base bg-md-surface-container rounded-shape-sm absolute right-0 z-30 mt-2 w-72 space-y-3 border p-3 shadow-lg"
-      >
-        <div>
-          <label className="text-muted mb-1 block text-[10px] font-semibold tracking-wide uppercase">
-            Link
-          </label>
-          <div className="flex items-stretch gap-1.5">
-            <input
-              type="text"
-              readOnly
-              value={url}
-              onFocus={(e) => e.currentTarget.select()}
-              className="border-border-base bg-bg text-fg focus-visible:border-primary focus-visible:ring-primary min-w-0 flex-1 rounded-md border px-2 py-1.5 font-mono text-xs outline-none focus-visible:ring-2"
-            />
-            <button type="button" onClick={copy} className={`${primaryButtonClass('sm')} shrink-0`}>
-              {status === 'copied' ? 'Copied ✓' : 'Copy'}
+          {canShare && (
+            <button
+              type="button"
+              onClick={nativeShare}
+              className="border-border-base hover:bg-fg/5 text-fg flex w-full items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium"
+            >
+              <ShareIcon /> Share via system…
             </button>
-          </div>
-          <span className="sr-only" aria-live="polite">
-            {status === 'copied' ? 'Link copied to clipboard.' : ''}
-          </span>
-        </div>
+          )}
 
-        {canShare && (
-          <button
-            type="button"
-            onClick={nativeShare}
-            className="border-border-base hover:bg-fg/5 text-fg flex w-full items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium"
-          >
-            <ShareIcon /> Share via system…
-          </button>
-        )}
-
-        <div>
-          <p className="text-muted mb-1.5 text-[10px] font-semibold tracking-wide uppercase">
-            Quick share
-          </p>
-          <div className="grid grid-cols-4 gap-1.5">
-            <QuickShareButton href={smsHref} label="SMS" />
-            <QuickShareButton href={waHref} label="WhatsApp" external />
-            <QuickShareButton href={xHref} label="X" external />
-            <QuickShareButton href={mailHref} label="Email" />
+          <div>
+            <p className="text-muted mb-1.5 text-[10px] font-semibold tracking-wide uppercase">
+              Quick share
+            </p>
+            <div className="grid grid-cols-4 gap-1.5">
+              <QuickShareButton href={smsHref} label="SMS" />
+              <QuickShareButton href={waHref} label="WhatsApp" external />
+              <QuickShareButton href={xHref} label="X" external />
+              <QuickShareButton href={mailHref} label="Email" />
+            </div>
           </div>
-        </div>
-      </div>
-    </details>
+        </RadixPopover.Content>
+      </RadixPopover.Portal>
+    </RadixPopover.Root>
   );
 }
 

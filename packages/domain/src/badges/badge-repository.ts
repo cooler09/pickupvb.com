@@ -41,9 +41,6 @@ export interface BadgeRepository {
   /** All badges granted to a user (includes hidden ones — owner view). */
   listForUser(userId: string): Promise<GrantedBadge[]>;
 
-  /** Whether the user already holds a given badge key. */
-  hasBadge(userId: string, badgeKey: string): Promise<boolean>;
-
   /**
    * Aggregate the denormalised stats snapshot the system-badge rules consume.
    * The SQL joins live in the adapter; the thresholds stay in the catalog.

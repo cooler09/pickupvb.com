@@ -4,7 +4,12 @@
 @source './**/*.{ts,tsx,mdx}';
 
 /* Use a `data-theme` attribute (set on <html> by next.js layout) instead of
- * the default `prefers-color-scheme` for the `dark:` variant. */
+ * the default `prefers-color-scheme` for the `dark:` variant. The variant
+ * already matches any descendant of a `[data-theme='dark']` element, and the
+ * token blocks below redeclare `--tw-color-*` / `--md-sys-color-*` on any
+ * nested `[data-theme='dark']` (not just :root). Together they let a subtree
+ * pin the dark ramp regardless of the site theme — used by the live-display
+ * (kiosk) shell so a gym TV is dark even when the host browses in light mode. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 /*
@@ -27,7 +32,8 @@
   --tw-color-border-base: 235 214 215; /* #EBD6D7 */
 }
 
-:root[data-theme='dark'] {
+:root[data-theme='dark'],
+[data-theme='dark'] {
   color-scheme: dark;
   --tw-color-background: 14 42 44; /* #0E2A2C */
   --tw-color-surface: 27 63 66; /* #1B3F42 */
@@ -122,7 +128,8 @@
   --md-sys-color-shadow: 0 0 0;
 }
 
-:root[data-theme='dark'] {
+:root[data-theme='dark'],
+[data-theme='dark'] {
   --md-sys-color-primary: 136 211 214;
   --md-sys-color-on-primary: 0 55 56;
   --md-sys-color-primary-container: 0 79 82;
@@ -223,7 +230,8 @@
   --md-sys-elevation-4: 0 2px 3px 0 rgb(0 0 0 / 0.3), 0 6px 10px 4px rgb(0 0 0 / 0.15);
   --md-sys-elevation-5: 0 4px 4px 0 rgb(0 0 0 / 0.3), 0 8px 12px 6px rgb(0 0 0 / 0.15);
 }
-:root[data-theme='dark'] {
+:root[data-theme='dark'],
+[data-theme='dark'] {
   --md-sys-elevation-0: none;
   --md-sys-elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.6), 0 1px 3px 1px rgb(0 0 0 / 0.45);
   --md-sys-elevation-2: 0 1px 2px 0 rgb(0 0 0 / 0.6), 0 2px 6px 2px rgb(0 0 0 / 0.45);
@@ -486,6 +494,12 @@ body {
     animation: none;
     box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.6);
   }
+}
+
+/* Live-display (kiosk) zoom — enlarges a token-based board for across-the-gym
+ * legibility without restyling components. See DisplayShell (display mode). */
+.display-zoom {
+  zoom: 1.2;
 }
 
 /*
@@ -1146,6 +1160,28 @@ body {
     var(--md-sys-motion-easing-emphasized-decelerate);
 }
 .md-menu-motion[data-state='closed'] {
+  animation: md-menu-exit var(--md-sys-motion-duration-short3)
+    var(--md-sys-motion-easing-emphasized-accelerate);
+}
+
+/*
+ * ============================================================================
+ *  M3 popover motion (Bundle 6 — accessibility audit C7).
+ *
+ *  Applied to Radix `Popover.Content` via `.md-popover-motion`. Same
+ *  anchor-origin scale-in as the menu — reuses the `md-menu-enter` /
+ *  `md-menu-exit` keyframes — but reads the popover popper's own
+ *  transform-origin var. Used by the notification bell and the share menu.
+ * ============================================================================
+ */
+.md-popover-motion {
+  transform-origin: var(--radix-popover-content-transform-origin);
+}
+.md-popover-motion[data-state='open'] {
+  animation: md-menu-enter var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-emphasized-decelerate);
+}
+.md-popover-motion[data-state='closed'] {
   animation: md-menu-exit var(--md-sys-motion-duration-short3)
     var(--md-sys-motion-easing-emphasized-accelerate);
 }

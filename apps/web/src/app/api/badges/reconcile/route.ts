@@ -8,15 +8,16 @@
  *
  * Candidate set is bounded to "users whose counts could have just changed":
  * attendees of events that finished in the last 7 days, plus hosts who recently
- * published. The thresholds live in TS (`badge-catalog.ts`) — this route only
- * loops candidates through the reconcile handler; there is no SQL grant logic.
+ * published. The thresholds live in TS (`badge-catalog.ts`) — this route loops
+ * candidates through the same `reconcileUserBadges` facade the profile view
+ * uses, so cron-driven grants (system + on_attend host badges) also fire the
+ * `badge.earned` bell instead of landing silently.
  */
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
-import { ReconcileUserBadgesHandler } from '@pickupvb/application';
-import { SupabaseBadgeRepository } from '@pickupvb/infrastructure';
 import { log } from '@/lib/log';
 import { isCronAuthorized } from '@/lib/cron-auth';
+import { reconcileUserBadges } from '@/lib/badges';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,13 +33,14 @@ async function candidateUserIds(
   const now = new Date().toISOString();
 
   // Attendees of recently-finished events (their attendance counts just changed).
-  const { data: attendeeRows } = await admin
-    .from('event_participants')
-    .select('user_id, division:event_divisions!inner(event:events!inner(ends_at, status))')
-    .eq('role', 'attendee')
-    .gte('division.event.ends_at', since)
-    .lte('division.event.ends_at', now)
-    .limit(MAX_CANDIDATES_PER_RUN);
+  // Team-aware (BA-9): the `event_attendee_ids` union behind this RPC counts
+  // open-play attendees, free agents, rostered team members, and team captains
+  // alike — the same "who attended" definition the grant RPCs use — so team
+  // tournaments / leagues reconcile via the cron, not just open play.
+  const { data: attendeeRows } = await admin.rpc('badge_reconcile_candidate_ids', {
+    p_since: since,
+    p_now: now,
+  });
 
   // Hosts who published recently (First Whistle).
   const { data: hostRows } = await admin
@@ -65,22 +67,21 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const admin = createSupabaseAdminClient();
-  const handler = new ReconcileUserBadgesHandler(new SupabaseBadgeRepository(admin));
 
   try {
     const candidates = await candidateUserIds(admin);
     let granted = 0;
-    let reconciled = 0;
+    // Drain each candidate through the same facade the profile view uses — it
+    // grants on_attend host badges *and* system badges and fires the
+    // `badge.earned` bell, so a player who earns a badge without visiting their
+    // profile still gets it (and is notified). The facade is fail-quiet, so a
+    // single user's hiccup degrades to "no new badges" rather than aborting the
+    // run.
     for (const userId of candidates) {
-      try {
-        const newly = await handler.execute(userId);
-        granted += newly.length;
-        reconciled += 1;
-      } catch (err) {
-        await log.error('[badges-reconcile] user failed', { userId, err });
-      }
+      const newly = await reconcileUserBadges(userId);
+      granted += newly.length;
     }
-    return NextResponse.json({ ok: true, candidates: candidates.length, reconciled, granted });
+    return NextResponse.json({ ok: true, candidates: candidates.length, granted });
   } catch (err) {
     await log.error('[badges-reconcile] failed', err);
     return NextResponse.json({ ok: false }, { status: 500 });

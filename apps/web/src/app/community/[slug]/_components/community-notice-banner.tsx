@@ -14,9 +14,9 @@ export function CommunityNoticeBanner({ code }: { code: string | undefined }): R
     hidden: { tone: 'ok', text: 'Listing hidden. Only you and platform admins can see it now.' },
     unhidden: { tone: 'ok', text: 'Listing restored.' },
     updated: { tone: 'ok', text: 'Listing updated.' },
-    claimed: {
+    submitted: {
       tone: 'ok',
-      text: 'Listing claimed and linked to your event.',
+      text: "Listing submitted — it's live now. Thanks for helping the community find this event.",
     },
     claimproposed: {
       tone: 'ok',

@@ -47,6 +47,16 @@ export interface BracketReadModel {
 }
 
 /**
+ * One row per division that has a bracket — the lightweight status projection
+ * behind the division tabs' per-division pills (UX-9). Divisions without a
+ * bracket are simply absent from the result.
+ */
+export interface DivisionBracketStatus {
+  readonly divisionId: string;
+  readonly status: BracketStatus;
+}
+
+/**
  * Lightweight projection for the standalone "My brackets" list (ADR 0025).
  * Avoids hydrating the full aggregate (seeds + matches + sets) per row.
  */
@@ -98,6 +108,16 @@ export interface BracketRepository {
    * the event scope only when no division-scoped rows exist.
    */
   listRegisteredTeams(eventId: EventId, divisionId: DivisionId): Promise<BracketTeamLite[]>;
+  /**
+   * Per-division bracket status for the given divisions — one row per division
+   * that has a bracket (UX-9). Drives the status pill on each division tab so a
+   * host can see at a glance which divisions are set up / live / final without
+   * opening each tab. Viewer-independent (the `event_brackets` status is shared
+   * across viewers).
+   */
+  listDivisionStatuses(
+    divisionIds: ReadonlyArray<DivisionId>,
+  ): Promise<ReadonlyArray<DivisionBracketStatus>>;
   /**
    * Standalone (ADR 0025) brackets owned by a user, newest first — for the
    * "My brackets" list. Summary projection, not full aggregates.

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { ProfileForm } from './profile-form';
 import { AvatarPanel } from '@/components/avatar-panel';
+import { HeroImagePanel } from '@/components/hero-image-panel';
 import { MyGroupsSection } from './_components/my-groups-section';
 import { BadgeShelf } from '@/components/badge-shelf';
 import { BadgeUnlockToast } from '@/components/badge-unlock-toast';
@@ -74,7 +75,13 @@ export default async function ProfilePage(props: {
       {/* Achievement badges (gamification Phase 1) — owner sees locked teasers. */}
       <BadgeUnlockToast newlyGranted={newlyGrantedBadges} />
       <KonamiListener />
-      <BadgeShelf earned={shelfBadges} showLocked heading="Your badges" />
+      <BadgeShelf
+        earned={shelfBadges}
+        showLocked
+        manageHidden
+        returnPath="/profile"
+        heading="Your badges"
+      />
 
       {/* Onboarding checklists (ADR 0035). Player track first (everyone), then the
           host track for viewers showing host intent. Each hides once its required
@@ -141,6 +148,15 @@ export default async function ProfilePage(props: {
             initials={displayInitials}
             // Revalidate the public card when one exists; otherwise just the hub
             // (no vanity handle yet → `/players/<uuid>` would 404). PRV-3.
+            returnPath={hasPublicHandle ? `/players/${profile.handle}` : '/profile'}
+          />
+          {/* Profile banner (PUB-8). entityId === userId — a profile's hero is
+              keyed by the owner's id. Same return-path rule as the avatar. */}
+          <HeroImagePanel
+            entityType="profiles"
+            entityId={userId}
+            userId={userId}
+            currentUrl={profile.hero_image_url}
             returnPath={hasPublicHandle ? `/players/${profile.handle}` : '/profile'}
           />
         </div>

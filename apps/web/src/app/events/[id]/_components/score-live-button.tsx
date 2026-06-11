@@ -31,7 +31,11 @@ export function ScoreLiveButton(props: {
   teamB: string;
   /** Scoreboard format. League has no stored best-of — pass 1 (single game). */
   bestOf: number;
+  /** Uniform per-set target (the `t` param / fallback). */
   targetScore?: number;
+  /** Per-set targets (e.g. `[25, 25, 15]`) — sent as the `ts` param so the
+   *  scoreboard clinches each set at its own total. Wins over `targetScore`. */
+  targetScores?: ReadonlyArray<number>;
   winBy?: number;
   returnPath: string;
   className?: string;
@@ -44,13 +48,16 @@ export function ScoreLiveButton(props: {
     const params = new URLSearchParams({
       ta: props.teamA || 'Home',
       tb: props.teamB || 'Away',
-      t: String(props.targetScore ?? 25),
+      t: String(props.targetScore ?? props.targetScores?.[0] ?? 25),
       wb: String(props.winBy ?? 2),
       bo: String(Math.max(1, props.bestOf)),
       match: props.matchId,
       kind: props.kind,
       ret: props.returnPath,
     });
+    if (props.targetScores && props.targetScores.length > 0) {
+      params.set('ts', props.targetScores.join(','));
+    }
     // Standalone brackets carry `bracket`; event matches carry `event` +
     // `division`. The scoreboard's parseBinding branches on which is present.
     if (props.bracketId) {

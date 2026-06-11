@@ -40,6 +40,7 @@ type ProfileRow = {
   display_name: string;
   home_city: string | null;
   avatar_url: string | null;
+  hero_image_url: string | null;
   auto_accept_team_invites: boolean | null;
   show_pro_badge: boolean | null;
   discoverable: boolean | null;
@@ -61,6 +62,7 @@ export type ProfileView = {
   display_name: string;
   home_city: string | null;
   avatar_url: string | null;
+  hero_image_url: string | null;
   auto_accept_team_invites: boolean;
   show_pro_badge: boolean;
   discoverable: boolean;
@@ -149,6 +151,7 @@ export async function loadProfilePage(
     badgeKey: b.badgeKey,
     awardedAt: b.awardedAt,
     source: b.source,
+    hidden: b.hidden,
     label: typeof b.context?.label === 'string' ? b.context.label : null,
     iconUrl: typeof b.context?.iconUrl === 'string' ? b.context.iconUrl : null,
   }));
@@ -156,7 +159,7 @@ export async function loadProfilePage(
   const { data } = await supabase
     .from('profiles')
     .select(
-      'handle, first_name, last_name, display_name, home_city, avatar_url, auto_accept_team_invites, show_pro_badge, discoverable, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      'handle, first_name, last_name, display_name, home_city, avatar_url, hero_image_url, auto_accept_team_invites, show_pro_badge, discoverable, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -173,6 +176,7 @@ export async function loadProfilePage(
     display_name: row?.display_name ?? user.email?.split('@')[0] ?? 'Player',
     home_city: row?.home_city ?? null,
     avatar_url: row?.avatar_url ?? null,
+    hero_image_url: row?.hero_image_url ?? null,
     auto_accept_team_invites: row?.auto_accept_team_invites ?? false,
     show_pro_badge: row?.show_pro_badge ?? true,
     discoverable: row?.discoverable ?? true,

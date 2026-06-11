@@ -116,6 +116,7 @@ export default async function StandaloneBracketWatchPage(props: {
             matches={[...bracket.matches]}
             teamById={teamById}
             bestOf={bracket.config.bestOf}
+            poolPlayMode={bracket.config.poolPlayMode}
             targetScore={bracket.config.targetScore}
             targetScores={bracket.config.targetScores}
             playoffBestOf={bracket.config.playoffBestOf}

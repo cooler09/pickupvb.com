@@ -1,15 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { SubmitButton } from '@/components/submit-button';
-import { removeMemberFromForm } from '../../actions';
+import { neutralButtonClass } from '@/components/primary-button';
+import { fieldInputClass } from '@/components/field-styles';
+import { removeMemberFromForm, renameTeamFromForm } from '../../actions';
 import { AddTeamMemberForm } from './add-team-member-form';
 import { ExtraMembersForm } from './extra-members-form';
 import { CaptainBroadcastPanel } from './captain-broadcast-panel';
 import { InviteResponse } from './invite-response';
 import { DeleteTeamPanel } from './delete-team-panel';
-import type { TeamRosterMember } from './team-member-row';
+import { memberName, type TeamRosterMember } from './team-member-row';
 
 type Props = {
   teamId: string;
@@ -88,12 +91,48 @@ export function TeamViewerChrome({
   const nonCaptainMembers = members.filter((m) => m.userId !== captainId);
   return (
     <>
+      <Link
+        href="/events"
+        className="border-primary/30 bg-primary/5 hover:bg-primary/10 rounded-shape-sm flex items-center justify-between gap-3 border p-4"
+      >
+        <span className="min-w-0">
+          <span className="text-fg block text-sm font-semibold">Enter this team in an event</span>
+          <span className="text-muted block text-xs">
+            Browse tournaments &amp; leagues, then register your roster.
+          </span>
+        </span>
+        <span className="text-primary shrink-0 text-sm font-medium">Find events →</span>
+      </Link>
+
       <AddTeamMemberForm
         teamId={teamId}
         returnPath={returnPath}
         existingMemberIds={members.map((m) => m.userId)}
       />
       <ExtraMembersForm teamId={teamId} returnPath={returnPath} value={extraMembers} />
+
+      <section className="border-border-base rounded-shape-sm border p-4">
+        <h2 className="text-muted mb-3 text-sm font-semibold tracking-wide uppercase">Team name</h2>
+        <form
+          key={teamName}
+          action={renameTeamFromForm.bind(null, teamId, returnPath)}
+          className="flex items-end gap-2"
+        >
+          <label className="block flex-1">
+            <span className="sr-only">Team name</span>
+            <input
+              name="name"
+              type="text"
+              defaultValue={teamName}
+              required
+              maxLength={80}
+              className={fieldInputClass}
+            />
+          </label>
+          <SubmitButton className={neutralButtonClass('md')}>Save</SubmitButton>
+        </form>
+      </section>
+
       <CaptainBroadcastPanel teamId={teamId} memberCount={activeCount} />
       {nonCaptainMembers.length > 0 && (
         <section className="space-y-2">
@@ -124,11 +163,4 @@ export function TeamViewerChrome({
       <DeleteTeamPanel teamId={teamId} teamName={teamName} />
     </>
   );
-}
-
-function memberName(m: TeamRosterMember): string {
-  const p = m.profile;
-  if (!p) return 'Player';
-  const full = [p.firstName, p.lastName].filter(Boolean).join(' ').trim();
-  return full || p.displayName || 'Player';
 }

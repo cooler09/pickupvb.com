@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
+import { Spinner } from '@/components/spinner';
 import { bindBracketActions } from './bracket-action-binding';
 import { useAlertReveal } from '@/components/use-alert-reveal';
 import type { BracketScope } from './labels';
@@ -273,8 +274,10 @@ export function WalkInTeamForm(props: {
         <button
           type="submit"
           disabled={pending || (mode === 'bulk' && bulkText.trim().length === 0)}
+          aria-busy={pending}
           className={primaryButtonClass('sm')}
         >
+          {pending && <Spinner className="mr-2 h-4 w-4" />}
           {pending
             ? 'Adding…'
             : mode === 'bulk'

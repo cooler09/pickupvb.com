@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
-import { SupabaseProfileRepository, SupabaseMediaPostRepository } from '@pickupvb/infrastructure';
+import { SupabaseMediaPostRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
+import { getPlayerByHandle } from './_loaders/load-player';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { playerName, playerInitials } from '@/lib/player-name';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
@@ -13,8 +14,10 @@ import { SocialLinks } from '@/components/social-links';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { PlayerViewerActions } from './_components/player-viewer-actions';
+import { PlaysWith, loadPlaysWith } from './_components/plays-with';
 import { ProfileVideoGrid } from '@/components/profile-video-grid';
 import { BadgeShelf } from '@/components/badge-shelf';
+import { HeroImage } from '@/components/hero-image';
 import { loadPublicBadges } from '@/lib/badges';
 
 /**
@@ -31,23 +34,23 @@ const PAST_EVENTS_PER_PAGE = 10;
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const profiles = new SupabaseProfileRepository(createSupabaseAnonClient());
-  const card = await profiles.findCardByHandle(params.id);
-  if (!card) return { title: 'Player' };
-  const name = card.displayName || 'Player';
-  const description = `${name}${card.homeCity ? ` of ${card.homeCity}` : ''} — volleyball player on PickupVB.`;
+  // Shares the page's `React.cache`-memoized read (PUB-12) — one query, not two.
+  const profile = await getPlayerByHandle(params.id);
+  if (!profile) return { title: 'Player' };
+  const name = profile.displayName || 'Player';
+  const description = `${name}${profile.homeCity ? ` of ${profile.homeCity}` : ''} — volleyball player on PickupVB.`;
   return {
     title: name,
     description,
-    alternates: { canonical: `/players/${card.handle}` },
+    alternates: { canonical: `/players/${profile.handle}` },
     // Honor the discovery opt-out: a `discoverable = false` player stays
     // reachable by direct link but is de-indexed (and dropped from the
     // sitemap) so "stay private" isn't crawled. Default (null/true) indexes.
-    ...(card.discoverable === false ? { robots: { index: false, follow: false } } : {}),
+    ...(profile.discoverable === false ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       title: `${name} · PickupVB`,
       description,
-      url: `/players/${card.handle}`,
+      url: `/players/${profile.handle}`,
       type: 'profile',
     },
   };
@@ -66,12 +69,14 @@ export default async function PlayerProfilePage(props: {
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
   const supabase = createSupabaseAnonClient();
 
-  const profile = await new SupabaseProfileRepository(supabase).findPlayerByHandle(params.id);
+  // Memoized read shared with `generateMetadata` (PUB-12); the `supabase` client
+  // above still drives the independent side-loads below.
+  const profile = await getPlayerByHandle(params.id);
   if (!profile) notFound();
 
   // Hosted events (upcoming + past split at SQL) + pro / admin badges are independent.
   const now = new Date();
-  const [upcoming, past, isProHost, isAdmin, videos, publicBadges] = await Promise.all([
+  const [upcoming, past, isProHost, isAdmin, videos, publicBadges, playsWith] = await Promise.all([
     // RLS handles visibility — anon viewers only see public events.
     loadVisibleHostedEvents(supabase, profile.id, { startsAfter: now }),
     loadVisibleHostedEvents(supabase, profile.id, { startsBefore: now }),
@@ -83,10 +88,15 @@ export default async function PlayerProfilePage(props: {
     // Public trophy case — read from the user_badges_public view (anon-granted,
     // hidden badges already filtered), so it stays ISR-cacheable too.
     loadPublicBadges(supabase, profile.id),
+    // Community context — groups + teams (PUB-7). Anon-safe (RLS `using (true)`).
+    loadPlaysWith(supabase, profile.id),
   ]);
 
   const returnPath = `/players/${profile.handle}`;
   const name = playerName(profile.displayName);
+  // ISO timestamps are `YYYY-…`, so the year is a pure string slice (no `new
+  // Date()` in render — React Compiler purity, AGENTS pattern #4).
+  const memberSinceYear = profile.createdAt ? profile.createdAt.slice(0, 4) : null;
 
   const positions = [profile.primaryPosition, profile.secondaryPosition, profile.tertiaryPosition]
     .filter((p): p is string => !!p)
@@ -101,6 +111,13 @@ export default async function PlayerProfilePage(props: {
         ]}
       />
 
+      {/* Hero banner — only when the player uploaded one (most haven't). The
+          default court art is reserved for venue-like surfaces (events/groups);
+          a person's card stays clean unless they opt into a banner. */}
+      {profile.heroImageUrl && (
+        <HeroImage url={profile.heroImageUrl} alt={`${name}'s banner`} priority />
+      )}
+
       {/* ── Identity card ─────────────────────────────────────── */}
       <header className="border-border-base bg-md-surface-container rounded-shape-sm border p-5">
         <div className="flex items-start gap-4">
@@ -108,8 +125,8 @@ export default async function PlayerProfilePage(props: {
             <Image
               src={profile.avatarUrl}
               alt={`${name}'s profile photo`}
-              width={72}
-              height={72}
+              width={80}
+              height={80}
               className="h-20 w-20 shrink-0 rounded-full object-cover"
             />
           ) : (
@@ -126,9 +143,14 @@ export default async function PlayerProfilePage(props: {
               {isAdmin && <AdminBadge />}
               {isProHost && <ProBadge />}
             </div>
-            <p className="text-muted text-sm">{profile.homeCity ?? 'No home city set'}</p>
+            {/* Omit rather than echo owner-state copy ("…set") to a stranger
+                viewing someone else's card (PUB-10). */}
+            {profile.homeCity && <p className="text-muted text-sm">{profile.homeCity}</p>}
             {positions.length > 0 && (
               <p className="text-muted mt-1 text-xs">{positions.join(' · ')}</p>
+            )}
+            {memberSinceYear && (
+              <p className="text-muted mt-1 text-xs">Member since {memberSinceYear}</p>
             )}
             <SocialLinks
               className="mt-3"
@@ -166,6 +188,13 @@ export default async function PlayerProfilePage(props: {
         }))}
         heading={`${name}'s badges`}
       />
+
+      {/* Community context — the groups this player belongs to and the teams
+          they're rostered on (PUB-7). Each sub-section self-hides when empty,
+          and the whole block renders nothing for a player with no public
+          memberships, so a non-host profile gains substance without ever
+          showing a hollow placeholder. */}
+      <PlaysWith groups={playsWith.groups} teams={playsWith.teams} />
 
       {/* "Hosting" — events this player is hosting. The section is host-scoped,
           so it's hidden entirely for the (majority) non-host player rather than

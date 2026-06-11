@@ -108,6 +108,13 @@ export function ProfileQuickActions({ isHost }: { isHost: boolean }) {
         title="My passes"
         description="Prepaid session credits"
       />
+      {isHost && (
+        <ActionTile
+          href={'/host' as Route}
+          title="Host dashboard"
+          description="Charts, signups & actions"
+        />
+      )}
       <ActionTile
         href={'/events/new' as Route}
         title="Host an event"

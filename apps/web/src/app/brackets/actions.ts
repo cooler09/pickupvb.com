@@ -100,8 +100,18 @@ function parseConfig(formData: FormData): {
 } {
   const format = String(formData.get('format') ?? 'single_elimination') as BracketFormat;
   const config: Partial<BracketConfig> = {};
+  // Pool-stage scoring mode (ADR 0040). `total_games` reuses `bestOf` as the
+  // game count and permits even values (2/4); the domain re-validates per format.
+  const isTotalGames = String(formData.get('pool_play_mode') ?? 'best_of') === 'total_games';
   const bestOf = Number(formData.get('best_of') ?? '');
-  if (bestOf === 1 || bestOf === 3 || bestOf === 5) config.bestOf = bestOf;
+  if (isTotalGames) {
+    if (bestOf === 2 || bestOf === 4) {
+      config.bestOf = bestOf;
+      config.poolPlayMode = 'total_games';
+    }
+  } else if (bestOf === 1 || bestOf === 3 || bestOf === 5) {
+    config.bestOf = bestOf;
+  }
   // Per-game target scores (ADR 0032) — `target_score_1`, `target_score_2`, …
   // one per game. The single `targetScore` is kept = game 1 for back-compat.
   const targetScores = parseGameTargets(formData, 'target_score');

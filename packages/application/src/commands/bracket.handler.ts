@@ -67,6 +67,19 @@ export class ResetBracketCommand {
   ) {}
 }
 
+/**
+ * Remove a division's bracket entirely (UX-15). Returns the division to the
+ * "no bracket" state so the host can re-pick a format — the supported way to
+ * change format after create — or simply scrap it. Host-gated; the event twin
+ * of `DeleteStandaloneBracketCommand`.
+ */
+export class DeleteBracketCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
 export class ReorderPoolMatchesCommand {
   constructor(
     public readonly divisionId: string,
@@ -359,6 +372,18 @@ export class ResetBracketHandler extends EventBracketStructuralHandler {
   async execute(cmd: ResetBracketCommand): Promise<void> {
     const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
     await this.runMutation(bracket, (b) => b.reset());
+  }
+}
+
+export class DeleteBracketHandler extends EventBracketStructuralHandler {
+  async execute(cmd: DeleteBracketCommand): Promise<void> {
+    // UX-15: delete an event bracket outright (cascade clears its seeds /
+    // matches / sets / teams via the repo port — the same one TT-12 added for
+    // standalone). Host-gated via loadHost; a non-host is rejected before the
+    // delete. Unlike the structural mutations this does NOT go through
+    // `runMutation` (there is no aggregate left to `save`).
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.brackets.deleteBracket(bracket.id);
   }
 }
 

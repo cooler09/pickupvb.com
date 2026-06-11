@@ -1,5 +1,6 @@
 'use server';
 
+import { field } from '@/lib/form-data';
 import { addGroupMember } from '@/app/groups/member-actions';
 
 /**
@@ -12,8 +13,8 @@ export async function addMemberFromForm(
   returnPath: string,
   formData: FormData,
 ): Promise<void> {
-  const userId = String(formData.get('user_id') ?? '').trim();
-  const role = String(formData.get('role') ?? 'member') as 'owner' | 'admin' | 'member';
+  const userId = field(formData, 'user_id');
+  const role = (field(formData, 'role') || 'member') as 'owner' | 'admin' | 'member';
   if (!userId) return;
   await addGroupMember(groupId, userId, role, returnPath);
 }

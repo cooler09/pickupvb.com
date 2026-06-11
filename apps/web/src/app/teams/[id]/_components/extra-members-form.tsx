@@ -1,5 +1,6 @@
 import { SubmitButton } from '@/components/submit-button';
 import { neutralButtonClass } from '@/components/primary-button';
+import { fieldInputClass } from '@/components/field-styles';
 import { setExtraMembersFromForm } from '../../actions';
 
 type Props = {
@@ -28,7 +29,7 @@ export function ExtraMembersForm({ teamId, returnPath, value }: Props) {
         action={setExtraMembersFromForm.bind(null, teamId, returnPath)}
         className="flex items-end gap-2"
       >
-        <label className="block">
+        <label className="block w-24">
           <span className="sr-only">Off-site player count</span>
           <input
             name="extra_member_count"
@@ -36,7 +37,7 @@ export function ExtraMembersForm({ teamId, returnPath, value }: Props) {
             min={0}
             max={20}
             defaultValue={value}
-            className="border-border-base bg-md-surface-container w-24 rounded-md border px-3 py-2 text-sm"
+            className={fieldInputClass}
           />
         </label>
         <SubmitButton className={neutralButtonClass('md')}>Save</SubmitButton>

@@ -1,6 +1,32 @@
-# Groups Directory UX Audit
+# Groups UX Audit
 
-_Last updated: 2026-06-01_
+_Last updated: 2026-06-10_
+
+> **Status (2026-06-10):** Scope widened from the directory to the **whole
+> groups surface** — detail (`/groups/[id]`), member-management
+> (`/members`), edit, billing (`/billing`), and analytics. The 2026-06-01
+> directory pass (G-1…G-5) stays ✅ closed below. New detail-surface pass:
+> **0 P1 · 3 P2 · 7 P3** — **9 of 10 fixed same day, quad-green** (GD-1, GD-2,
+> GD-3, GD-5, GD-6, GD-7, GD-8, GD-9, GD-10): member-management failures now
+> surface via flash-param `<Alert>` (last-owner / already-member / unauthorized
+> no longer a silent no-op); the directory shows a "Group deleted" banner; the
+> group's "Host an event" CTA preselects the club (`?host_group=<slug>`); the
+> four-way slug→group + owner/admin gate is collapsed into one
+> `requireGroupManager` page helper; the member forms use the shared field
+> vocab (`fieldInputClass` / `field()`); the directory follow button uses
+> `neutralButtonClass`; the manager sub-page h1s align on `text-headline-sm`;
+> the member-row action cluster wraps on mobile; and a dead `ok` state field
+> was dropped. **GD-4 closed wontfix** (2026-06-10 maintainer call): no public
+> join-request flow — it would hand popular clubs an unbounded approval queue;
+> membership stays organizer-curated, Follow is the public affordance.
+> **0 findings open** — the detail-surface pass is fully resolved. No data-loss
+> or auth holes found. Findings in
+> "[Findings — detail, members, edit & billing](#findings--group-detail-member-management-edit--billing-2026-06-10)";
+> what shipped is in the
+> [member-feedback](#2026-06-10--gd-1-gd-2-gd-3-gd-7-gd-9-bundle-member-feedback--polish),
+> [gate](#2026-06-10--gd-5-bundle-shared-requiregroupmanager-gate), and
+> [vocab/polish](#2026-06-10--gd-6-gd-8-gd-10-bundle-field-vocab--heading--mobile-wrap)
+> remediation-log entries.
 
 UX/UI evaluation of the **groups directory**
 ([apps/web/src/app/groups/page.tsx](../../apps/web/src/app/groups/page.tsx)) —
@@ -159,13 +185,297 @@ dropped from the home page as it's no longer used there.)
 
 ---
 
+---
+
+## Findings — group detail, member-management, edit & billing (2026-06-10)
+
+Persona lens for these surfaces:
+
+| Persona              | What the group **detail/manage** surface must do                                  |
+| -------------------- | --------------------------------------------------------------------------------- |
+| **Visitor / player** | "What is this club, is it active, and how do I get involved?" — follow, _or join_ |
+| **Member**           | See the roster + upcoming events, chat                                            |
+| **Owner / admin**    | Manage the roster, host events _as the club_, edit the profile, run Club payouts  |
+
+### A. Bugs / broken behavior
+
+#### GD-1 — Member-management actions fail **silently** · **P2** · ✅ resolved 2026-06-10
+
+`runMemberOp`
+([member-actions.ts#L23-L31](../../apps/web/src/app/groups/member-actions.ts#L23-L31))
+catches **every** `DomainError` and returns a no-op. The wrapper comment frames
+this as preserving the pre-ADR-0021 RLS-era "silent swallow," but from the
+manager's chair it's a dead end. Concretely, on the Manage-members page a click
+does **nothing, with no message**, when:
+
+- removing or demoting the **last owner** → the domain throws
+  `InvariantViolation('A group must keep at least one owner.')`
+  ([group.ts#L228](../../packages/domain/src/groups/group.ts#L228),
+  [#L242](../../packages/domain/src/groups/group.ts#L242)) — the single most
+  likely trigger, since a one-owner club is the common case;
+- adding someone already a member → `ConflictError`
+  ([group.ts#L213](../../packages/domain/src/groups/group.ts#L213));
+- a non-manager edge → `UnauthorizedError`.
+
+The button just re-renders unchanged and the manager is left guessing. These are
+plain `<form action={…}>` submissions, so per the AGENTS "Server-action error
+handling" convention the right pattern is a **flash-param redirect**: catch the
+typed errors in `addGroupMember` / `removeGroupMember` / `changeGroupMemberRole`,
+map them to reason codes (`?member=last_owner` / `already` / `forbidden`),
+`redirect(returnPath?member=…)`, and render an `<Alert>` on
+[members/page.tsx](../../apps/web/src/app/groups/[id]/members/page.tsx) from the
+param. (Keep swallowing genuinely-unexpected non-`DomainError`s.) **Recommended
+fix:** thread the reason through `runMemberOp` (it already takes `returnPath`) and
+add a small flash-banner block to the members page header. **P2** — recoverable
+and non-data-loss, but it's the highest-value fix here: the last-owner case is a
+confusing dead-end on a routine action.
+
+#### GD-2 — Deleting a group lands on a directory with **no confirmation** · **P3** · ✅ resolved 2026-06-10
+
+`deleteGroupAction` redirects to `/groups?deleted=1`
+([delete-actions.ts#L44](../../apps/web/src/app/groups/[id]/edit/delete-actions.ts#L44)),
+but the directory page never reads `deleted`
+([groups/page.tsx](../../apps/web/src/app/groups/page.tsx)) — so after a
+deliberate, slightly scary destructive action the user is dropped on the list
+with zero acknowledgement that it worked (and the group they were viewing is just
+… gone). **Fix:** read `searchParams.deleted` on the directory and render a
+dismissible `<Alert variant="success">Group deleted.</Alert>` (same flash-banner
+shape used by the billing page's `?club=` / `?onboarding=` alerts). **P3** —
+cosmetic feedback gap.
+
+### B. Gaps / streamlining
+
+#### GD-3 — "Host an event" from a group doesn't preselect the group · **P2** · ✅ resolved 2026-06-10
+
+The owner/admin action row links to a bare `/events/new`
+([group-viewer-actions.tsx#L117](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx#L117)).
+The create-event form **already** supports hosting as a group — it loads
+`hostableGroups` and posts a `hostGroupId` field
+([events/new/page.tsx#L48-L52](../../apps/web/src/app/events/new/page.tsx#L48-L52),
+[actions.ts#L336-L344](../../apps/web/src/app/events/new/actions.ts#L336-L344)) —
+but `/events/new` only reads `template` / `template_status` / `from` query params,
+**not a group**. So a manager who clicks "Host an event" _from this club's page_
+lands on a blank form and has to re-pick the club from a dropdown, even though the
+CTA's whole premise is "host **as** this club" (and group-hosted events are the
+on-ramp to Club payouts). **Fix:** link to
+`` `/events/new?host_group=${group.slug}` `` (or id) and have
+[events/new/page.tsx](../../apps/web/src/app/events/new/page.tsx) resolve the
+param to a default-selected option in
+[new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx)'s group
+selector (validate it's in `hostableGroups`). **P2** — friction on the primary
+host action and the club-monetization path.
+
+#### GD-4 — No "request to join" path for players — only Follow · **P3** (product) · 🚫 closed-wontfix 2026-06-10
+
+The detail page offers non-members exactly one affordance: **Follow**
+([group-viewer-actions.tsx#L89-L113](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx#L89-L113)).
+Membership is **manager-add-only** — a grep finds no join-request mechanism
+anywhere. For an invite-only club model that's a legitimate choice, but the page
+never signals it: a visitor sees "Follow," may read it as "join," and a player who
+genuinely wants _in_ has no path and no explanation. **Options:** (a) cheapest —
+clarifying copy near the follow button ("Following keeps you posted; ask an
+organizer to add you to the roster"); (b) a lightweight **join-request** (a
+`group_join_requests` row + an owner/admin inbox affordance).
+
+**Resolution (2026-06-10) — wontfix the request flow; membership stays
+organizer-curated.** Maintainer call: a public "request to join" (option b) would
+hand a popular club an **unbounded approval queue** — organizers would be pushed
+to either rubber-stamp strangers or look unresponsive, and the queue is exactly
+the kind of recurring obligation the product shouldn't manufacture for a host.
+**Follow** already delivers what the public actually wants ("keep me posted on
+this club") with zero organizer workload, so it stays the only public affordance;
+managers add members directly. Option (a)'s clarifying microcopy is **deferred,
+not adopted** — "+ Follow" is a well-understood social primitive and the curated
+model is the norm for clubs, so a hint risks clutter for little gain. Revisit only
+if support/UX signal shows players are actually confusing Follow with membership.
+
+### C. Consistency / convention drift (stale code)
+
+#### GD-5 — slug→group + owner/admin gate reimplemented **four** ways · **P2** · ✅ resolved 2026-06-10
+
+The same "resolve `[id]` slug → group, gate to owner/admin, else redirect" logic
+exists in four shapes:
+
+- edit + members **pages** use the read model
+  (`findDetailBySlug` + `findViewerRole` —
+  [edit/page.tsx#L18-L25](../../apps/web/src/app/groups/[id]/edit/page.tsx#L18-L25),
+  [members/page.tsx#L30-L37](../../apps/web/src/app/groups/[id]/members/page.tsx#L30-L37));
+- billing + analytics **pages** hand-roll it with **inline raw Supabase queries**
+  ([billing/page.tsx#L46-L64](../../apps/web/src/app/groups/[id]/billing/page.tsx#L46-L64),
+  [analytics/page.tsx#L29-L44](../../apps/web/src/app/groups/[id]/analytics/page.tsx#L29-L44));
+- billing **actions** has its own `requireGroupManager`
+  ([billing/actions.ts#L41-L58](../../apps/web/src/app/groups/[id]/billing/actions.ts#L41-L58)).
+
+Four copies means four chances to drift (the pages already `select` different
+column sets, and a future gate tweak has to be made in four places). **Fix:**
+extract one `requireGroupManager(slug)` **page helper** (returns
+`{ group, role }` or performs the redirect) and call it from all four; keep the
+read-model adapter as its backing query. **P2** — maintainability + drift risk on
+an authorization path.
+
+#### GD-6 — Field-vocabulary drift in the member forms · **P3** · ✅ resolved 2026-06-10
+
+- `add-member-form.tsx` hand-rolls the `<select>` class string and a bare
+  `<label className="text-fg block text-sm font-medium">` instead of the shared
+  `fieldInputClass` / `fieldLabelClass`
+  ([add-member-form.tsx#L40-L52](../../apps/web/src/app/groups/[id]/members/_components/add-member-form.tsx#L40-L52))
+  — the AGENTS pattern-11 vocabulary every other group form (edit/new) already
+  uses.
+- `members-actions.ts` `addMemberFromForm` reads `formData.get('user_id')` /
+  `formData.get('role')` directly
+  ([members-actions.ts#L15-L16](../../apps/web/src/app/groups/[id]/members/members-actions.ts#L15-L16))
+  instead of the `field()` helper AGENTS says to "always use" (handles the
+  `useFormState` slot-prefix quirk so the wrapper is robust if the form is ever
+  rewired). **Fix:** swap both to the shared helpers. **P3** — convention drift.
+
+#### GD-7 — "Following" button variant differs between directory and detail · **P3** · ✅ resolved 2026-06-10
+
+The directory's followed-state button uses `secondaryButtonClass`
+([groups-follow.tsx#L134](../../apps/web/src/app/groups/_components/groups-follow.tsx#L134));
+the detail page's uses `neutralButtonClass`
+([group-viewer-actions.tsx#L107](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx#L107)).
+AGENTS pattern 11 is explicit: the "✓ Following" neutral-bordered look is
+`neutralButtonClass`, **not** the primary-tinted `secondaryButtonClass`. The two
+follow buttons render differently across surfaces; the detail page is correct.
+**Fix:** switch the directory button to `neutralButtonClass('sm')` for the
+followed state. **P3.**
+
+#### GD-8 — Page-title heading size inconsistent across group sub-pages · **P3** · ✅ resolved 2026-06-10
+
+Billing + analytics use `text-headline-lg` for their h1
+([billing/page.tsx#L76](../../apps/web/src/app/groups/[id]/billing/page.tsx#L76),
+[analytics/page.tsx#L160](../../apps/web/src/app/groups/[id]/analytics/page.tsx#L160));
+edit, members, new, and the directory all use `text-headline-sm`; the detail
+page's group-name h1 is also `text-headline-sm`. Per AGENTS pattern 16 the
+page-title h1 role is `text-headline-lg`, so the _cluster_ is the drift — but the
+fix is "pick one and apply it across all group surfaces," not change one in
+isolation. **P3** — visual consistency.
+
+#### GD-9 — `DeleteGroupPanel` carries a dead `ok` state field · **P3** (micro stale code) · ✅ resolved 2026-06-10
+
+`State = { error?, ok? }`
+([delete-group-panel.tsx#L13](../../apps/web/src/app/groups/[id]/edit/delete-group-panel.tsx#L13))
+and `deleteGroupAction`'s `State` both declare `ok`, but success **redirects**, so
+`ok` is never set or read. Drop it from both. **P3** — trivial.
+
+#### GD-10 — Member-row action cluster doesn't wrap on mobile · **P3** · ✅ resolved 2026-06-10
+
+`MemberRowItem` lays out name + role + up to three role-change buttons + Remove in
+a single `flex items-center gap-3` row with no `flex-wrap`
+([member-row-item.tsx#L40](../../apps/web/src/app/groups/[id]/members/_components/member-row-item.tsx#L40)).
+A non-member admin row therefore renders `→ Member  → Admin  → Owner  Remove`
+which overflows a ~360 px viewport. **Fix:** add `flex-wrap` (and let the name
+take the first row via `basis-full sm:basis-auto`), or collapse the role actions
+into a single menu. **P3** — mobile polish.
+
 ## Out of scope
 
-- **`/groups/[id]`** (the group detail/profile page the cards link to) is a
-  distinct, richer surface — its own UX audit if/when we get there. This file
-  covers the **directory** only.
+- **Avatar upload UX** (`GroupAvatarPanel`, the crop widget) is shared with the
+  profile/event avatar flows — covered by those audits, not re-litigated here.
+- **Club payments correctness** (payout resolver, application fees, ADR 0038) is
+  the [monetization](monetization.md) / [stripe-integration](stripe-integration.md)
+  surface; this file only covers the **UX** of the billing page.
 
 ## Remediation log
+
+### 2026-06-10 — GD-6 / GD-8 / GD-10 bundle (field vocab + heading + mobile wrap)
+
+The remaining P3 polish (GD-4 stays open as a product call).
+
+- **GD-6 ✅** — the add-member form
+  ([add-member-form.tsx](../../apps/web/src/app/groups/[id]/members/_components/add-member-form.tsx))
+  uses `fieldLabelClass` + `` `${fieldInputClass} sm:w-48` `` for the role
+  `<select>` (the shared chassis already carries `w-full`, which `sm:w-48`
+  overrides at the breakpoint), and the `addMemberFromForm` wrapper
+  ([members-actions.ts](../../apps/web/src/app/groups/[id]/members/members-actions.ts))
+  reads `field(formData, …)` instead of raw `formData.get` — the AGENTS
+  pattern-11 / form-data convention every other group form already follows.
+- **GD-8 ✅** — aligned the group manager sub-pages **down** to
+  `text-headline-sm`: billing + analytics were the only two group surfaces on
+  `text-headline-lg`, while the directory, detail group-name, edit, members, and
+  new all use `text-headline-sm`. The app is ~50/50 on page-title size globally
+  (no hard convention to honour), so feature-internal consistency won — one less
+  edit-surface than bumping five pages up, and it keeps the group-name h1 (the
+  feature's primary title) as the size anchor.
+- **GD-10 ✅** — `MemberRowItem`
+  ([member-row-item.tsx](../../apps/web/src/app/groups/[id]/members/_components/member-row-item.tsx))
+  `<li>` gains `flex-wrap`, and the name link is `grow basis-full sm:basis-auto`
+  (avoiding `flex-1`'s `basis-0` clash with `basis-full`): on a narrow viewport
+  the name takes the full first row and the `→ Member / → Admin / → Owner /
+Remove` cluster wraps below instead of overflowing; on `sm:` it returns to the
+  inline single-row layout.
+
+Verified `pnpm typecheck && lint && test && build` (all green; touched files add
+zero lint warnings; 375 web tests pass).
+
+### 2026-06-10 — GD-5 bundle (shared `requireGroupManager` gate)
+
+Collapsed the four copies of the slug→group + owner/admin gate into one
+server-only page helper,
+[`requireGroupManager(slug, nextPath)`](../../apps/web/src/app/groups/[id]/_lib/require-group-manager.ts).
+It resolves the `[id]` slug → `GroupDetail` via the read-model adapter
+(`findDetailBySlug` + `findViewerRole`), then short-circuits: `redirect` to
+`/login?next=<nextPath>` when signed out, `notFound()` on an unknown slug, or
+`redirect('/groups/<slug>')` when the viewer isn't a manager. It returns the
+React-cached `supabase` client + the `groupQueries` adapter alongside
+`{ group, role, userId }`, so the members page reuses them for `listMembers`
+rather than re-constructing.
+
+- **edit + members pages** dropped their inline gate (and the now-unused
+  `getServerSupabase` / `SupabaseGroupQueryRepository` / `notFound` / `redirect`
+  imports); the **billing + analytics pages** dropped their inline **raw**
+  `groups` + `group_members` queries entirely — they now read a typed
+  `GroupDetail` instead of an ad-hoc `{ id, name }` cast.
+- **Scope note:** the billing **actions**' own `requireGroupManager`
+  ([billing/actions.ts](../../apps/web/src/app/groups/[id]/billing/actions.ts))
+  is intentionally left as a separate helper — it runs in a `'use server'`
+  action context (uses `requireRealUser`, the anon-blocking primitive) and
+  returns `{ groupId, email }` for Stripe, a different shape and auth posture
+  than a page render. The drift that mattered (the four **page** copies, two via
+  read-model + two inline raw) is closed.
+- **Gotcha:** typing the helper's `nextPath` as `Route` rejected the callers'
+  templated `` `/groups/${string}/edit` `` (typedRoutes won't match a dynamic
+  segment hole to the route param in argument position); typed it `string` and
+  cast once inside at the login `redirect`. Verified `pnpm typecheck && lint &&
+test && build` (all green; touched files add zero lint warnings).
+
+### 2026-06-10 — GD-1 / GD-2 / GD-3 / GD-7 / GD-9 bundle (member feedback + polish)
+
+Shipped the high-leverage, low-risk subset of the detail-surface pass the same
+day. Verified `pnpm typecheck && lint && test && build` (all green; touched files
+added zero lint warnings; 375 web tests pass).
+
+- **GD-1 ✅** — `runMemberOp`
+  ([member-actions.ts](../../apps/web/src/app/groups/member-actions.ts)) now maps
+  expected `DomainError`s to a flash reason via `memberFlashReason` and
+  `redirect(\`${returnPath}?member=<reason>\`)`instead of swallowing them; the
+manage-members page
+([members/page.tsx](../../apps/web/src/app/groups/[id]/members/page.tsx))
+renders a`MEMBER_FLASH` `<Alert>` (warning for last-owner / already-member /
+  gone, error for forbidden / unexpected). Last-owner removal/demotion now
+  explains itself instead of doing nothing.
+- **GD-2 ✅** — the directory
+  ([groups/page.tsx](../../apps/web/src/app/groups/page.tsx)) reads
+  `searchParams.deleted === '1'` (the target of `deleteGroupAction`'s redirect)
+  and shows `<Alert variant="success">Group deleted.</Alert>`.
+- **GD-3 ✅** — the group "Host an event" CTA links to
+  `` `/events/new?host_group=${groupSlug}` ``
+  ([group-viewer-actions.tsx](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx));
+  [events/new/page.tsx](../../apps/web/src/app/events/new/page.tsx) resolves the
+  slug against `manageableGroups` (membership-gated) and merges
+  `{ hostGroupId }` onto the prefill values so the `BasicsSection` group selector
+  defaults to that club. Invalid / unmanaged slugs are ignored (blank selector).
+- **GD-7 ✅** — the directory follow button's followed state uses
+  `neutralButtonClass`
+  ([groups-follow.tsx](../../apps/web/src/app/groups/_components/groups-follow.tsx)),
+  matching the detail page (AGENTS pattern 11).
+- **GD-9 ✅** — dropped the unused `ok` field from `State` in
+  [delete-group-panel.tsx](../../apps/web/src/app/groups/[id]/edit/delete-group-panel.tsx)
+  and [delete-actions.ts](../../apps/web/src/app/groups/[id]/edit/delete-actions.ts).
+
+**Still open:** GD-4 (join-request product call), GD-6 (member-form field
+vocab), GD-8 (host-page h1 size), GD-10 (member-row mobile wrap). _(GD-5 landed
+the same day — see the entry above.)_
 
 ### 2026-06-01 — G-1…G-5 bundle (counts + follow + vocab + shared card)
 

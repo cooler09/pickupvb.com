@@ -309,10 +309,19 @@ export function FormatPickerForm(props: {
   registeredTeams?: ReadonlyArray<TeamLite>;
 }) {
   const enforceMin = props.enforceMinTeams ?? true;
-  const knowsTeamCount = props.teamCount > 0;
+  // The event path (registered teams provided) can offer "All teams advance":
+  // the team count is knowable before submit even when it's 0 at mount — teams
+  // register, or the host adds walk-ins in the Teams step, before creating. Key
+  // the 'all' default/option on the path, NOT the live count, so opening the
+  // builder early still defaults to all. Standalone create adds teams only after
+  // the bracket exists, so it can't resolve 'all' and falls back to a number.
+  const canAdvanceAll = props.registeredTeams !== undefined;
   const [step, setStep] = useState(0);
   const [format, setFormat] = useState<BracketFormat>('single_elimination');
-  const [bestOf, setBestOf] = useState<1 | 3 | 5>(3);
+  const [bestOf, setBestOf] = useState<1 | 2 | 3 | 4 | 5>(3);
+  // Pool-stage scoring mode (ADR 0040). `total_games` = play all `bestOf` games,
+  // both count, a 1-1 split is a tie. Only meaningful for pool-bearing formats.
+  const [poolPlayMode, setPoolPlayMode] = useState<'best_of' | 'total_games'>('best_of');
   // Per-game target scores (ADR 0032) — one "play to" per game, e.g. [25, 25, 15].
   // Resized to the chosen best-of; '' on a game means "don't record one".
   const [targetScores, setTargetScores] = useState<Array<number | ''>>(() => defaultGameTargets(3));
@@ -320,8 +329,7 @@ export function FormatPickerForm(props: {
   const [poolCount, setPoolCount] = useState(1);
   // Advance selection: 'all' ⇒ every team makes the playoff (resolved to a
   // concrete count at submit from the team count); otherwise the numeric pick.
-  // Standalone create has no teams yet, so it can't offer 'all'.
-  const [advanceSel, setAdvanceSel] = useState<string>(() => (knowsTeamCount ? 'all' : '2'));
+  const [advanceSel, setAdvanceSel] = useState<string>(() => (canAdvanceAll ? 'all' : '2'));
   const [poolSchedule, setPoolSchedule] = useState<'round_robin' | 'fixed_games'>('round_robin');
   const [poolGamesPerTeam, setPoolGamesPerTeam] = useState(3);
   // Playoff-stage overrides (pool_play_playoff only). '' best-of = same as pool
@@ -341,8 +349,20 @@ export function FormatPickerForm(props: {
   // Changing best-of resets the per-game targets to the standard pattern for the
   // new length (25 … / 15 decider) — the old per-game values no longer line up.
   const chooseBestOf = (n: 1 | 3 | 5) => {
+    setPoolPlayMode('best_of');
     setBestOf(n);
     setTargetScores(defaultGameTargets(n));
+  };
+  // "Play all N games, both count" (total_games). Fixes the pool match length at
+  // N games (2) and forces a real playoff best-of (the playoff must still
+  // resolve a winner, so it can't reuse the even pool length).
+  const chooseTotalGames = (n: 2 | 4) => {
+    setPoolPlayMode('total_games');
+    setBestOf(n);
+    // Both games count (no deciding short game), so every game is to 25.
+    setTargetScores(Array.from({ length: n }, () => 25));
+    setPlayoffBestOf((prev) => (prev === '' ? 3 : prev));
+    setPlayoffTargetScores((prev) => (prev.length === 0 ? defaultGameTargets(3) : prev));
   };
   const choosePlayoffBestOf = (n: '' | 1 | 3 | 5) => {
     setPlayoffBestOf(n);
@@ -363,6 +383,9 @@ export function FormatPickerForm(props: {
     }));
 
   const isPoolPlay = format === 'pool_play_playoff';
+  // Pool-bearing formats can opt into "play all N games, both count" (ADR 0040).
+  const supportsTotalGames = isPoolPlay || format === 'round_robin';
+  const isTotalGames = supportsTotalGames && poolPlayMode === 'total_games';
   const isFixedGames = isPoolPlay && poolSchedule === 'fixed_games';
   const selectedMeta = FORMATS.find((f) => f.value === format)!;
   const belowMin = props.teamCount < selectedMeta.minTeams;
@@ -540,7 +563,7 @@ export function FormatPickerForm(props: {
                 <label
                   key={f.value}
                   className={
-                    'rounded-shape-sm relative block cursor-pointer border p-3 text-sm transition ' +
+                    'rounded-shape-sm has-focus-visible:ring-primary relative block cursor-pointer border p-3 text-sm transition has-focus-visible:ring-2 ' +
                     (selected
                       ? 'border-primary bg-primary/5 ring-primary/30 ring-2'
                       : 'border-border-base bg-bg hover:border-primary/40') +
@@ -552,7 +575,15 @@ export function FormatPickerForm(props: {
                     name="format"
                     value={f.value}
                     checked={selected}
-                    onChange={() => setFormat(f.value)}
+                    onChange={() => {
+                      setFormat(f.value);
+                      // total_games is pool-only; leaving it set on an
+                      // elimination format would submit an even bestOf the
+                      // domain rejects. Revert to a safe best-of default.
+                      if (f.value !== 'pool_play_playoff' && f.value !== 'round_robin') {
+                        if (poolPlayMode === 'total_games') chooseBestOf(3);
+                      }
+                    }}
                     disabled={disabled}
                     className="sr-only"
                   />
@@ -597,38 +628,87 @@ export function FormatPickerForm(props: {
           <legend className="text-fg/80 px-1 text-xs font-medium">
             {isPoolPlay ? 'Pool play match length' : 'Match length'}
           </legend>
-          <div role="radiogroup" aria-label="Best of" className="flex flex-wrap gap-2">
-            {([1, 3, 5] as const).map((n) => {
-              const selected = bestOf === n;
-              return (
-                <label
-                  key={n}
-                  className={
-                    'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
-                    (selected
-                      ? 'border-primary bg-primary/10 text-fg'
-                      : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
-                  }
-                >
-                  <input
-                    type="radio"
-                    name="best_of"
-                    value={n}
-                    checked={selected}
-                    onChange={() => chooseBestOf(n)}
-                    className="sr-only"
-                  />
-                  Best of {n}
-                </label>
-              );
-            })}
-          </div>
+          {/* Scoring-mode toggle — pool-bearing formats can play a fixed number
+              of games where both count and a split is a tie (ADR 0040). */}
+          {supportsTotalGames && (
+            <div role="radiogroup" aria-label="Pool scoring" className="flex basis-full gap-2">
+              {(
+                [
+                  ['best_of', 'Best of N'],
+                  ['total_games', 'Play 2 · both count'],
+                ] as const
+              ).map(([value, label]) => {
+                const selected = poolPlayMode === value;
+                return (
+                  <label
+                    key={value}
+                    className={
+                      'has-focus-visible:ring-primary cursor-pointer rounded border px-3 py-1 text-sm transition has-focus-visible:ring-2 ' +
+                      (selected
+                        ? 'border-primary bg-primary/10 text-fg'
+                        : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="pool_scoring"
+                      value={value}
+                      checked={selected}
+                      onChange={() =>
+                        value === 'total_games' ? chooseTotalGames(2) : chooseBestOf(3)
+                      }
+                      className="sr-only"
+                    />
+                    {label}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          {!isTotalGames && (
+            <div role="radiogroup" aria-label="Best of" className="flex flex-wrap gap-2">
+              {([1, 3, 5] as const).map((n) => {
+                const selected = bestOf === n;
+                return (
+                  <label
+                    key={n}
+                    className={
+                      'has-focus-visible:ring-primary cursor-pointer rounded border px-3 py-1 text-sm transition has-focus-visible:ring-2 ' +
+                      (selected
+                        ? 'border-primary bg-primary/10 text-fg'
+                        : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="best_of"
+                      value={n}
+                      checked={selected}
+                      onChange={() => chooseBestOf(n)}
+                      className="sr-only"
+                    />
+                    Best of {n}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          {/* total_games fixes the count at 2 — submit it as best_of since the
+              domain reuses that field for the game count. */}
+          {isTotalGames && <input type="hidden" name="best_of" value={bestOf} />}
+          <input
+            type="hidden"
+            name="pool_play_mode"
+            value={supportsTotalGames ? poolPlayMode : 'best_of'}
+          />
           <div className="basis-full" />
           <PerGameTargets namePrefix="target_score" targets={targetScores} onChange={setTargetAt} />
           <p className="text-muted basis-full text-xs">
-            {bestOf === 1
-              ? 'Single game decides each match — fastest schedule.'
-              : `First to ${Math.floor(bestOf / 2) + 1} games wins each match. A best-of-${bestOf} is usually ${formatGameTargets(defaultGameTargets(bestOf))}.`}{' '}
+            {isTotalGames
+              ? `Each match is ${bestOf} games, both counting. A ${bestOf === 2 ? '1-1' : 'split'} is a tie — pools rank by games won, then point differential.`
+              : bestOf === 1
+                ? 'Single game decides each match — fastest schedule.'
+                : `First to ${Math.floor(bestOf / 2) + 1} games wins each match. A best-of-${bestOf} is usually ${formatGameTargets(defaultGameTargets(bestOf))}.`}{' '}
             Point totals are recorded for reference (not enforced).
           </p>
         </fieldset>
@@ -670,7 +750,7 @@ export function FormatPickerForm(props: {
                 onChange={(e) => setAdvanceSel(e.target.value)}
                 className="border-border-base bg-bg rounded border px-2 py-1"
               >
-                {knowsTeamCount && (
+                {canAdvanceAll && (
                   <option value="all">
                     {poolCount === 1 ? 'All teams' : 'All teams (full pool)'}
                   </option>
@@ -701,7 +781,7 @@ export function FormatPickerForm(props: {
                     <label
                       key={opt.v}
                       className={
-                        'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
+                        'has-focus-visible:ring-primary cursor-pointer rounded border px-3 py-1 text-sm transition has-focus-visible:ring-2 ' +
                         (selected
                           ? 'border-primary bg-primary/10 text-fg'
                           : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
@@ -822,7 +902,9 @@ export function FormatPickerForm(props: {
                     }
                     className="border-border-base bg-bg rounded border px-2 py-1"
                   >
-                    <option value="">Same as pool play</option>
+                    {/* total_games pools have an even length that can't decide a
+                        playoff match, so "same as pool play" isn't offered. */}
+                    {!isTotalGames && <option value="">Same as pool play</option>}
                     {[1, 3, 5].map((n) => (
                       <option key={n} value={n}>
                         Best of {n}
@@ -839,9 +921,9 @@ export function FormatPickerForm(props: {
                 )}
               </div>
               <p className="text-muted mt-1 text-xs">
-                Leave “Same as pool play” to reuse the pool-play length for the playoff too. A
-                common setup is best-of-1 pool play, best-of-3 playoff to{' '}
-                {formatGameTargets(defaultGameTargets(3))}.
+                {isTotalGames
+                  ? 'The playoff must produce a winner, so pick an odd best-of for it (a best-of-3 to 25/25/15 is typical).'
+                  : `Leave “Same as pool play” to reuse the pool-play length for the playoff too. A common setup is best-of-1 pool play, best-of-3 playoff to ${formatGameTargets(defaultGameTargets(3))}.`}
               </p>
             </div>
             {/* Resolved 'all'/numeric advance count — the visible select above is
@@ -896,7 +978,8 @@ export function FormatPickerForm(props: {
           <div className="flex items-baseline justify-between gap-4 px-3 py-2">
             <dt className="text-muted">{isPoolPlay ? 'Pool play length' : 'Match length'}</dt>
             <dd className="text-fg text-right font-medium">
-              Best of {bestOf} · {formatGameTargets(targetScores)}
+              {isTotalGames ? `${bestOf} games · both count` : `Best of ${bestOf}`} ·{' '}
+              {formatGameTargets(targetScores)}
             </dd>
           </div>
           {isPoolPlay && (

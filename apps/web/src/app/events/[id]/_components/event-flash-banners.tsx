@@ -1,4 +1,7 @@
+import Link from 'next/link';
+import type { Route } from 'next';
 import { Alert } from '@/components/alert';
+import { primaryButtonClass } from '@/components/primary-button';
 
 export function EventFlashBanners({
   created,
@@ -6,15 +9,38 @@ export function EventFlashBanners({
   tipMsg,
   cohost,
   cohostMsg,
+  eventId,
+  canAddCoverPhoto = false,
 }: {
   created: string | undefined;
   tip: string | undefined;
   tipMsg: string | undefined;
   cohost: string | undefined;
   cohostMsg: string | undefined;
+  /** Event id, used to deep-link the post-create cover-photo nudge (CE-9). */
+  eventId?: string;
+  /** Show the "add a cover photo" nudge right after creation — true only when
+   *  the viewer can manage the event and it has no hero image yet (CE-9). */
+  canAddCoverPhoto?: boolean;
 }) {
   return (
     <>
+      {created === '1' && canAddCoverPhoto && eventId && (
+        <div className="border-md-outline-variant bg-md-surface-container-high rounded-shape-sm flex flex-wrap items-center justify-between gap-3 border p-4">
+          <div className="min-w-0">
+            <p className="text-fg font-semibold">Add a cover photo</p>
+            <p className="text-muted text-sm">
+              Events with a photo stand out in the feed and get more sign-ups. Takes a few seconds.
+            </p>
+          </div>
+          <Link
+            href={`/events/${eventId}/edit#cover-photo` as Route}
+            className={primaryButtonClass('sm')}
+          >
+            Add photo
+          </Link>
+        </div>
+      )}
       {created === '1' && (
         <Alert variant="success" title="Event created!">
           Share the link above or invite co-hosts so players can find your event.

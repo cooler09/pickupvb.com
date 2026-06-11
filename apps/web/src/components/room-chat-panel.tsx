@@ -17,6 +17,10 @@ type Props = {
    *  live messages resolve their author from here. Best-effort; the initial page
    *  already carries server-resolved names. */
   participants: { id: string; name: string }[];
+  /** Optional anchor id for an in-page jump nav. Applied to the rendered
+   *  section only when the panel is visible (members) — a non-member's panel
+   *  returns null, so no dead anchor is left behind. */
+  anchorId?: string;
 };
 
 type State =
@@ -35,7 +39,7 @@ type State =
  * loads the most recent page, and hands off to the shared {@link ConversationView}.
  * Generalizes the original team-only panel to all three room kinds.
  */
-export function RoomChatPanel({ kind, contextId, label, participants }: Props) {
+export function RoomChatPanel({ kind, contextId, label, participants, anchorId }: Props) {
   const [state, setState] = useState<State>({ status: 'loading' });
 
   useEffect(() => {
@@ -62,7 +66,11 @@ export function RoomChatPanel({ kind, contextId, label, participants }: Props) {
   if (state.status === 'hidden') return null;
 
   return (
-    <section className="space-y-2" aria-label={label}>
+    <section
+      className="scroll-mt-20 space-y-2"
+      aria-label={label}
+      {...(anchorId ? { id: anchorId } : {})}
+    >
       <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">{label}</h2>
       {state.status === 'loading' ? (
         <div className="border-border-base bg-md-surface-container rounded-shape-sm text-muted flex min-h-48 items-center justify-center border p-3 text-sm">

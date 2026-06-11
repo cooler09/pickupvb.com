@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { Metadata } from 'next';
+import type { Metadata, Route } from 'next';
 import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { DivisionId, EventId, NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
@@ -8,8 +8,11 @@ import { handlers, repositories } from '@/lib/handlers';
 import { assertEventVisibleOrNotFound, isEventPubliclyVisible } from '@/lib/event-visibility';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { DisplayShell } from '../../_components/display-shell';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '../_components/board-view';
+import { BracketStatusBadge } from '../_components/bracket-status-badge';
+import { DivisionTabs } from '../_components/division-tabs';
 import { LatestMatchTracker } from '../_components/latest-match-tracker';
 import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
 
@@ -32,6 +35,9 @@ export async function generateMetadata(props: {
   const { id } = await props.params;
   const sp = await props.searchParams;
   const divisionParam = pickQuery(sp, 'division') ?? null;
+  // The `?display=1` kiosk variant is the same content reframed for a TV —
+  // keep it out of the index and let the canonical (clean) URL carry the SEO.
+  const display = pickQuery(sp, 'display') === '1';
   // Don't leak a scoped/unpublished event's title into <head>/OG — emit a
   // generic title unless the event is anon-visible (security audit P1 #14).
   if (!(await isEventPubliclyVisible(id))) {
@@ -59,6 +65,7 @@ export async function generateMetadata(props: {
       title,
       description,
       alternates: { canonical },
+      ...(display ? { robots: { index: false, follow: true } } : {}),
       openGraph: {
         title,
         description,
@@ -131,13 +138,21 @@ export default async function BracketWatchPage(props: {
   const selectedDivision = event.divisions.find((d) => d.id === divParam) ?? event.divisions[0]!;
   const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
-  const [bracket, registeredTeams] = await Promise.all([
+  const multiDivision = event.divisions.length > 1;
+  const [bracket, registeredTeams, divisionStatuses] = await Promise.all([
     repositories.bracketRepo.findByDivisionId(DivisionId(selectedDivision.id)),
     repositories.bracketRepo.listRegisteredTeams(
       EventId(event.id),
       DivisionId(selectedDivision.id),
     ),
+    // Per-division status pills for the tabs (UX-9) — only when there are tabs.
+    multiDivision
+      ? repositories.bracketRepo.listDivisionStatuses(event.divisions.map((d) => DivisionId(d.id)))
+      : Promise.resolve([]),
   ]);
+  const statusByDivision = multiDivision
+    ? new Map(divisionStatuses.map((s) => [s.divisionId, s.status]))
+    : undefined;
 
   // Dual-keyed by both `entryId` and (when set) `teamId` — see page.tsx
   // for rationale. Ad-hoc / walk-in entries have no `teams.id`.
@@ -156,8 +171,71 @@ export default async function BracketWatchPage(props: {
     .join(' · ');
 
   // ADR 0023: spectators see in-progress scoreboard scores live, but only for
-  // Pro-host events (matches the gate on the scorer's entry button).
-  const liveScoringEnabled = !!event.hostUserId && (await isPro(event.hostUserId));
+  // Pro-host events (matches the gate on the scorer's entry button). The same
+  // Pro flag gates `?display=1` kiosk mode (tournament-displays bundle, slice A):
+  // a Free host's link falls back to the normal (free) spectator page.
+  const proHost = !!event.hostUserId && (await isPro(event.hostUserId));
+  const liveScoringEnabled = proHost;
+  const bracketReady = !!bracket && (bracket.status === 'active' || bracket.status === 'completed');
+  const displayMode = pickQuery(searchParams, 'display') === '1' && proHost && bracketReady;
+
+  const watchPath = (
+    multiDivision
+      ? `/events/${event.id}/bracket/watch?division=${selectedDivision.id}`
+      : `/events/${event.id}/bracket/watch`
+  ) as Route;
+
+  const refresher = (
+    <BracketRealtimeRefresher divisionId={selectedDivision.id} bracketId={bracket?.id ?? null} />
+  );
+
+  // The live board — shared by the normal spectator page and the kiosk shell so
+  // the two never drift. The inline status check (vs. the `bracketReady` boolean)
+  // is what narrows `bracket.status` to BoardView's `'active' | 'completed'`.
+  const boardSection =
+    bracket && (bracket.status === 'active' || bracket.status === 'completed') ? (
+      <LiveScoresProvider enabled={liveScoringEnabled} divisionId={selectedDivision.id}>
+        <LatestMatchTracker
+          matchId={pickLatestMatchId(bracket.matches)}
+          autoScroll
+          initialFocusId={focusParam}
+        />
+        <BoardView
+          eventId={event.id}
+          divisionId={selectedDivision.id}
+          matches={[...bracket.matches]}
+          teamById={teamById}
+          bestOf={bracket.config.bestOf}
+          poolPlayMode={bracket.config.poolPlayMode}
+          targetScore={bracket.config.targetScore}
+          targetScores={bracket.config.targetScores}
+          playoffBestOf={bracket.config.playoffBestOf}
+          playoffTargetScore={bracket.config.playoffTargetScore}
+          playoffTargetScores={bracket.config.playoffTargetScores}
+          isHost={false}
+          viewerId={null}
+          status={bracket.status}
+          format={bracket.format}
+          highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
+        />
+      </LiveScoresProvider>
+    ) : null;
+
+  // Display (kiosk) mode: chromeless, dark, wake-locked full-screen for a gym TV
+  // or a host tablet. Only reachable when the bracket is live and the host is Pro.
+  if (displayMode) {
+    return (
+      <DisplayShell
+        title={`Live bracket — ${event.title}`}
+        {...(divisionSummary ? { subtitle: divisionSummary } : {})}
+        meta={`${registeredTeams.length} team${registeredTeams.length === 1 ? '' : 's'} · updates live`}
+        exitHref={watchPath}
+      >
+        {refresher}
+        {boardSection}
+      </DisplayShell>
+    );
+  }
 
   return (
     <article className="mx-auto max-w-5xl space-y-6 p-4">
@@ -173,18 +251,9 @@ export default async function BracketWatchPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <div className="flex items-center gap-2">
-          <h1 className="text-fg text-headline-sm font-bold">Live bracket — {event.title}</h1>
-          {bracket?.status === 'active' && (
-            <span className="bg-md-error/10 text-md-error rounded-full px-2 py-0.5 text-xs font-medium">
-              ● LIVE
-            </span>
-          )}
-          {bracket?.status === 'completed' && (
-            <span className="bg-md-success/10 text-md-success rounded-full px-2 py-0.5 text-xs font-medium">
-              Final
-            </span>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-fg text-headline-lg font-bold">Live bracket — {event.title}</h1>
+          <BracketStatusBadge status={bracket?.status} />
         </div>
         {divisionSummary && <p className="text-fg/80 text-sm">{divisionSummary}</p>}
         <p className="text-muted text-sm">
@@ -193,40 +262,21 @@ export default async function BracketWatchPage(props: {
         </p>
         <div className="pt-1">
           <ShareLink
-            path={
-              event.divisions.length > 1
-                ? `/events/${event.id}/bracket/watch?division=${selectedDivision.id}`
-                : `/events/${event.id}/bracket/watch`
-            }
+            path={watchPath}
             title={`Live bracket — ${event.title}`}
             label="Share this view"
           />
         </div>
       </header>
 
-      {event.divisions.length > 1 && (
-        <nav aria-label="Divisions" className="border-border-base flex flex-wrap gap-1 border-b">
-          {event.divisions.map((d) => {
-            const active = d.id === selectedDivision.id;
-            return (
-              <Link
-                key={d.id}
-                href={`/events/${event.id}/bracket/watch?division=${d.id}`}
-                aria-current={active ? 'page' : undefined}
-                className={`-mb-px rounded-t px-3 py-2 text-sm ${
-                  active
-                    ? 'border-border-base bg-bg text-fg border border-b-transparent font-medium'
-                    : 'text-muted hover:text-fg'
-                }`}
-              >
-                {d.label}
-              </Link>
-            );
-          })}
-        </nav>
-      )}
+      <DivisionTabs
+        divisions={event.divisions}
+        selectedId={selectedDivision.id}
+        basePath={`/events/${event.id}/bracket/watch`}
+        {...(statusByDivision ? { statusByDivision } : {})}
+      />
 
-      <BracketRealtimeRefresher divisionId={selectedDivision.id} bracketId={bracket?.id ?? null} />
+      {refresher}
 
       {(!bracket || bracket.status === 'setup' || bracket.status === 'draft') && (
         <div className="border-border-base bg-bg rounded-shape-sm border p-6 text-center">
@@ -240,32 +290,7 @@ export default async function BracketWatchPage(props: {
         </div>
       )}
 
-      {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
-        <LiveScoresProvider enabled={liveScoringEnabled} divisionId={selectedDivision.id}>
-          <LatestMatchTracker
-            matchId={pickLatestMatchId(bracket.matches)}
-            autoScroll
-            initialFocusId={focusParam}
-          />
-          <BoardView
-            eventId={event.id}
-            divisionId={selectedDivision.id}
-            matches={[...bracket.matches]}
-            teamById={teamById}
-            bestOf={bracket.config.bestOf}
-            targetScore={bracket.config.targetScore}
-            targetScores={bracket.config.targetScores}
-            playoffBestOf={bracket.config.playoffBestOf}
-            playoffTargetScore={bracket.config.playoffTargetScore}
-            playoffTargetScores={bracket.config.playoffTargetScores}
-            isHost={false}
-            viewerId={null}
-            status={bracket.status}
-            format={bracket.format}
-            highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
-          />
-        </LiveScoresProvider>
-      )}
+      {boardSection}
     </article>
   );
 }

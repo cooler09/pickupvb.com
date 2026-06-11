@@ -2,14 +2,21 @@ import type { Match, EntryId } from './match.js';
 import { ValidationError } from '../shared/result.js';
 
 /**
+ * How a pool's standings are ordered (ADR 0040):
+ *  - `match_wins` (default): match wins (desc) → set diff (desc) → point diff
+ *    (desc). The right ranking for `best_of` pools, where every match yields a
+ *    winner.
+ *  - `games_won`: total games won (desc) → point diff (desc). The ranking for
+ *    `total_games` pools, where matches can finish tied (1-1) so match-win
+ *    count is a poor signal — seeding is decided by games won and then points.
+ */
+export type StandingsRankBy = 'match_wins' | 'games_won';
+
+/**
  * Per-team standings within a pool. Pure summary derived from completed
- * matches in that pool. Tied teams are ordered by:
- *   1. wins (desc)
- *   2. set differential (desc)
- *   3. point differential (desc)
- *
- * Head-to-head tiebreaker is intentionally omitted in v1 to keep the
- * logic predictable; teams above can break ties manually if needed.
+ * matches in that pool. Ordering depends on {@link StandingsRankBy} — see
+ * that type. Head-to-head tiebreaker is intentionally omitted in v1 to keep
+ * the logic predictable; teams above can break ties manually if needed.
  */
 export interface PoolStanding {
   /** Participant identity — points at `event_team_entries.id`. */
@@ -25,8 +32,12 @@ export interface PoolStanding {
   readonly pointDiff: number;
 }
 
-/** Standings for a single pool, sorted best-to-worst. */
-export function computePoolStandings(matches: ReadonlyArray<Match>, pool: string): PoolStanding[] {
+/** Standings for a single pool, sorted best-to-worst per `rankBy`. */
+export function computePoolStandings(
+  matches: ReadonlyArray<Match>,
+  pool: string,
+  rankBy: StandingsRankBy = 'match_wins',
+): PoolStanding[] {
   const stats = new Map<
     string,
     {
@@ -107,11 +118,20 @@ export function computePoolStandings(matches: ReadonlyArray<Match>, pool: string
     pointDiff: s.pointsFor - s.pointsAgainst,
   }));
 
-  out.sort((x, y) => {
-    if (y.wins !== x.wins) return y.wins - x.wins;
-    if (y.setDiff !== x.setDiff) return y.setDiff - x.setDiff;
-    return y.pointDiff - x.pointDiff;
-  });
+  if (rankBy === 'games_won') {
+    // Ties (1-1) are common, so match wins is a poor signal — rank by total
+    // games won, then point differential (ADR 0040).
+    out.sort((x, y) => {
+      if (y.setsWon !== x.setsWon) return y.setsWon - x.setsWon;
+      return y.pointDiff - x.pointDiff;
+    });
+  } else {
+    out.sort((x, y) => {
+      if (y.wins !== x.wins) return y.wins - x.wins;
+      if (y.setDiff !== x.setDiff) return y.setDiff - x.setDiff;
+      return y.pointDiff - x.pointDiff;
+    });
+  }
   return out;
 }
 
@@ -143,6 +163,7 @@ export function distinctPools(matches: ReadonlyArray<Match>): string[] {
 export function rankAcrossPools(
   standingsByPool: ReadonlyArray<ReadonlyArray<PoolStanding>>,
   advancePerPool: number,
+  rankBy: StandingsRankBy = 'match_wins',
 ): EntryId[] {
   if (advancePerPool < 1) {
     throw new ValidationError('Must advance at least 1 per pool.', { advancePerPool });
@@ -165,10 +186,22 @@ export function rankAcrossPools(
           { advancePerPool, missingPosition: pos + 1 },
         );
       }
+      // For `games_won` pools (ties common) the same-position cross-pool
+      // tiebreak is games-won rate, not match-win rate — mirrors how the
+      // within-pool order was decided.
+      const totalGames = s.setsWon + s.setsLost;
+      const rate =
+        rankBy === 'games_won'
+          ? totalGames > 0
+            ? s.setsWon / totalGames
+            : 0
+          : s.matchesPlayed > 0
+            ? s.wins / s.matchesPlayed
+            : 0;
       ranked.push({
         entryId: s.entryId,
         position: pos,
-        winPct: s.matchesPlayed > 0 ? s.wins / s.matchesPlayed : 0,
+        winPct: rate,
         setDiff: s.setDiff,
         pointDiff: s.pointDiff,
       });

@@ -42,7 +42,7 @@ export function AttendeesPanel({
   // capacity, so this only fires for genuinely-full fixed-capacity events.
   const celebrateFull = event.spotsRemaining === 0 && page === 1;
   return (
-    <section id="attendees">
+    <section id="attendees" className="scroll-mt-20">
       <h2 className="text-fg mb-3 text-lg font-semibold">
         Players signed up{' '}
         <span className="text-muted text-sm font-normal">({event.attendees.length})</span>

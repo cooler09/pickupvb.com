@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, type ReactNode } from 'react';
-import type { BracketFormat, Match } from '@pickupvb/domain';
+import type { BracketFormat, Match, MatchPlayMode } from '@pickupvb/domain';
 import { FormModal, ModalActions } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
 import {
@@ -11,6 +11,7 @@ import {
 } from '@/components/primary-button';
 import { AddMatchButton } from './add-match-button';
 import { bindBracketActions } from './bracket-action-binding';
+import { DeleteBracketDanger } from './delete-bracket-danger';
 import { FORMAT_LABEL, type BracketScope, type TeamLite } from './labels';
 import { MatchEditor } from './match-editor';
 
@@ -30,6 +31,8 @@ export function DraftWorkspace(props: {
   format: BracketFormat;
   /** Pool-stage / global default best-of (per-match overrides win). */
   bestOf: number;
+  /** Pool-stage scoring mode (ADR 0040) — `total_games` ⇒ "N games" label. */
+  poolPlayMode?: MatchPlayMode;
   /** Global default target score, or null. */
   targetScore: number | null;
   matches: ReadonlyArray<Match>;
@@ -68,6 +71,9 @@ export function DraftWorkspace(props: {
     const a = m.entryAId ? teamById.get(m.entryAId)?.name : null;
     const b = m.entryBId ? teamById.get(m.entryBId)?.name : null;
     const bo = m.bestOf ?? props.bestOf;
+    // total_games pool matches (ADR 0040): both games count, so label them
+    // "N games" rather than the misleading "Best of N".
+    const isTotalGamesMatch = props.poolPlayMode === 'total_games' && m.pool !== null;
     return (
       <li
         key={m.id}
@@ -80,7 +86,8 @@ export function DraftWorkspace(props: {
             <span className={b ? '' : 'text-muted italic'}>{b ?? 'TBD'}</span>
           </div>
           <div className="text-muted mt-0.5 text-xs">
-            {m.court ? `${m.court} · ` : ''}Best of {bo}
+            {m.court ? `${m.court} · ` : ''}
+            {isTotalGamesMatch ? `${bo} games` : `Best of ${bo}`}
             {m.targetScore
               ? ` · to ${m.targetScore}`
               : props.targetScore
@@ -124,10 +131,14 @@ export function DraftWorkspace(props: {
           </div>
           <div className="flex flex-wrap gap-2">
             <form action={publish}>
-              <SubmitButton className={primaryButtonClass('md')}>Publish bracket</SubmitButton>
+              <SubmitButton pendingChildren="Publishing…" className={primaryButtonClass('md')}>
+                Publish bracket
+              </SubmitButton>
             </form>
             <form action={regenerate}>
-              <SubmitButton className={neutralButtonClass('md')}>Regenerate</SubmitButton>
+              <SubmitButton pendingChildren="Regenerating…" className={neutralButtonClass('md')}>
+                Regenerate
+              </SubmitButton>
             </form>
             <form action={reset}>
               <SubmitButton className={neutralButtonClass('md')}>Discard</SubmitButton>
@@ -189,6 +200,13 @@ export function DraftWorkspace(props: {
           renderMatchRow={renderMatchRow}
           addMatch={editableSchedule ? <AddMatchButton scope={scope} teams={teams} /> : null}
         />
+      )}
+
+      {/* Delete / start-over (UX-15) — event scope only (see binding). */}
+      {a.delete && (
+        <div className="border-border-base/60 border-t pt-4">
+          <DeleteBracketDanger deleteAction={a.delete} />
+        </div>
       )}
     </section>
   );

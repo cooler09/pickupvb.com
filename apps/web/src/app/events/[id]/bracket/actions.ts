@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import {
   AddMatchCommand,
   CreateBracketCommand,
+  DeleteBracketCommand,
   EditMatchCommand,
   GenerateBracketCommand,
   GeneratePlayoffCommand,
@@ -120,8 +121,18 @@ export async function createBracketFromForm(
 ): Promise<void> {
   const format = String(formData.get('format') ?? 'single_elimination') as BracketFormat;
   const config: Partial<BracketConfig> = {};
+  // Pool-stage scoring mode (ADR 0040). `total_games` reuses `bestOf` as the
+  // game count and permits even values (2/4); the domain re-validates per format.
+  const isTotalGames = String(formData.get('pool_play_mode') ?? 'best_of') === 'total_games';
   const bestOf = Number(formData.get('best_of') ?? '');
-  if (bestOf === 1 || bestOf === 3 || bestOf === 5) config.bestOf = bestOf;
+  if (isTotalGames) {
+    if (bestOf === 2 || bestOf === 4) {
+      config.bestOf = bestOf;
+      config.poolPlayMode = 'total_games';
+    }
+  } else if (bestOf === 1 || bestOf === 3 || bestOf === 5) {
+    config.bestOf = bestOf;
+  }
   // Per-game target scores (ADR 0032) — points each game is played to;
   // informational. `target_score_1`, `target_score_2`, … one per game of the
   // chosen best-of. The single `targetScore` is kept = game 1 for back-compat
@@ -288,6 +299,25 @@ export async function resetBracket(eventId: string, divisionId: string): Promise
   }
   revalidate(eventId);
   back(eventId, divisionId, 'reset');
+}
+
+/**
+ * Delete the division's bracket entirely (UX-15) — cascades seeding / schedule /
+ * results. Returns the division to the "no bracket" state, where the host can
+ * re-pick a format (the supported way to change format after create) or simply
+ * leave it removed. Host-gated in the handler.
+ */
+export async function deleteBracket(eventId: string, divisionId: string): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.deleteBracket.execute(new DeleteBracketCommand(divisionId, user.id));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'bracket_deleted');
 }
 
 // ---- Draft editing (ADR 0032) ---------------------------------------------

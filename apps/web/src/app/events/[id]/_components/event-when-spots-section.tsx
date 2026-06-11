@@ -11,6 +11,7 @@ export function EventWhenSpotsSection({
   spotsRemaining,
   attendeeCount,
   offPlatform,
+  teamSummary,
 }: {
   type: string;
   startsAt: Date;
@@ -25,6 +26,15 @@ export function EventWhenSpotsSection({
    * split would mislead; show the listed capacity as a plain total instead.
    */
   offPlatform: boolean;
+  /**
+   * Team-registration capacity for tournaments / leagues (EV-7). When set, the
+   * right-hand cell is framed in **teams** rather than individual players (the
+   * event-level player capacity is meaningless for team events). `cap` is the
+   * summed team cap across divisions, or null when any team division is
+   * uncapped; `reliable` is false for external events (on-platform registered
+   * count is partial → show the cap alone). Null for individual-signup events.
+   */
+  teamSummary?: { registered: number; cap: number | null; reliable: boolean } | null;
 }) {
   return (
     <section className="border-border-base rounded-shape-sm overflow-hidden border sm:grid sm:grid-cols-2">
@@ -55,8 +65,24 @@ export function EventWhenSpotsSection({
         )}
       </div>
       <div className="border-border-base border-t p-4 sm:border-t-0 sm:border-l-0">
-        <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Spots</h2>
-        {spotsRemaining === null ? (
+        <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">
+          {teamSummary ? 'Teams' : 'Spots'}
+        </h2>
+        {teamSummary ? (
+          // Team-registration events (EV-7): show `registered / cap teams` when
+          // every team division is capped, a plain registered count when not,
+          // and (for external events, where the on-platform count is partial)
+          // the cap alone — or "Unlimited" when uncapped.
+          <p className="text-fg mt-1 font-medium">
+            {teamSummary.cap !== null
+              ? teamSummary.reliable
+                ? `${teamSummary.registered} / ${teamSummary.cap} teams`
+                : `${teamSummary.cap} teams`
+              : teamSummary.reliable
+                ? `${teamSummary.registered} ${teamSummary.registered === 1 ? 'team' : 'teams'}`
+                : 'Unlimited'}
+          </p>
+        ) : spotsRemaining === null ? (
           <p className="text-fg mt-1 font-medium">Unlimited</p>
         ) : offPlatform ? (
           // `spotsRemaining + attendeeCount` is the configured capacity (the

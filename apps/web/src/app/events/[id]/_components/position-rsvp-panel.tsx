@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { primaryButtonClass } from '@/components/primary-button';
+import { primaryButtonClass, neutralButtonClass } from '@/components/primary-button';
 import { EVENT_POSITIONS, type EventPosition } from '@pickupvb/domain';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { POSITION_LABEL } from '@/lib/enum-labels';
@@ -71,7 +71,7 @@ export function PositionRsvpPanel({
               pendingLabel="Leaving…"
               confirmMessage="Remove yourself from this event?"
               destructive
-              className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              className={neutralButtonClass('sm')}
             />
           </form>
         </div>
@@ -118,10 +118,7 @@ export function PositionRsvpPanel({
         </div>
       ) : (
         <div className="flex justify-end">
-          <Link
-            href={`/login?next=/events/${eventId}`}
-            className="border-border-base hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
-          >
+          <Link href={`/login?next=/events/${eventId}`} className={neutralButtonClass('md')}>
             Already have an account? Sign in
           </Link>
         </div>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { primaryButtonClass } from '@/components/primary-button';
+import { fieldInputClass } from '@/components/field-styles';
 import type { Metadata } from 'next/types';
 import { SearchCommunityListingsQuery } from '@pickupvb/application';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
@@ -138,12 +139,31 @@ export default async function CommunityListingsPage(props: {
         }
       : {}),
   };
+  // "Clear filters" drops the surface/format/skill dropdowns but keeps the tab +
+  // any active location (which has its own "Clear location" affordance). (CU-6)
+  const hasFilters = Boolean(surface || format || skillLevel);
+  const clearFiltersQuery: Record<string, string> = {
+    when,
+    ...(near
+      ? {
+          lat: near.latitude.toFixed(6),
+          lng: near.longitude.toFixed(6),
+          radiusKm: String(radiusKm),
+        }
+      : {}),
+  };
 
   return (
     <section className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-headline-lg font-bold">Community listings</h1>
+          <h1 className="text-headline-lg font-bold">
+            Community listings{' '}
+            <span className="text-muted text-base font-normal">
+              · {total}
+              {total >= FETCH_CAP ? '+' : ''}
+            </span>
+          </h1>
           <p className="text-muted mt-1 max-w-2xl text-sm">
             Volleyball events shared by other players — Facebook posts, Meetup groups, and other
             links from around the web. Anyone can submit a listing for an event they&rsquo;re not
@@ -208,11 +228,7 @@ export default async function CommunityListingsPage(props: {
           <span className="text-muted block text-xs font-semibold tracking-wide uppercase">
             Surface
           </span>
-          <select
-            name="surface"
-            defaultValue={surface ?? ''}
-            className="border-border-base mt-1 w-full rounded-md border px-2 py-1.5"
-          >
+          <select name="surface" defaultValue={surface ?? ''} className={fieldInputClass}>
             <option value="">Any</option>
             {SURFACES.map((s) => (
               <option key={s} value={s}>
@@ -225,11 +241,7 @@ export default async function CommunityListingsPage(props: {
           <span className="text-muted block text-xs font-semibold tracking-wide uppercase">
             Format
           </span>
-          <select
-            name="format"
-            defaultValue={format ?? ''}
-            className="border-border-base mt-1 w-full rounded-md border px-2 py-1.5"
-          >
+          <select name="format" defaultValue={format ?? ''} className={fieldInputClass}>
             <option value="">Any</option>
             {FORMATS.map((f) => (
               <option key={f} value={f}>
@@ -242,11 +254,7 @@ export default async function CommunityListingsPage(props: {
           <span className="text-muted block text-xs font-semibold tracking-wide uppercase">
             Skill
           </span>
-          <select
-            name="skill"
-            defaultValue={skillLevel ?? ''}
-            className="border-border-base mt-1 w-full rounded-md border px-2 py-1.5"
-          >
+          <select name="skill" defaultValue={skillLevel ?? ''} className={fieldInputClass}>
             <option value="">Any</option>
             {SKILLS.map((s) => (
               <option key={s} value={s}>
@@ -256,11 +264,22 @@ export default async function CommunityListingsPage(props: {
           </select>
         </label>
         <div className="flex items-end">
-          <button type="submit" className={`${primaryButtonClass('sm')} h-[34px]`}>
+          <button type="submit" className={primaryButtonClass('md')}>
             Apply
           </button>
         </div>
       </form>
+
+      {hasFilters && (
+        <p className="-mt-3 text-sm">
+          <Link
+            href={{ pathname: '/community', query: clearFiltersQuery }}
+            className="text-primary hover:underline"
+          >
+            Clear filters
+          </Link>
+        </p>
+      )}
 
       <p className="bg-md-warning/10 text-md-warning rounded-md p-3 text-xs">
         Community listings link out to external sites. PickupVB doesn&rsquo;t verify or moderate the
@@ -283,7 +302,35 @@ export default async function CommunityListingsPage(props: {
               to see all{isPast ? ' past' : ' upcoming'} listings.
             </>
           ) : isPast ? (
-            'No past community listings match your filters.'
+            hasFilters ? (
+              <>
+                No past community listings match your filters.{' '}
+                <Link
+                  href={{ pathname: '/community', query: clearFiltersQuery }}
+                  className="text-primary font-semibold hover:underline"
+                >
+                  Clear filters
+                </Link>
+                .
+              </>
+            ) : (
+              'No past community listings match your filters.'
+            )
+          ) : hasFilters ? (
+            <>
+              No upcoming community listings match your filters.{' '}
+              <Link
+                href={{ pathname: '/community', query: clearFiltersQuery }}
+                className="text-primary font-semibold hover:underline"
+              >
+                Clear filters
+              </Link>{' '}
+              or{' '}
+              <Link href="/community/new" className="text-primary font-semibold hover:underline">
+                submit one
+              </Link>
+              .
+            </>
           ) : (
             <>
               No upcoming community listings match your filters yet. Know about an event we should

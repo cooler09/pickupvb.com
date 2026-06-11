@@ -9,6 +9,7 @@ import {
   type BracketStatus,
   type BracketSummary,
   type BracketTeamLite,
+  type DivisionBracketStatus,
   type DivisionId,
   type EntryId,
   type EventId,
@@ -407,6 +408,27 @@ export class SupabaseBracketRepository implements BracketRepository {
       captainId: r.captain_id,
       forfeitedAt: r.forfeited_at ? new Date(r.forfeited_at) : null,
     }));
+  }
+
+  async listDivisionStatuses(
+    divisionIds: ReadonlyArray<DivisionId>,
+  ): Promise<ReadonlyArray<DivisionBracketStatus>> {
+    if (divisionIds.length === 0) return [];
+    const { data, error } = await this.client
+      .from('event_brackets')
+      .select('division_id, status')
+      .in(
+        'division_id',
+        divisionIds.map((id) => String(id)),
+      );
+    if (error) throw new Error(`listDivisionStatuses failed: ${error.message}`);
+    type Row = { division_id: string | null; status: BracketStatus };
+    const rows = (data as Row[] | null) ?? [];
+    // A standalone bracket carries a null division_id; the `.in()` filter already
+    // excludes those, but narrow defensively so the projection is non-null.
+    return rows
+      .filter((r): r is { division_id: string; status: BracketStatus } => r.division_id !== null)
+      .map((r) => ({ divisionId: r.division_id, status: r.status }));
   }
 
   // ---- Standalone brackets (ADR 0025) -------------------------------------

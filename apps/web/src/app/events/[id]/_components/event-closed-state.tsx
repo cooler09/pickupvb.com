@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { primaryButtonClass } from '@/components/primary-button';
+import { primaryButtonClass, neutralButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 
 type Props = {
@@ -78,10 +78,7 @@ export function EventClosedState({
             </a>
           )}
           {isHost && status !== 'completed' && (
-            <Link
-              href={`/events/${eventId}/edit` as Route}
-              className="border-border-base text-fg hover:bg-fg/5 inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium"
-            >
+            <Link href={`/events/${eventId}/manage` as Route} className={neutralButtonClass('sm')}>
               Manage event
             </Link>
           )}

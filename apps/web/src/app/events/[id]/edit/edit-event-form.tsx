@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
+import { EVENT_POSITIONS, EventPosition } from '@pickupvb/domain';
 import { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
 import AdvancedDetailsPanel, {
@@ -13,7 +14,14 @@ import { ErrorActionLink } from '@/components/error-action-link';
 import { useAlertReveal } from '@/components/use-alert-reveal';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { primaryButtonClass } from '@/components/primary-button';
-import { inputClass, labelClass } from '../../new/_components/form-primitives';
+import {
+  DEFAULT_POSITION_ROSTER,
+  inputClass,
+  labelClass,
+  PositionRosterGrid,
+  SegmentedControl,
+  type CapacityKind,
+} from '../../new/_components/form-primitives';
 import LocationFields from '../../new/_components/location-fields';
 import { editEventAction, type EditEventState } from './actions';
 
@@ -88,6 +96,9 @@ export type EditEventFormProps = {
     endsAt: Date;
     capacityKind: 'unlimited' | 'fixed' | null;
     maxSpots: number | null;
+    /** Per-position targets when the event uses a by-position roster; null
+     *  otherwise. A non-null value means the capacity mode is "By position". */
+    positionRoster: Partial<Record<EventPosition, number>> | null;
     addressLine: string;
     city: string;
     region: string;
@@ -111,9 +122,28 @@ export default function EditEventForm({
 }: EditEventFormProps) {
   const [state, formAction] = useFormState(editEventAction, initialState);
   const errorRef = useAlertReveal(state, Boolean(state.error));
-  const [capacityKind, setCapacityKind] = useState<'unlimited' | 'fixed'>(
-    initial.capacityKind === 'fixed' ? 'fixed' : 'unlimited',
+  // Capacity is a 3-way selector (Unlimited / Fixed / By position), matching the
+  // create form (CE-11). A persisted `positionRoster` means the event is in
+  // by-position mode (its DB `capacity_kind` is `unlimited`).
+  const [capacityKind, setCapacityKind] = useState<CapacityKind>(
+    initial.positionRoster
+      ? 'by_position'
+      : initial.capacityKind === 'fixed'
+        ? 'fixed'
+        : 'unlimited',
   );
+  const byPosition = capacityKind === 'by_position';
+  const [positionCounts, setPositionCounts] = useState<Record<EventPosition, number>>(() => {
+    const base = { ...DEFAULT_POSITION_ROSTER };
+    if (initial.positionRoster) {
+      for (const pos of EVENT_POSITIONS) {
+        const n = initial.positionRoster[pos];
+        if (typeof n === 'number') base[pos] = Math.max(0, Math.floor(n));
+      }
+    }
+    return base;
+  });
+  const positionTotal = Object.values(positionCounts).reduce((a, b) => a + b, 0);
   const [addressLine, setAddressLine] = useState(initial.addressLine);
   const [city, setCity] = useState(initial.city);
   const [region, setRegion] = useState(initial.region);
@@ -255,30 +285,21 @@ export default function EditEventForm({
       {isOpenPlay && (
         <fieldset className="border-border-base space-y-3 rounded-md border p-4">
           <legend className="text-fg px-1 text-sm font-semibold">Capacity</legend>
-          <div className="flex gap-4 text-sm">
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="capacityKind"
-                value="unlimited"
-                checked={capacityKind === 'unlimited'}
-                onChange={() => setCapacityKind('unlimited')}
-              />
-              Unlimited
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="capacityKind"
-                value="fixed"
-                checked={capacityKind === 'fixed'}
-                onChange={() => setCapacityKind('fixed')}
-              />
-              Fixed spots
-            </label>
-          </div>
+          {/* The action reads `capacityKind`; SegmentedControl is buttons, so
+              carry the value in a hidden input. */}
+          <input type="hidden" name="capacityKind" value={capacityKind} />
+          <SegmentedControl<CapacityKind>
+            value={capacityKind}
+            ariaLabel="Capacity mode"
+            onChange={setCapacityKind}
+            options={[
+              { value: 'unlimited', label: 'Unlimited' },
+              { value: 'fixed', label: 'Fixed spots' },
+              { value: 'by_position', label: 'By position' },
+            ]}
+          />
           {capacityKind === 'fixed' && (
-            <div>
+            <div className="max-w-xs">
               <label htmlFor="maxSpots" className={labelClass}>
                 Max spots
               </label>
@@ -294,6 +315,13 @@ export default function EditEventForm({
               <FieldError name="maxSpots" errors={state.fieldErrors} />
               <p className="text-muted mt-1 text-xs">Cannot drop below current attendee count.</p>
             </div>
+          )}
+          {byPosition && (
+            <PositionRosterGrid
+              positionCounts={positionCounts}
+              setPositionCounts={setPositionCounts}
+              positionTotal={positionTotal}
+            />
           )}
         </fieldset>
       )}

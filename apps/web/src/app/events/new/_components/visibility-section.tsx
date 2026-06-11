@@ -6,7 +6,9 @@
  * section 1 now, so the panel is told to skip it (`hideExternal`).
  */
 import Link from 'next/link';
-import AdvancedDetailsPanel from '@/components/event-advanced-details-panel';
+import AdvancedDetailsPanel, {
+  type AdvancedDetailsInitial,
+} from '@/components/event-advanced-details-panel';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import {
   cardClass,
@@ -16,6 +18,42 @@ import {
   labelClass,
   val,
 } from './form-primitives';
+
+/**
+ * Map a previously-submitted / template `values` map onto the panel's typed
+ * `initial` so an applied template round-trips its advanced fields (venue,
+ * series, fundraiser, theme tags, sanctioning) when the form remounts (CE-1
+ * follow-up). One-off dates (`registrationClosesAt`, like `startsAt`/`endsAt`)
+ * are intentionally excluded from saved templates upstream, so they stay blank
+ * here. External-registration round-trips via the parent's `isExternal` state +
+ * `ExternalFields`, not this panel (`hideExternal`).
+ */
+function advancedInitialFromValues(
+  values: Record<string, string> | undefined,
+): AdvancedDetailsInitial | undefined {
+  if (!values) return undefined;
+  const num = (raw: string | undefined): number | null => {
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+  const themeTagsRaw = values.themeTags;
+  return {
+    venueName: values.venueName ?? null,
+    seriesName: values.seriesName ?? null,
+    seriesPosition: num(values.seriesPosition),
+    seriesSize: num(values.seriesSize),
+    isFundraiser: values.isFundraiser === 'on',
+    fundraiserBeneficiary: values.fundraiserBeneficiary ?? null,
+    themeTags: themeTagsRaw
+      ? themeTagsRaw
+          .split(',')
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0)
+      : null,
+    sanctioningBody: values.sanctioningBody ?? null,
+  };
+}
 
 export default function VisibilitySection({
   fieldErrors,
@@ -28,6 +66,7 @@ export default function VisibilitySection({
   viewerHasProBenefits: boolean;
   isExternal: boolean;
 }) {
+  const advancedInitial = advancedInitialFromValues(values);
   return (
     <section className={cardClass}>
       <div>
@@ -82,7 +121,11 @@ export default function VisibilitySection({
         />
         <FieldError name="rules" errors={fieldErrors} />
       </div>
-      <AdvancedDetailsPanel hideExternal isExternal={isExternal} />
+      <AdvancedDetailsPanel
+        hideExternal
+        isExternal={isExternal}
+        {...(advancedInitial ? { initial: advancedInitial } : {})}
+      />
     </section>
   );
 }

@@ -16,6 +16,8 @@ export {
   DEFAULT_LIVE_MATCH_CONFIG as DEFAULT_CONFIG,
   createLiveMatchScore as initialState,
   setsToWin,
+  currentSetNumber,
+  targetForSet,
   matchWinner,
   isSetWon,
   increment,

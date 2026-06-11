@@ -112,7 +112,7 @@ export function TipJar({
           </div>
 
           {!validAmount && (
-            <p className="text-secondary text-xs">
+            <p className="text-md-error text-xs">
               Tip must be between ${MIN_TIP_CENTS / 100} and ${MAX_TIP_CENTS / 100}.
             </p>
           )}

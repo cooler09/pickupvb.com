@@ -23,9 +23,6 @@ class FakeBadgeRepository implements BadgeRepository {
     this.granted.add(id);
     return Promise.resolve(true);
   }
-  hasBadge(userId: string, badgeKey: string): Promise<boolean> {
-    return Promise.resolve(this.granted.has(`${userId}:${badgeKey}`));
-  }
   loadStats(): Promise<PlayerBadgeStats> {
     return Promise.resolve(this.stats);
   }

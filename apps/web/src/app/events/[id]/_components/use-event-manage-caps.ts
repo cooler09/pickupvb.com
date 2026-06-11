@@ -8,6 +8,13 @@ export type EventManageCaps = {
   viewerId: string | null;
   /** True when the viewer may manage the event (host or host-group owner/admin). */
   canManage: boolean;
+  /**
+   * False until the post-hydration `auth.getUser()` round-trip resolves, then
+   * true. Lets a caller distinguish "still resolving" from "resolved as a
+   * spectator" (both are `canManage: false`) — e.g. to hold back spectator copy
+   * that would otherwise flash for a host before their controls load.
+   */
+  resolved: boolean;
 };
 
 /**
@@ -21,13 +28,18 @@ export type EventManageCaps = {
  * self-scoped (the viewer's own row). This gate is UX only — every mutating
  * action re-checks authorization server-side via `assertHost` / RLS.
  *
- * Starts as a spectator (`{ viewerId: null, canManage: false }`) until resolved.
+ * Starts as a spectator (`{ viewerId: null, canManage: false, resolved: false }`)
+ * until resolved.
  */
 export function useEventManageCaps(
   hostUserId: string | null,
   hostGroupId: string | null,
 ): EventManageCaps {
-  const [caps, setCaps] = useState<EventManageCaps>({ viewerId: null, canManage: false });
+  const [caps, setCaps] = useState<EventManageCaps>({
+    viewerId: null,
+    canManage: false,
+    resolved: false,
+  });
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -36,12 +48,12 @@ export function useEventManageCaps(
       const { data } = await supabase.auth.getUser();
       const user = data.user;
       if (!user || user.is_anonymous) {
-        if (!cancelled) setCaps({ viewerId: null, canManage: false });
+        if (!cancelled) setCaps({ viewerId: null, canManage: false, resolved: true });
         return;
       }
       const viewerId = user.id;
       if (viewerId === hostUserId) {
-        if (!cancelled) setCaps({ viewerId, canManage: true });
+        if (!cancelled) setCaps({ viewerId, canManage: true, resolved: true });
         return;
       }
       if (hostGroupId) {
@@ -53,11 +65,11 @@ export function useEventManageCaps(
           .maybeSingle();
         const role = (membership as { role: string } | null)?.role;
         if (role === 'owner' || role === 'admin') {
-          if (!cancelled) setCaps({ viewerId, canManage: true });
+          if (!cancelled) setCaps({ viewerId, canManage: true, resolved: true });
           return;
         }
       }
-      if (!cancelled) setCaps({ viewerId, canManage: false });
+      if (!cancelled) setCaps({ viewerId, canManage: false, resolved: true });
     }
     void resolve();
     return () => {

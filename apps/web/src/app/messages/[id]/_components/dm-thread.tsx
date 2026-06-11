@@ -19,6 +19,8 @@ type Props = {
   initialMessages: MessageView[];
   initialHasMore: boolean;
   initialNextBefore: string | null;
+  /** Viewport-relative list height for the full-page thread (audit MU-2). */
+  listHeightClass: string;
 };
 
 /**
@@ -39,6 +41,7 @@ export function DmThread({
   initialMessages,
   initialHasMore,
   initialNextBefore,
+  listHeightClass,
 }: Props) {
   const [blocked, setBlocked] = useState(initiallyBlocked);
 
@@ -62,6 +65,7 @@ export function DmThread({
         initialHasMore={initialHasMore}
         initialNextBefore={initialNextBefore}
         participants={participants}
+        listHeightClass={listHeightClass}
       />
     </>
   );

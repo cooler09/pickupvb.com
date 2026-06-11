@@ -12,6 +12,7 @@ import {
   cardTitleClass,
   inputClass,
   labelClass,
+  RequiredMark,
   val,
 } from './form-primitives';
 
@@ -33,6 +34,7 @@ export default function BasicsSection({
       <div>
         <label htmlFor="title" className={labelClass}>
           Title
+          <RequiredMark />
         </label>
         <input
           id="title"
@@ -63,27 +65,31 @@ export default function BasicsSection({
         />
         <FieldError name="description" errors={fieldErrors} />
       </div>
-      <div>
-        <label htmlFor="hostGroupId" className={labelClass}>
-          Host as
-        </label>
-        <select
-          id="hostGroupId"
-          name="hostGroupId"
-          defaultValue={val(values, 'hostGroupId', '')}
-          className={inputClass}
-        >
-          <option value="">Yourself</option>
-          {hostableGroups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-        <p className="text-muted mt-1 text-xs">
-          Hosting on behalf of a group? Pick any group you own or admin.
-        </p>
-      </div>
+      {/* Only worth a control when the host actually manages a group — a lone
+          "Yourself" option is noise for the common individual-host case (CE-13). */}
+      {hostableGroups.length > 0 && (
+        <div>
+          <label htmlFor="hostGroupId" className={labelClass}>
+            Host as
+          </label>
+          <select
+            id="hostGroupId"
+            name="hostGroupId"
+            defaultValue={val(values, 'hostGroupId', '')}
+            className={inputClass}
+          >
+            <option value="">Yourself</option>
+            {hostableGroups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-muted mt-1 text-xs">
+            Hosting on behalf of a group? Pick any group you own or admin.
+          </p>
+        </div>
+      )}
     </section>
   );
 }

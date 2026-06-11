@@ -124,6 +124,7 @@ export default async function StandaloneBracketPage(props: {
           scope={scope}
           format={bracket.format}
           bestOf={bracket.config.bestOf}
+          poolPlayMode={bracket.config.poolPlayMode}
           targetScore={bracket.config.targetScore}
           matches={[...bracket.matches]}
           teams={registeredTeams}
@@ -144,6 +145,7 @@ export default async function StandaloneBracketPage(props: {
             teamById={teamById}
             teams={registeredTeams}
             bestOf={bracket.config.bestOf}
+            poolPlayMode={bracket.config.poolPlayMode}
             targetScore={bracket.config.targetScore}
             targetScores={bracket.config.targetScores}
             playoffBestOf={bracket.config.playoffBestOf}

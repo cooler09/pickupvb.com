@@ -13,7 +13,11 @@ import { geocodePlaceAction } from './location-actions';
  * fallback when the user denies geolocation or wants to browse another city).
  * Preserves the active filters in the URL, like Near-me, and resets pagination.
  */
-export function LocationSearch({ basePath = '/events' }: { basePath?: Route } = {}) {
+export function LocationSearch({
+  basePath = '/events',
+  inputLabel = 'Find events by city or ZIP code',
+  submitLabel = 'Search',
+}: { basePath?: Route; inputLabel?: string; submitLabel?: string } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, start] = useTransition();
@@ -50,11 +54,11 @@ export function LocationSearch({ basePath = '/events' }: { basePath?: Route } = 
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="City or ZIP"
-        aria-label="Find events by city or ZIP code"
+        aria-label={inputLabel}
         className="border-border-base bg-md-surface-container w-32 rounded-md border px-3 py-2 text-sm sm:w-40"
       />
       <button type="submit" disabled={pending} className={secondaryButtonClass('sm')}>
-        {pending ? 'Searching…' : 'Search'}
+        {pending ? 'Searching…' : submitLabel}
       </button>
     </form>
   );
