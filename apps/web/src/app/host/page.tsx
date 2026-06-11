@@ -64,6 +64,13 @@ export default async function HostDashboardPage() {
               Host an event →
             </Link>
           </div>
+          <p className="text-muted mt-3 text-sm">
+            New to hosting?{' '}
+            <Link href={'/help/getting-started' as Route} className="text-primary hover:underline">
+              Read the host guide
+            </Link>
+            .
+          </p>
         </section>
       </div>
     );

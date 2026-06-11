@@ -27,6 +27,8 @@ export function SiteFooter() {
               { href: '/events', label: 'Browse events' },
               { href: '/pricing', label: 'Pricing' },
               { href: '/tools', label: 'Tools' },
+              // `as Route` until `next build` regenerates typedRoutes with /help.
+              { href: '/help' as Route, label: 'Guides' },
             ]}
           />
 
