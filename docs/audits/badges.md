@@ -8,28 +8,28 @@ catalog/rules, the reconcile handler + repository, the
 authoring + manual-award flows, the à-la-carte unlock, the easter eggs, and the
 trophy-case UI.
 
-## Status — 2026-06-10 (new audit; first remediation bundle landed)
+## Status — 2026-06-10 (new audit; two remediation bundles landed)
 
 Subsystem is well-factored and matches the ADR: thresholds live only in the TS
 catalog, grants are idempotent, the admin-client usage is the sanctioned
 session-less path, and host-badge label/description run through the moderation
 chokepoints. **0 P1.** Audit found **4 P2 + 4 P3**.
 
-**Fixed 2026-06-10 (uncommitted, quad-green — migration deploy-gated):** BA-1,
-BA-8 (one stats migration), BA-2 (hide toggle wired), BA-5 (dead `hasBadge`
-removed). **Open:** BA-3 (verification debt — needs a live-DB run, deploy-gated),
-BA-4, BA-6, BA-7. See the remediation log below.
+**Fixed 2026-06-10 (uncommitted, quad-green — migrations deploy-gated):** BA-1,
+BA-2, BA-5, BA-8 (bundle 1) and BA-6, BA-7 (bundle 2). **Open:** BA-3
+(verification debt — needs a live-DB run, deploy-gated) and BA-4 (deferred — see
+its note). See the remediation log below.
 
-| ID   | Sev | One-line                                                                     | Status   |
-| ---- | --- | ---------------------------------------------------------------------------- | -------- |
-| BA-1 | P2  | Seasoned/Champion/Podium don't exclude `cancelled` events                    | ✅ fixed |
-| BA-2 | P2  | "Hide a badge" is unreachable — RPC + column + view filter all ship dead     | ✅ fixed |
-| BA-3 | P2  | The tournament/league stat joins have never been run or tested against data  | ⏳ open  |
-| BA-4 | P2  | `/profile` runs two multi-table SECURITY DEFINER RPCs uncached on every load | ⏳ open  |
-| BA-5 | P3  | `BadgeRepository.hasBadge` is dead code (no call sites)                      | ✅ fixed |
-| BA-6 | P3  | on_attend host-badge grants fire no `badge.earned` bell and no unlock toast  | ⏳ open  |
-| BA-7 | P3  | Retroactively-added on_attend badges miss attendees of events >7 days old    | ⏳ open  |
-| BA-8 | P3  | `per_host` loyalty count groups all null-`host_id` events together           | ✅ fixed |
+| ID   | Sev | One-line                                                                     | Status      |
+| ---- | --- | ---------------------------------------------------------------------------- | ----------- |
+| BA-1 | P2  | Seasoned/Champion/Podium don't exclude `cancelled` events                    | ✅ fixed    |
+| BA-2 | P2  | "Hide a badge" is unreachable — RPC + column + view filter all ship dead     | ✅ fixed    |
+| BA-3 | P2  | The tournament/league stat joins have never been run or tested against data  | ⏳ open     |
+| BA-4 | P2  | `/profile` runs two multi-table SECURITY DEFINER RPCs uncached on every load | ⏳ deferred |
+| BA-5 | P3  | `BadgeRepository.hasBadge` is dead code (no call sites)                      | ✅ fixed    |
+| BA-6 | P3  | on_attend host-badge grants fire no `badge.earned` bell and no unlock toast  | ✅ fixed    |
+| BA-7 | P3  | Retroactively-added on_attend badges miss attendees of events >7 days old    | ✅ fixed    |
+| BA-8 | P3  | `per_host` loyalty count groups all null-`host_id` events together           | ✅ fixed    |
 
 ---
 
@@ -113,6 +113,16 @@ when nothing could have changed (e.g. a cheap `max(awarded_at)` vs. a
 `last_active` watermark) — leaning on the 30-min cron as the safety net rather
 than reconciling on every render.
 
+> **Deferred 2026-06-10 (needs a product call).** `React.cache` alone is
+> cosmetic here — `reconcileUserBadges` has a single call site, so there's no
+> per-request duplicate to dedup. The substantive win is a watermark throttle,
+> but that trades against the **instant unlock toast**: throttling
+> reconcile-on-view means a badge earned moments ago (the exact case the toast
+> exists for) can land silently until the cron catches it. It also needs a new
+> `profiles` column + a write on every (stale) load. With the 30-min cron now
+> also firing the `badge.earned` bell (BA-6), the freshness gap is already
+> smaller. Left for Zachary to weigh delight vs. cost before adding schema.
+
 ### BA-5 (P3) — `hasBadge` is dead code
 
 `BadgeRepository.hasBadge` and its adapter implementation have no callers
@@ -128,11 +138,11 @@ fold it into a real use case if one is planned. Trims surface and a needless
 
 ### BA-6 (P3) — First host badge a player collects is silent
 
-`grant_attended_event_badges` writes the on_attend grant in SQL and returns
+`grant_attended_event_badges` writes the on*attend grant in SQL and returns
 `void`, so the facade can't tell which keys are new — they fire no `badge.earned`
 bell and aren't part of the `newlyGranted` set that drives `BadgeUnlockToast`.
 The system, manual-award, and easter-egg paths all notify; on_attend doesn't
-(ADR "Still open"). A player's _first ever_ collectible badge can land with zero
+(ADR "Still open"). A player's \_first ever* collectible badge can land with zero
 acknowledgement.
 
 [badges.ts#L38-L55](../../apps/web/src/lib/badges.ts#L38-L55),
@@ -218,7 +228,30 @@ badge_key)`) make reconcile-on-view + cron + backfill all safe to overlap.
   ([supabase-badge-repository.ts](../../packages/infrastructure/src/supabase-badge-repository.ts)),
   and the handler-test fake.
 
+### 2026-06-10 — second bundle (BA-6, BA-7), uncommitted, quad-green
+
+- **BA-6** — new migration
+  [20261010000000_on_attend_badge_grants.sql](../../supabase/migrations/20261010000000_on_attend_badge_grants.sql)
+  `drop`+`create`s `grant_attended_event_badges(uuid)` (return type changes
+  undefined → `setof (badge_key text, label text)`, so a plain `create or
+replace` is rejected) to `RETURNING` the rows it actually inserted (the
+  `on conflict do nothing` makes that set exactly the new grants). The facade
+  [badges.ts](../../apps/web/src/lib/badges.ts) now collects those host-badge
+  titles alongside the newly-granted system titles, returns **titles** (not
+  keys), and fires a `badge.earned` bell for each — so a player's first
+  collectible badge is no longer silent. `BadgeUnlockToast` simplified to take
+  titles directly; generated types hand-edited (regen on next `gen:types`).
+- **BA-7** — same migration adds `grant_attended_badges_for_event(uuid)`, an
+  event-scoped backfill (all on_attend badges of one event → all its past
+  attendees, idempotent). `addEventBadgeFromForm`
+  ([badge-actions.ts](../../apps/web/src/app/events/[id]/edit/badge-actions.ts))
+  calls it best-effort after inserting an on_attend badge, so attendees of an
+  already-finished event collect it without a profile visit. Separately, the
+  reconcile cron [route.ts](../../apps/web/src/app/api/badges/reconcile/route.ts)
+  now drains each candidate through the `reconcileUserBadges` facade instead of
+  the system-only handler — closing the gap that cron never granted on_attend
+  badges (and never belled cron-granted system badges either).
+
 Still open: BA-3 (live-DB verification of the tournament/league joins — can't be
-a unit test; deploy-gated), BA-4 (`React.cache` / dirty-check the profile-load
-reconcile), BA-6 (return on_attend grants from the RPC so they notify), BA-7
-(backfill on_attend on badge-add for older events).
+a unit test; deploy-gated) and BA-4 (deferred — watermark throttle trades
+against the instant unlock toast; see its note above).

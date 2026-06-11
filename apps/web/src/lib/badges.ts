@@ -1,10 +1,5 @@
 import 'server-only';
-import {
-  getBadgeDefinition,
-  isEasterEggBadgeKey,
-  type GrantedBadge,
-  type SystemBadgeKey,
-} from '@pickupvb/domain';
+import { getBadgeDefinition, isEasterEggBadgeKey, type GrantedBadge } from '@pickupvb/domain';
 import { ReconcileUserBadgesHandler } from '@pickupvb/application';
 import { SupabaseBadgeRepository } from '@pickupvb/infrastructure';
 import type { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
@@ -26,35 +21,47 @@ type ReadClient = ReturnType<typeof createSupabaseAnonClient>;
 const badgeRepo = () => new SupabaseBadgeRepository(getAdminSupabase());
 
 /**
- * Reconcile a user's system badges and return the keys granted *on this run* so
- * the caller can surface a one-time "unlocked!" toast. Fail-quiet: badge
- * reconciliation is a side delight and must never break a page render — a thrown
- * stats/grant error degrades to "no new badges this load".
+ * Reconcile a user's badges and return the display *titles* unlocked *on this
+ * run* (system + on_attend host badges), so the caller can surface a one-time
+ * "unlocked!" toast. Fail-quiet: badge reconciliation is a side delight and must
+ * never break a page render — a thrown stats/grant error degrades to "no new
+ * badges this load".
  */
-export async function reconcileUserBadges(userId: string): Promise<SystemBadgeKey[]> {
+export async function reconcileUserBadges(userId: string): Promise<string[]> {
+  const titles: string[] = [];
   try {
-    // Phase 2: also grant any on_attend host event badges the user earned by
+    // Phase 2: grant any on_attend host event badges the user earned by
     // attending. Pure per-event membership grant (no thresholds), so it lives in
-    // SQL; fire-and-forget alongside the system reconcile.
-    await getAdminSupabase()
-      .rpc('grant_attended_event_badges', { p_user_id: userId })
-      .then(
-        () => undefined,
-        () => undefined,
-      );
+    // SQL. The RPC RETURNs the rows it actually inserted (BA-6), so a freshly
+    // collected host badge fires the bell + toast like a system one. Isolated in
+    // its own try so a host-grant hiccup never skips the system reconcile.
+    try {
+      const { data: hostGrants } = await getAdminSupabase().rpc('grant_attended_event_badges', {
+        p_user_id: userId,
+      });
+      for (const g of (hostGrants as { badge_key: string; label: string | null }[] | null) ?? []) {
+        if (g.label) titles.push(g.label);
+      }
+    } catch {
+      // on_attend grants are best-effort; the system reconcile still runs.
+    }
+
     const newly = await new ReconcileUserBadgesHandler(badgeRepo()).execute(userId);
-    // Bell notification (in_app only) for each newly-granted system badge. Only
-    // fires the first time a badge is granted (reconcile is idempotent), so no
-    // spam. Best-effort — a notify failure must not break the reconcile.
+    for (const key of newly) {
+      const def = getBadgeDefinition(key);
+      if (def) titles.push(def.title);
+    }
+
+    // Bell notification (in_app only) for each newly-granted badge — system and
+    // host alike. Only fires the first time a badge is granted (every grant is
+    // idempotent), so no spam. Best-effort — a notify failure must not break the
+    // reconcile.
     await Promise.allSettled(
-      newly.map((key) => {
-        const def = getBadgeDefinition(key);
-        return def ? notify('badge.earned', userId, { badgeTitle: def.title }) : Promise.resolve();
-      }),
+      titles.map((badgeTitle) => notify('badge.earned', userId, { badgeTitle })),
     );
-    return newly;
+    return titles;
   } catch {
-    return [];
+    return titles;
   }
 }
 

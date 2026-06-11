@@ -124,6 +124,17 @@ export async function addEventBadgeFromForm(
   });
   if (error) flashTo(eventId, 'error', error.message);
 
+  // BA-7: an on_attend badge added to an already-finished event must reach
+  // attendees who won't revisit their profile (and may sit outside the reconcile
+  // cron's 7-day window). Backfill it to the event's past attendees now —
+  // idempotent and best-effort, so it never blocks the host's save.
+  if (grantRule === 'on_attend') {
+    await sb.rpc('grant_attended_badges_for_event', { p_event_id: eventId }).then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
   revalidatePath(returnPath);
   updateTag(eventCacheTag(eventId));
   flashTo(eventId, 'saved');
