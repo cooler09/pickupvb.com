@@ -87,16 +87,6 @@ export class SupabaseBadgeRepository implements BadgeRepository {
     return ((data as BadgeRow[] | null) ?? []).map(rowToGranted);
   }
 
-  async hasBadge(userId: string, badgeKey: string): Promise<boolean> {
-    const { count, error } = await this.client
-      .from('user_badges')
-      .select('badge_key', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('badge_key', badgeKey);
-    if (error) throw new Error(`Badge.hasBadge failed: ${error.message}`);
-    return (count ?? 0) > 0;
-  }
-
   async loadStats(userId: string): Promise<PlayerBadgeStats> {
     const { data, error } = await this.client.rpc('compute_player_badge_stats', {
       p_user_id: userId,

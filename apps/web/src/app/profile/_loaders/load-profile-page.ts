@@ -151,6 +151,7 @@ export async function loadProfilePage(
     badgeKey: b.badgeKey,
     awardedAt: b.awardedAt,
     source: b.source,
+    hidden: b.hidden,
     label: typeof b.context?.label === 'string' ? b.context.label : null,
     iconUrl: typeof b.context?.iconUrl === 'string' ? b.context.iconUrl : null,
   }));

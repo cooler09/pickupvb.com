@@ -75,7 +75,13 @@ export default async function ProfilePage(props: {
       {/* Achievement badges (gamification Phase 1) — owner sees locked teasers. */}
       <BadgeUnlockToast newlyGranted={newlyGrantedBadges} />
       <KonamiListener />
-      <BadgeShelf earned={shelfBadges} showLocked heading="Your badges" />
+      <BadgeShelf
+        earned={shelfBadges}
+        showLocked
+        manageHidden
+        returnPath="/profile"
+        heading="Your badges"
+      />
 
       {/* Onboarding checklists (ADR 0035). Player track first (everyone), then the
           host track for viewers showing host intent. Each hides once its required
