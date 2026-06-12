@@ -17,6 +17,19 @@ where relevant, but kept here under the vendor-cost lens.
 
 ---
 
+## Status — 2026-06-11 (Sentry re-scan)
+
+Focused re-scan of the **Sentry** integration (code wiring is mature — DSN
+gating, tunnel route, source-map upload, `tracesSampler` cron drops, e2e/bot
+filtering, masked on-error replay, serverless `flush()` are all in place).
+Three operational gaps opened, none ship-blocking: **TPI-15** (P2 — runtime
+inits don't pin `release`), **TPI-16** (P3 — no `Sentry.setUser` opaque id),
+**TPI-17** (P2, config-only — no alert rules / Discord routing). New operating
+guide written at [docs/sentry.md](../sentry.md) (saved searches, dashboards,
+alert rules, Discord setup, triage runbook). Also fixed doc drift in
+[integrations.md](../integrations.md) (`sentry.client.config.ts` →
+`instrumentation-client.ts`).
+
 ## Status — 2026-05-31 (Tier 1 fixes landed)
 
 **Resolved (Tier 1 quick wins):** TPI-4 (Stripe `apiVersion` pinned to the
@@ -255,6 +268,52 @@ The three cron routes (worker/reminders/outbox-purge) each open a server
 transaction at the sampled rate every 5/15 min / daily — pure noise. Add a
 `tracesSampler` in [sentry.server.config.ts](../../apps/web/sentry.server.config.ts)
 returning `0` for `transactionContext.name?.startsWith('/api/notifications/')`.
+
+#### TPI-15 (P2) — 🔶 Open 2026-06-11 — Runtime `Sentry.init` calls don't pin `release`
+
+[sentry.server.config.ts](../../apps/web/sentry.server.config.ts),
+[sentry.edge.config.ts](../../apps/web/sentry.edge.config.ts), and
+[instrumentation-client.ts](../../apps/web/instrumentation-client.ts) set
+`dsn` / `environment` / sampling but **never set `release`**. The
+`withSentryConfig` plugin proposes a release from `git HEAD` for the
+source-map upload, but if the runtime events carry no `release` tag (or a
+different one), the **Releases** page, regression detection, "first seen in
+`<sha>`", and reliable source-map association all degrade. This is the
+backbone of post-deploy triage.
+
+**Fix:** add `release: process.env.VERCEL_GIT_COMMIT_SHA` to the server/edge
+inits and `release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA` to the
+client init (Vercel exposes both). See
+[docs/sentry.md § 2a](../sentry.md). Verify in the Sentry UI that events
+carry a `release` after the next deploy.
+
+#### TPI-16 (P3) — 🔶 Open 2026-06-11 — No user context attached to events (`Sentry.setUser`)
+
+No `Sentry.setUser(...)` anywhere
+(`grep setUser` over `apps/web` is empty), so issues arrive with no user
+identity. You can't see "N users affected", can't sort triage by blast
+radius (users vs. raw event count), and can't filter by user. The privacy
+posture (anon auth, salted PostHog ids, replay masks everything) means the
+**only** safe value to attach is the opaque Supabase user id (a UUID) — never
+email/name, and never `sendDefaultPii: true`.
+
+**Fix:** mount a small `'use client'` setter in the root layout that calls
+`Sentry.setUser({ id })` from `supabase.auth.getUser()` (and `setUser(null)`
+on sign-out). See [docs/sentry.md § 2b](../sentry.md).
+
+#### TPI-17 (P2) — 🔶 Open 2026-06-11 (ops/config, no code) — Errors flow to Sentry but nothing routes them to a human
+
+The SDK captures cleanly and `ignoreErrors` already strips expected
+`DomainError`s — so every Sentry issue is a real bug — but there are **no
+alert rules and no Discord/email routing configured** in the Sentry project.
+A new prod bug sits unseen until someone opens the dashboard. Highest-value
+gap given how clean the captured signal is.
+
+**Fix:** configure the four alert rules (new-issue, Stripe-webhook,
+error-rate spike, cron silence) and a Discord destination per
+[docs/sentry.md §§ 5–6](../sentry.md). Dashboard config only — no code,
+unless the webhook-relay fallback (Option 2) is chosen over the native
+Discord integration.
 
 ### Telemetry — PostHog
 
