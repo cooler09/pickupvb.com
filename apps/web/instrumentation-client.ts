@@ -7,6 +7,12 @@ Sentry.init({
   environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
   enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
 
+  // Pin the release to the deployed commit so browser events match the
+  // source-map upload release (server uses the bare VERCEL_GIT_COMMIT_SHA;
+  // the client needs the NEXT_PUBLIC_ copy, which Vercel also exposes — same
+  // mechanism as NEXT_PUBLIC_VERCEL_ENV above). See docs/sentry.md § 2a / TPI-15.
+  release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,
+
   // Prod trimmed 10% → 2% to match the server/edge configs. Browser
   // pageload/navigation transactions are the highest-volume span stream, so
   // leaving the client at 10% undercut the server-side trim.

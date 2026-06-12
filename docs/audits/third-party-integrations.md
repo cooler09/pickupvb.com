@@ -22,11 +22,14 @@ where relevant, but kept here under the vendor-cost lens.
 Focused re-scan of the **Sentry** integration (code wiring is mature — DSN
 gating, tunnel route, source-map upload, `tracesSampler` cron drops, e2e/bot
 filtering, masked on-error replay, serverless `flush()` are all in place).
-Three operational gaps opened, none ship-blocking: **TPI-15** (P2 — runtime
-inits don't pin `release`), **TPI-16** (P3 — no `Sentry.setUser` opaque id),
-**TPI-17** (P2, config-only — no alert rules / Discord routing). New operating
-guide written at [docs/sentry.md](../sentry.md) (saved searches, dashboards,
-alert rules, Discord setup, triage runbook). Also fixed doc drift in
+Three operational gaps opened, none ship-blocking. **TPI-15** (P2 — pin
+`release`) and **TPI-16** (P3 — opaque `Sentry.setUser`) **fixed same day**
+(quad-green, uncommitted — see remediation log). **TPI-17** (P2, config-only —
+alert rules → Discord) stays open: the native Sentry↔Discord integration is
+installed, but the alert rules that route to it must be created in the
+dashboard per [docs/sentry.md §§ 5–6](../sentry.md). New operating guide written
+at [docs/sentry.md](../sentry.md) (saved searches, dashboards, alert rules,
+Discord setup, triage runbook). Also fixed doc drift in
 [integrations.md](../integrations.md) (`sentry.client.config.ts` →
 `instrumentation-client.ts`).
 
@@ -269,7 +272,7 @@ transaction at the sampled rate every 5/15 min / daily — pure noise. Add a
 `tracesSampler` in [sentry.server.config.ts](../../apps/web/sentry.server.config.ts)
 returning `0` for `transactionContext.name?.startsWith('/api/notifications/')`.
 
-#### TPI-15 (P2) — 🔶 Open 2026-06-11 — Runtime `Sentry.init` calls don't pin `release`
+#### TPI-15 (P2) — ✅ Resolved 2026-06-11 — Runtime `Sentry.init` calls don't pin `release`
 
 [sentry.server.config.ts](../../apps/web/sentry.server.config.ts),
 [sentry.edge.config.ts](../../apps/web/sentry.edge.config.ts), and
@@ -287,7 +290,7 @@ client init (Vercel exposes both). See
 [docs/sentry.md § 2a](../sentry.md). Verify in the Sentry UI that events
 carry a `release` after the next deploy.
 
-#### TPI-16 (P3) — 🔶 Open 2026-06-11 — No user context attached to events (`Sentry.setUser`)
+#### TPI-16 (P3) — ✅ Resolved 2026-06-11 — No user context attached to events (`Sentry.setUser`)
 
 No `Sentry.setUser(...)` anywhere
 (`grep setUser` over `apps/web` is empty), so issues arrive with no user
@@ -472,6 +475,33 @@ from `route.ts`), tested in
 ---
 
 ## Remediation log
+
+**2026-06-11 — Sentry re-scan fixes (TPI-15, TPI-16) + ops guide.** Quad-green,
+uncommitted.
+
+- **TPI-15** — pinned `release` to the deployed commit so runtime events match
+  the source-map upload. `release: process.env.VERCEL_GIT_COMMIT_SHA` in
+  [sentry.server.config.ts](../../apps/web/sentry.server.config.ts) +
+  [sentry.edge.config.ts](../../apps/web/sentry.edge.config.ts);
+  `NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA` in
+  [instrumentation-client.ts](../../apps/web/instrumentation-client.ts); and the
+  `withSentryConfig` plugin in [next.config.mjs](../../apps/web/next.config.mjs)
+  pins the **upload-side** release to the same SHA (`release: { name }`,
+  spread-guarded so it falls back to git-HEAD auto-detect off Vercel). _Verify
+  post-deploy:_ an issue carries a `release` = commit SHA and the trace is
+  de-minified.
+- **TPI-16** — opaque user context. Folded `Sentry.setUser({ id })` /
+  `setUser(null)` into the existing app-wide auth subscription
+  [auth-state-sync.tsx](../../apps/web/src/components/auth-state-sync.tsx) (no
+  second listener). **Only the Supabase UUID** is attached — no email/name,
+  `sendDefaultPii` stays off. Pure reducer `reduceAuthSync` untouched, so its
+  unit test stays green.
+- **TPI-17** — still open: Discord integration is _installed_ in Sentry (native
+  Sentry↔Discord), but the **alert rules** that route to it must still be
+  created in the dashboard. Recipe in [docs/sentry.md §§ 5–6](../sentry.md). No
+  code.
+- New operating guide [docs/sentry.md](../sentry.md); doc-drift fix in
+  [integrations.md](../integrations.md).
 
 **2026-05-31 — Tier 1 quick wins (5 findings) + TPI-9 confirmed resolved.**
 

@@ -41,68 +41,53 @@ traffic (PR builds, your own testing) otherwise drowns the signal.
 
 ---
 
-## 2. Two code changes to unlock reliable views
+## 2. Two code changes that unlock reliable views — ✅ implemented 2026-06-11
 
-These aren't required for errors to flow, but the most useful Sentry views
-("how many users hit this", "first seen in which release", "is this a
-regression") depend on **release** and **user** tags that we don't currently
-set. Both are cheap and privacy-safe. (Tracked as audit findings TPI-14 /
-TPI-15 — see the audit file.)
+The most useful Sentry views ("how many users hit this", "first seen in which
+release", "is this a regression") depend on **release** and **user** tags. Both
+were missing; both are now wired (audit findings TPI-15 / TPI-16). Documented
+here so the _why_ survives.
 
-### 2a. Pin the release to the deployed commit
+### 2a. Pin the release to the deployed commit — TPI-15
 
-The bundler plugin proposes a release from `git HEAD` at build time, but the
-**runtime** `Sentry.init` calls don't set `release`, so events can land
-untagged and source maps may not associate. Pin it explicitly to the Vercel
-commit SHA in all three configs:
+The runtime `Sentry.init` calls now set `release` to the deployed commit so
+events are tagged with the same release the source maps upload under (without
+it, the Releases page / regression detection / source-map association are
+unreliable):
+
+- [sentry.server.config.ts](../apps/web/sentry.server.config.ts) /
+  [sentry.edge.config.ts](../apps/web/sentry.edge.config.ts):
+  `release: process.env.VERCEL_GIT_COMMIT_SHA`
+- [instrumentation-client.ts](../apps/web/instrumentation-client.ts):
+  `release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA` (the client needs the
+  `NEXT_PUBLIC_` copy — same mechanism Vercel uses for `NEXT_PUBLIC_VERCEL_ENV`)
+- [next.config.mjs](../apps/web/next.config.mjs): the `withSentryConfig` plugin
+  pins the **upload-side** release to the same SHA (`release: { name: … }`), so
+  upload and runtime can't drift. Off Vercel it falls back to git-HEAD
+  auto-detection.
+
+**Verify after the next prod deploy:** open an issue in Sentry and confirm it
+carries a `release` tag equal to the Vercel commit SHA, and that the stack trace
+is de-minified (source maps applied).
+
+### 2b. Attach an **opaque** user id (no PII) — TPI-16
+
+Folded into the existing [auth-state-sync.tsx](../apps/web/src/components/auth-state-sync.tsx)
+(the only app-wide auth subscription) rather than a second `getUser()` listener.
+On every auth event it calls `Sentry.setUser({ id })` with **only the opaque
+Supabase user id** (a UUID), and `Sentry.setUser(null)` on sign-out:
 
 ```ts
-// sentry.server.config.ts / sentry.edge.config.ts
-Sentry.init({
-  // …existing…
-  release: process.env.VERCEL_GIT_COMMIT_SHA,
-});
-
-// instrumentation-client.ts (needs the NEXT_PUBLIC_ copy)
-Sentry.init({
-  // …existing…
-  release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,
-});
+const nextUserId = session?.user?.id ?? null;
+Sentry.setUser(nextUserId ? { id: nextUserId } : null);
 ```
 
-`VERCEL_GIT_COMMIT_SHA` is provided automatically by Vercel; the client needs
-the `NEXT_PUBLIC_` variant, which Vercel also exposes. With this set, the
-"Releases" page, regression detection, and "first seen in `<sha>`" all work.
-
-### 2b. Attach an **opaque** user id (no PII)
-
-Errors currently arrive with no user identity, so you can't see "12 users
-affected" or filter by user. Given the privacy posture (anonymous auth,
-PostHog distinct-ids are salted-hashed, replay masks everything), **do not send
-email/name** — attach only the Supabase user id (already an opaque UUID), or
-reuse the salted hash. A small client component mounted in the root layout:
-
-```tsx
-'use client';
-import { useEffect } from 'react';
-import * as Sentry from '@sentry/nextjs';
-import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
-
-export function SentryUser() {
-  useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data }) => {
-      Sentry.setUser(data.user ? { id: data.user.id } : null);
-    });
-  }, []);
-  return null;
-}
-```
-
-Pair it with `Sentry.setUser(null)` on sign-out. On the server, call
-`Sentry.setUser({ id })` inside `log.error` / a request scope if you want
-server events tagged too. **Never** set `sendDefaultPii: true` — it defaults
-off and must stay off (it would attach IP + headers).
+Given the privacy posture (anonymous auth, salted PostHog ids, replay masks
+everything) we send **no email/name**, and **never** set `sendDefaultPii: true`
+(it defaults off and must stay off — it would attach IP + headers). Sentry can
+now show "N users affected" and filter by user. (Server events stay
+unattributed; add `Sentry.setUser({ id })` in a request scope / `log.error` if
+that ever proves needed.)
 
 ---
 
