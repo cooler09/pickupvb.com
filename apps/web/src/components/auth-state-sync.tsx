@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import * as Sentry from '@sentry/nextjs';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 
 /**
@@ -49,6 +50,13 @@ export function reduceAuthSync(
  * in the browser after the current RSC payload was rendered. See
  * {@link reduceAuthSync} for which events trigger a refresh and why
  * `TOKEN_REFRESHED` is deliberately excluded.
+ *
+ * Also attaches the signed-in user to Sentry (TPI-16). This is the only auth
+ * subscription mounted app-wide, so it's the right hook. We tag **only the
+ * opaque Supabase user id** (a UUID) — never email/name — to match the privacy
+ * posture (salted PostHog ids, replay masks everything) and never enable
+ * `sendDefaultPii`. Lets Sentry show "N users affected" and filter by user.
+ * See docs/sentry.md § 2b.
  */
 export function AuthStateSync() {
   const router = useRouter();
@@ -57,11 +65,10 @@ export function AuthStateSync() {
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      const { next, refresh } = reduceAuthSync(
-        baselineRef.current,
-        event,
-        session?.user?.id ?? null,
-      );
+      const nextUserId = session?.user?.id ?? null;
+      Sentry.setUser(nextUserId ? { id: nextUserId } : null);
+
+      const { next, refresh } = reduceAuthSync(baselineRef.current, event, nextUserId);
       baselineRef.current = next;
       if (refresh) router.refresh();
     });

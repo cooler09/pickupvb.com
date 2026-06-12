@@ -274,9 +274,13 @@ DSN blank = SDK no-ops. Auth token only needed in CI (Vercel build env);
 local builds skip source-map upload.
 
 **Where it's wired in.** SDK install lives in
-`sentry.client.config.ts` / `sentry.server.config.ts` /
-`sentry.edge.config.ts` (root of `apps/web/`). Test harness at
+`instrumentation-client.ts` (browser) / `sentry.server.config.ts` /
+`sentry.edge.config.ts` (root of `apps/web/`), loaded via
+`instrumentation.ts`. Test harness at
 [apps/web/src/app/sentry-test/](../apps/web/src/app/sentry-test/).
+
+**Operating it** (dashboards, saved searches, alert rules, Discord
+notifications, triage runbook): [sentry.md](sentry.md).
 
 ---
 

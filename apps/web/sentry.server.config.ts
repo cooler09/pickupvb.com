@@ -5,6 +5,13 @@ Sentry.init({
   environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
 
+  // Pin the release to the deployed commit so runtime events carry the same
+  // release the source maps are uploaded under (see next.config.mjs). Without
+  // this the Releases page / regression detection / source-map association are
+  // unreliable. `undefined` off-Vercel is fine — the SDK treats it as unset
+  // and the DSN is unset locally anyway. See docs/sentry.md § 2a / TPI-15.
+  release: process.env.VERCEL_GIT_COMMIT_SHA,
+
   // Performance sampling. Server traces are the largest telemetry stream, so
   // prod is trimmed hard (2%) and the cron routes — `/api/notifications/*`,
   // which fire every 5/15 min and daily — are dropped entirely as pure noise.

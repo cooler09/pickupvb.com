@@ -184,6 +184,13 @@ export default sentryConfigured
       silent: !process.env.CI,
       widenClientFileUpload: true,
       tunnelRoute: '/monitoring',
+      // Pin the source-map upload to the same commit the runtime configs tag
+      // events with (release: VERCEL_GIT_COMMIT_SHA) so source maps associate
+      // and the Releases / regression views work. Off Vercel (no SHA) the
+      // plugin falls back to its git-HEAD auto-detection. See TPI-15.
+      ...(process.env.VERCEL_GIT_COMMIT_SHA
+        ? { release: { name: process.env.VERCEL_GIT_COMMIT_SHA } }
+        : {}),
       sourcemaps: {
         deleteSourcemapsAfterUpload: true,
       },
