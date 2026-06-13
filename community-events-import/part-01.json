@@ -14,7 +14,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 29.65163,
+    "longitude": -82.32483
   },
   {
     "title": "Susquehanna Smash (AVP Grass Tour)",
@@ -31,7 +33,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 40.16343,
+    "longitude": -76.39496
   },
   {
     "title": "USA Volleyball Beach National Championship",
@@ -48,7 +52,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.85293,
+    "longitude": -75.97799
   },
   {
     "title": "AXV Beach #3 Regional Qualifier",
@@ -65,7 +71,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 35.222,
+    "longitude": -101.8313
   },
   {
     "title": "AXV Beach #4 Regional Qualifier",
@@ -82,7 +90,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 35.222,
+    "longitude": -101.8313
   },
   {
     "title": "Market City Tournament 4 (Carolina Region)",
@@ -99,7 +109,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 35.70791,
+    "longitude": -79.81364
   },
   {
     "title": "Bluegrass Beach Bash #2 (Pioneer Region BRQ)",
@@ -116,7 +128,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.99032,
+    "longitude": -86.4436
   },
   {
     "title": "Bluegrass Beach Bash #3 (Pioneer Region BRQ)",
@@ -133,7 +147,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.99032,
+    "longitude": -86.4436
   },
   {
     "title": "June First Wave Chesapeake Beach Regional Qualifier",
@@ -150,7 +166,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 38.6918,
+    "longitude": -75.076
   },
   {
     "title": "June Second Wave Chesapeake Beach Regional Qualifier",
@@ -167,7 +185,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 38.6918,
+    "longitude": -75.076
   },
   {
     "title": "Carolina Beach Boogie Regional Qualifier",
@@ -184,7 +204,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 35.07681,
+    "longitude": -80.66924
   },
   {
     "title": "WEVA Beach Regional Qualifier",
@@ -201,7 +223,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 43.15478,
+    "longitude": -77.61556
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Jun 13)",
@@ -218,7 +242,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Mission Beach, San Diego (Jun 13)",
@@ -235,7 +261,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "latitude": 32.71533,
+    "longitude": -117.15726
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Jun 13)",
@@ -252,7 +280,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.97412,
+    "longitude": -122.0308
   },
   {
     "title": "CBVA Beach Doubles — Belmont Shore, Long Beach (Jun 14)",
@@ -269,7 +299,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.76696,
+    "longitude": -118.18923
   },
   {
     "title": "CBVA Beach Doubles — North Beach, Santa Monica (Jun 14)",
@@ -286,7 +318,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "latitude": 34.01945,
+    "longitude": -118.49119
   },
   {
     "title": "CBVA Beach Doubles — Belmont Shore, Long Beach (Jul 4)",
@@ -303,7 +337,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.76696,
+    "longitude": -118.18923
   },
   {
     "title": "CBVA Beach Doubles — Belmont Shore, Long Beach (Jul 5)",
@@ -320,7 +356,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.76696,
+    "longitude": -118.18923
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Jul 11)",
@@ -337,7 +375,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Ocean Beach, San Diego (Jul 11)",
@@ -354,7 +394,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 32.71533,
+    "longitude": -117.15726
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Jul 11)",
@@ -371,7 +413,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.97412,
+    "longitude": -122.0308
   },
   {
     "title": "CBVA Beach Doubles — Beach Blvd, Huntington Beach (Jul 12)",
@@ -388,7 +432,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.6603,
+    "longitude": -117.99923
   },
   {
     "title": "CBVA Beach Doubles — East Beach, Santa Barbara (Jul 12)",
@@ -405,7 +451,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "latitude": 34.42083,
+    "longitude": -119.69819
   },
   {
     "title": "CBVA Beach Doubles — Waterfront Park, Monterey (Jul 18)",
@@ -422,7 +470,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.60024,
+    "longitude": -121.89468
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Jul 18)",
@@ -439,7 +489,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 34.01945,
+    "longitude": -118.49119
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Jul 19)",
@@ -456,7 +508,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 34.01945,
+    "longitude": -118.49119
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Jul 25)",
@@ -473,7 +527,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Ocean Beach, San Diego (Jul 25)",
@@ -490,7 +546,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 32.71533,
+    "longitude": -117.15726
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Jul 25)",
@@ -507,7 +565,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.97412,
+    "longitude": -122.0308
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Jul 26)",
@@ -524,7 +584,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Waterfront Park, Monterey (Aug 1)",
@@ -541,7 +603,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.60024,
+    "longitude": -121.89468
   },
   {
     "title": "Michelob Ultra Premier (CBVA Open) — Hermosa Beach",
@@ -558,7 +622,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.86224,
+    "longitude": -118.39952
   },
   {
     "title": "CBVA Beach Doubles — Rosecrans, Manhattan Beach (Aug 2)",
@@ -575,7 +641,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Ocean Beach, San Diego (Aug 8)",
@@ -592,7 +660,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 32.71533,
+    "longitude": -117.15726
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Aug 8)",
@@ -609,7 +679,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.97412,
+    "longitude": -122.0308
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Aug 8)",
@@ -626,7 +698,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 34.01945,
+    "longitude": -118.49119
   },
   {
     "title": "CBVA Beach Coed 4s — Marine Ave, Manhattan Beach (Aug 9)",
@@ -643,7 +717,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Aug 9)",
@@ -660,7 +736,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 34.01945,
+    "longitude": -118.49119
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Aug 15)",
@@ -677,7 +755,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 34.01945,
+    "longitude": -118.49119
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Aug 16)",
@@ -694,7 +774,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "latitude": 34.01945,
+    "longitude": -118.49119
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Aug 22)",
@@ -711,7 +793,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Ocean Beach, San Diego (Aug 22)",
@@ -728,7 +812,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "latitude": 32.71533,
+    "longitude": -117.15726
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Aug 22)",
@@ -745,7 +831,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.97412,
+    "longitude": -122.0308
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Aug 23)",
@@ -762,7 +850,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Waterfront Park, Monterey (Aug 29)",
@@ -779,7 +869,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.60024,
+    "longitude": -121.89468
   },
   {
     "title": "CBVA Beach Doubles — Hermosa Pier, Hermosa Beach (Sep 5)",
@@ -796,7 +888,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.86224,
+    "longitude": -118.39952
   },
   {
     "title": "CBVA Beach Doubles — Hermosa Pier, Hermosa Beach (Sep 6)",
@@ -813,7 +907,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.86224,
+    "longitude": -118.39952
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Sep 6)",
@@ -830,7 +926,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Sep 12)",
@@ -847,7 +945,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 36.97412,
+    "longitude": -122.0308
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Sep 12)",
@@ -864,7 +964,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 34.01945,
+    "longitude": -118.49119
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Sep 13)",
@@ -881,7 +983,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 34.01945,
+    "longitude": -118.49119
   },
   {
     "title": "CBVA Beach Doubles — Marine Ave, Manhattan Beach (Sep 19)",
@@ -898,7 +1002,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Waterfront Park, Monterey (Sep 19)",
@@ -915,7 +1021,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "latitude": 36.60024,
+    "longitude": -121.89468
   },
   {
     "title": "CBVA Beach Doubles — Marine Ave, Manhattan Beach (Sep 20)",
@@ -932,7 +1040,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.88474,
+    "longitude": -118.41091
   },
   {
     "title": "CBVA Beach Doubles — Belmont Shore, Long Beach (Sep 26)",
@@ -949,7 +1059,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.76696,
+    "longitude": -118.18923
   },
   {
     "title": "CBVA Beach Doubles — Dockweiler, Los Angeles (Sep 26)",
@@ -966,7 +1078,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "latitude": 34.05223,
+    "longitude": -118.24368
   },
   {
     "title": "Players Beach Series — Montrose Beach, Chicago (Jun 27)",
@@ -983,7 +1097,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Jul 3)",
@@ -1000,7 +1116,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Jul 12)",
@@ -1017,7 +1135,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Aug 2)",
@@ -1034,7 +1154,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Beach Series — Montrose Beach, Chicago (Aug 15)",
@@ -1051,7 +1173,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Beach Series — Montrose Beach, Chicago (Aug 29)",
@@ -1068,7 +1192,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Sep 7)",
@@ -1085,7 +1211,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Sep 19)",
@@ -1102,7 +1230,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Oct 3)",
@@ -1119,7 +1249,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Jun 19)",
@@ -1136,7 +1268,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Jul 10)",
@@ -1153,7 +1287,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Jul 31)",
@@ -1170,7 +1306,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Aug 7)",
@@ -1187,7 +1325,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Aug 21)",
@@ -1204,7 +1344,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Aug 28)",
@@ -1221,7 +1363,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Sep 11)",
@@ -1238,7 +1382,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Jun 20)",
@@ -1255,7 +1401,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Jul 5)",
@@ -1272,7 +1420,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Jul 19)",
@@ -1289,7 +1439,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Aug 8)",
@@ -1306,7 +1458,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Aug 23)",
@@ -1323,7 +1477,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Sep 26)",
@@ -1340,7 +1496,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Oct 10)",
@@ -1357,7 +1515,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Oct 24)",
@@ -1374,7 +1534,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Nov 14)",
@@ -1391,7 +1553,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Nov 28)",
@@ -1408,7 +1572,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Beach Slap Party & Tournament",
@@ -1425,7 +1591,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Big Dig Party & Tournament",
@@ -1442,7 +1610,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Players Luau Volleyball Weekend",
@@ -1459,7 +1629,9 @@
     "country": "United States",
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Six Pack Beach Volleyball Tournament",
@@ -1476,7 +1648,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Volleywood Beach Volleyball Tournament",
@@ -1493,7 +1667,9 @@
     "country": "United States",
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 41.85003,
+    "longitude": -87.65005
   },
   {
     "title": "Angry Dragon DragonSlayer (Grass 2s)",
@@ -1510,7 +1686,9 @@
     "country": "United States",
     "surface": "grass",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.89816,
+    "longitude": -84.28326
   },
   {
     "title": "Angry Dragon DragonSlayer (Reverse Coed 3s)",
@@ -1527,7 +1705,9 @@
     "country": "United States",
     "surface": "grass",
     "format": "triples",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.89816,
+    "longitude": -84.28326
   },
   {
     "title": "Angry Dragon Tripocalypse (Grass 2s)",
@@ -1544,7 +1724,9 @@
     "country": "United States",
     "surface": "grass",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.89816,
+    "longitude": -84.28326
   },
   {
     "title": "Angry Dragon Tripocalypse (Coed 3s)",
@@ -1561,7 +1743,9 @@
     "country": "United States",
     "surface": "grass",
     "format": "triples",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.89816,
+    "longitude": -84.28326
   },
   {
     "title": "Angry Dragon Volloween (Reverse Coed 4s)",
@@ -1578,7 +1762,9 @@
     "country": "United States",
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.89816,
+    "longitude": -84.28326
   },
   {
     "title": "Spikefest (Dallas) — Sand 3s",
@@ -1595,7 +1781,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "triples",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 33.10317,
+    "longitude": -96.67055
   },
   {
     "title": "MotherLode Volleyball Classic",
@@ -1612,7 +1800,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 39.1911,
+    "longitude": -106.81754
   },
   {
     "title": "Houston SSC — King/Queen of the Court (Sand 2s)",
@@ -1629,7 +1819,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 29.76328,
+    "longitude": -95.36327
   },
   {
     "title": "Houston SSC — Playin' for Pride Charity (Sand 4s)",
@@ -1646,7 +1838,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 29.76328,
+    "longitude": -95.36327
   },
   {
     "title": "Houston SSC — Playin' for Camp Safety Charity (Sand 4s)",
@@ -1663,7 +1857,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 29.76328,
+    "longitude": -95.36327
   },
   {
     "title": "SandBar SLC — Coed 4s (Jun 20)",
@@ -1680,7 +1876,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 40.84856,
+    "longitude": -111.90688
   },
   {
     "title": "SandBar SLC — Coed 2s (AA/A/BB) (Jun 27)",
@@ -1697,7 +1895,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 40.84856,
+    "longitude": -111.90688
   },
   {
     "title": "SandBar SLC — Men's/Women's 3s (Jul 25)",
@@ -1714,7 +1914,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "triples",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 40.84856,
+    "longitude": -111.90688
   },
   {
     "title": "SandBar SLC — Coed 2s — Real Estate Summer Slam (Aug 1)",
@@ -1731,7 +1933,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 40.84856,
+    "longitude": -111.90688
   },
   {
     "title": "SandBar South — Men's/Women's 2s (Jul 11)",
@@ -1748,7 +1952,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 40.48967,
+    "longitude": -111.93882
   },
   {
     "title": "SandBar South — Men's/Women's 2s (Jul 18)",
@@ -1765,7 +1971,9 @@
     "country": "United States",
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "latitude": 40.48967,
+    "longitude": -111.93882
   },
   {
     "title": "AVP 💵 'n National Qualifier",

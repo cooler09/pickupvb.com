@@ -300,6 +300,31 @@ Re-run with `/tmp/build_volo.py` (fetches the API, maps, merges into
   scrape sets it true for date-only events.
 - **Geocode is non-fatal** — a row whose address won't resolve still imports
   (address kept as text, absent from map/distance search until coords are added).
+- **The importer uses `latitude`/`longitude` from the draft when present and
+  skips geocoding** (precise pin, no MapTiler call). See the coord rule below.
+
+### ⚠️ Bake coordinates into the JSON — don't rely on import-time geocoding
+
+The importer geocodes `addressLine/city/region` → coords via **MapTiler**
+(`MAPTILER_API_KEY`). If that key is **unset in the import environment**, it
+falls back to OSM Nominatim, which **blocks server/datacenter IPs** → _every_
+address-based row imports with **no coordinates** ("Saved with the address as
+text… won't show on the map"). This bit a full 1,400-row import (2026-06-12).
+
+**Fix: every emitted row should carry `latitude`/`longitude`** so the importer
+uses them directly and never touches the geocoder:
+
+- **VBL** rows already include exact venue coords from the API.
+- **Volo** rows: city-level coords (parse the venue city, look it up offline).
+- **Hand-scraped / anything else**: backfill **offline** from the
+  `reverse_geocoder` cities1000 table (pop≥1000, ~16k US cities) — build a
+  forward `(city.lower(), full-state-name.lower()) → (lat,lon)` map from its
+  bundled `rg_cities1000.csv`. Add aliases for the misses (NYC's entry is "New
+  York City"; DC isn't a standard row; a few neighborhoods/small towns).
+  `/tmp/build_volo.py` does this over the whole merged set — 100% coverage.
+
+(Separately, it's worth setting `MAPTILER_API_KEY` in every env that runs the
+importer or the manual `/community/new` form, so non-coord submissions geocode.)
 
 ## Scoping note
 

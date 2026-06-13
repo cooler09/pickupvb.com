@@ -1,10 +1,10 @@
 # Community events — public-source scrape (running tally)
 
-> **Scraped:** 2026-06-12 · **Scope:** nationwide US, upcoming only · **1483 import-ready events across 42 states.** Sources: the **Volleyball Life API** (tournaments, §1) + the **Volo API** (leagues, pickup & drop-in, §2) + curated hand-scraped organizers (AVP, USA Volleyball, CBVA, Chicago/Atlanta/Dallas/Houston/SLC). Facebook **pages can't be scraped** (login wall), but a FB URL is fine as a link.
+> **Scraped:** 2026-06-12 · **Scope:** nationwide US, upcoming only · **1482 import-ready events across 42 states.** Sources: the **Volleyball Life API** (tournaments, §1) + the **Volo API** (leagues, pickup & drop-in, §2) + curated hand-scraped organizers (AVP, USA Volleyball, CBVA, Chicago/Atlanta/Dallas/Houston/SLC). Facebook **pages can't be scraped** (login wall), but a FB URL is fine as a link.
 
 ## How to use this file
 
-- **1483 events** live in [`community-events-public.json`](community-events-public.json). Upload at `https://pickupvb.com/admin/community-import` (platform-admin only). The importer reviews each row, resolves timezone, and is **idempotent on `(externalUrl, date)`** so re-uploads don't duplicate.
+- **1482 events** live in [`community-events-public.json`](community-events-public.json). Upload at `https://pickupvb.com/admin/community-import` (platform-admin only). The importer reviews each row, resolves timezone, and is **idempotent on `(externalUrl, date)`** so re-uploads don't duplicate.
 
 - **That's a lot for the row-by-row review UI.** Pre-split copies (≤150 each) are in [`community-events-import/`](community-events-import/) — upload `part-01.json` … `part-NN.json` one at a time if the full file is sluggish.
 
@@ -14,7 +14,7 @@
 
 - **Times:** Volo rows (§2) carry **real local start times**. Everything else is **all-day** (`allDay: true`, "time TBD") — those sources publish a date, not a clock time, and we don't invent one. Uncheck "All day" during review if you learn a real time.
 
-- **Coordinates:** VBL rows carry exact venue lat/lng (precise pins, no geocoding). Volo + hand-scraped rows are geocoded at import from their address (city-to-venue level). All fine — VBL pins are just sharpest.
+- **Coordinates: every row carries lat/lng, baked into the JSON** — so the importer uses them directly and **never calls the geocoder** (which fails when `MAPTILER_API_KEY` is unset). VBL = exact venue coords; Volo + hand-scraped = city-level (offline-geocoded via the reverse_geocoder cities table). All map immediately on import.
 
 - **`format`/`skillLevel` are conservative** — blank when an event spans multiple formats/divisions rather than guessing.
 
@@ -30,13 +30,13 @@ _Pulled from the public Volleyball Life API (`api-v8.volleyballlife.com/tourname
 
 - **By month:** 2026-06 254, 2026-07 219, 2026-08 151, 2026-09 80, 2026-10 43, 2026-11 10, 2026-12 6, 2027-02 1, 2027-09 1
 
-## 2. Volo Sports — leagues, pickup & tournaments (614)
+## 2. Volo Sports — leagues, pickup & tournaments (613)
 
 _Pulled from the Volo Hasura API (`volosports.com/hapi/v1/graphql`) — every upcoming public volleyball program across Volo's ~13 metros. Mostly **recurring leagues + weekly pickup/drop-in** (one listing each — the date/time shown is the season start / next session; recurrence is noted in the description), plus some tournaments & clinics. These carry **real local start times** (allDay:false). Summary below; full rows in the JSON._
 
-- **Top states:** CA 168, CO 110, MA 96, MD 93, NY 48, VA 43, DC 22, NJ 18, PA 9, SC 4, FL 3
+- **Top states:** CA 168, CO 110, MA 95, MD 93, NY 48, VA 43, DC 22, NJ 18, PA 9, SC 4, FL 3
 
-- **Surface tags:** None 334, sand 226, grass 30, indoor 24 (mostly untagged — Volo doesn't label indoor/outdoor in the feed)
+- **Surface tags:** None 333, sand 226, grass 30, indoor 24 (mostly untagged — Volo doesn't label indoor/outdoor in the feed)
 
 ## 3. Marquee national grass & sand tournaments (2)
 
