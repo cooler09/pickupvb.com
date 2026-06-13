@@ -476,6 +476,95 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     });
   }
 
+  async searchPage(
+    query: CommunityListingSearchQuery,
+  ): Promise<{ rows: CommunityListingSummary[]; total: number }> {
+    const limit = query.limit ?? 20;
+    const offset = query.offset ?? 0;
+
+    // Geo/near searches are radius-bounded (rarely large) and run through the
+    // PostGIS RPC, which has no offset/count — so fetch a generous distance-
+    // ordered window via `search` and slice/total it in memory.
+    if (query.near) {
+      const all = await this.search({ ...query, limit: Math.max(offset + limit, 500) });
+      return { rows: all.slice(offset, offset + limit), total: all.length };
+    }
+
+    // Non-geo: a real keyset page over the table — `count: 'exact'` gives the
+    // full total while `.range()` returns just this page, so the directory
+    // scales past PostgREST's `max_rows` cap.
+    const statuses = query.statuses ?? ['active'];
+    let q = this.table('community_listings').select(
+      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, geo, surface, format, skill_level, status',
+      { count: 'exact' },
+    );
+    const viewerIsUuid =
+      !!query.viewerId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.viewerId);
+    if (!query.statuses && viewerIsUuid) {
+      q = q.or(`status.eq.active,and(submitter_user_id.eq.${query.viewerId},status.eq.hidden)`);
+    } else {
+      q = q.in('status', statuses as unknown as string[]);
+    }
+    if (query.surface) q = q.eq('surface', query.surface);
+    if (query.format) q = q.eq('format', query.format);
+    if (query.skillLevel) q = q.eq('skill_level', query.skillLevel);
+    if (query.startsAfter) q = q.gte('starts_at', query.startsAfter.toISOString());
+    if (query.startsBefore) q = q.lte('starts_at', query.startsBefore.toISOString());
+    q = q
+      .order('starts_at', { ascending: query.order !== 'desc' })
+      .range(offset, offset + limit - 1);
+
+    const { data, count, error } = await q;
+    if (error) throw new Error(`CommunityListing.searchPage failed: ${error.message}`);
+
+    type SearchRow = Pick<
+      ListingRow,
+      | 'id'
+      | 'slug'
+      | 'short_code'
+      | 'title'
+      | 'external_url'
+      | 'external_host_name'
+      | 'starts_at'
+      | 'ends_at'
+      | 'all_day'
+      | 'time_zone'
+      | 'city'
+      | 'region'
+      | 'geo'
+      | 'surface'
+      | 'format'
+      | 'skill_level'
+      | 'status'
+    >;
+    const rows = ((data ?? []) as unknown as SearchRow[]).map((r) => {
+      const point = parsePointFromGeo(r.geo);
+      return {
+        id: r.id,
+        slug: r.slug,
+        shortCode: r.short_code,
+        title: r.title,
+        externalUrl: r.external_url,
+        externalHostName: r.external_host_name,
+        startsAt: new Date(r.starts_at),
+        endsAt: r.ends_at ? new Date(r.ends_at) : null,
+        allDay: r.all_day ?? false,
+        timeZone: r.time_zone,
+        city: r.city,
+        region: r.region,
+        latitude: point?.latitude ?? null,
+        longitude: point?.longitude ?? null,
+        surface: r.surface,
+        format: r.format,
+        skillLevel: r.skill_level,
+        status: r.status,
+        distanceKm: null,
+      };
+    });
+    return { rows, total: count ?? rows.length };
+  }
+
   async listHiddenBySubmitter(userId: string): Promise<CommunityListingSummary[]> {
     const { data, error } = await this.table('community_listings')
       .select(

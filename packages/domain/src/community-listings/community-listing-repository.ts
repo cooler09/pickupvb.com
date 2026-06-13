@@ -51,6 +51,16 @@ export interface CommunityListingRepository {
   // ---- Read side -------------------------------------------------------
   search(query: CommunityListingSearchQuery): Promise<CommunityListingSummary[]>;
   /**
+   * Paginated variant of `search` for the `/community` directory: returns the
+   * page slice (`limit`/`offset`) plus the **total** matching count, so the page
+   * can offer real pagination over thousands of listings without loading them
+   * all (PostgREST caps a single response at `max_rows`). Mirrors the `/teams`
+   * directory's `searchDirectory → { cards, total }` shape.
+   */
+  searchPage(
+    query: CommunityListingSearchQuery,
+  ): Promise<{ rows: CommunityListingSummary[]; total: number }>;
+  /**
    * The viewer's own `hidden` listings. Surfaced on the `/community` listing as
    * the in-app recovery path for a listing auto-hidden by reports — auto-hide is
    * a DB trigger with no notification, so without this the submitter has no way
@@ -81,6 +91,8 @@ export interface CommunityListingSearchQuery {
   /** Defaults to ['active']. Pass ['active', 'hidden'] for admin views, etc. */
   statuses?: ReadonlyArray<CommunityListingStatus>;
   limit?: number;
+  /** Row offset for `searchPage` pagination (non-geo path). Defaults to 0. */
+  offset?: number;
   cursor?: string;
 }
 
