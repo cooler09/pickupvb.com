@@ -25,6 +25,7 @@ snapshots with a remediation backlog.
 - [monitoring.md](monitoring.md) — alerting; what to do when an alert fires.
 - [database-operations.md](database-operations.md) — running queries / migrations / DB ops.
 - [reset-test-data.md](reset-test-data.md) — clearing test data out of an environment.
+- [community-events-scrape.md](community-events-scrape.md) — recurring runbook for scraping public volleyball events into the Community section (source registry + import flow + all-day handling).
 
 **Integration & API reference**
 

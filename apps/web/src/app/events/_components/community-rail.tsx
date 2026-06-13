@@ -29,6 +29,7 @@ export function CommunityRail({ listings }: { listings: ReadonlyArray<CommunityL
               title: listing.title,
               externalHostName: listing.externalHostName,
               startsAt: listing.startsAt,
+              allDay: listing.allDay,
               timeZone: listing.timeZone,
               city: listing.city,
               region: listing.region,

@@ -21,6 +21,12 @@ export type ListingDraft = {
   /** Naive local datetime, 'YYYY-MM-DDTHH:mm'. '' when not found. */
   startsAtLocal: string;
   endsAtLocal: string | null;
+  /**
+   * True when only the date is known (no published start time). The importer
+   * anchors the time to noon venue-local and the listing renders date-only.
+   * Defaults to false.
+   */
+  allDay: boolean;
   addressLine: string | null;
   city: string | null;
   region: string | null;
@@ -60,6 +66,7 @@ export function coerceDraft(raw: unknown): ListingDraft {
     externalHostName: strOrNull(r.externalHostName),
     startsAtLocal: str(r.startsAtLocal),
     endsAtLocal: strOrNull(r.endsAtLocal),
+    allDay: r.allDay === true,
     addressLine: strOrNull(r.addressLine),
     city: strOrNull(r.city),
     region: strOrNull(r.region),

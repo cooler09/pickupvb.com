@@ -109,11 +109,13 @@ The user provides one or both:
 6. **Tell the user how to import:** upload the file at
    `https://pickupvb.com/admin/community-import` (platform-admin only); they'll
    review and fix each draft before importing in bulk. **The importer is
-   idempotent** — it matches on `externalUrl` and **updates** an existing
-   listing in place (or **creates** a new one), so re-uploading the same file
-   after edits won't make duplicates. A listing that's already been claimed /
-   removed / is under review is skipped, not overwritten. The "…or paste JSON
-   directly" disclosure on that page also accepts the array contents.
+   idempotent** — it matches on `(externalUrl, startsAt)` and **updates** an
+   existing listing in place (or **creates** a new one), so re-uploading the same
+   file after edits won't make duplicates. Because the date is part of the key, a
+   series can share one landing-page `externalUrl` across stops on different dates
+   without collapsing. A listing that's already been claimed / removed / is under
+   review is skipped, not overwritten. The "…or paste JSON directly" disclosure
+   on that page also accepts the array contents.
 
 ## Output contract — one object per event
 

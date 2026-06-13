@@ -3,16 +3,20 @@
 import {
   formatDateShort,
   formatEventDateLong,
+  formatEventDay,
+  formatEventDayLong,
   formatEventStart,
   formatTime,
 } from '@/lib/date-formats';
 import { useIsMounted } from '@/lib/use-is-mounted';
 
-type Variant = 'eventStart' | 'eventDateLong' | 'time' | 'dateShort';
+type Variant = 'eventStart' | 'eventDateLong' | 'eventDay' | 'eventDayLong' | 'time' | 'dateShort';
 
 const FORMATTERS: Record<Variant, (d: Date, tz?: string | null) => string> = {
   eventStart: formatEventStart,
   eventDateLong: formatEventDateLong,
+  eventDay: formatEventDay,
+  eventDayLong: formatEventDayLong,
   time: formatTime,
   dateShort: formatDateShort,
 };

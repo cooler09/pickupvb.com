@@ -18,6 +18,31 @@ import type { ListingDraft } from '@/lib/listing-draft';
 
 const RETURN_PATH = '/admin/community-import';
 
+/**
+ * How many rows to geocode concurrently. Geocoding is the per-row latency cost
+ * (a MapTiler round-trip); fanning it out keeps even a large batch well under
+ * the function timeout. The client also chunks the upload (see import-client),
+ * so this bounds in-flight geocodes within each chunk.
+ */
+const GEOCODE_CONCURRENCY = 6;
+
+/** Map with a bounded number of in-flight async tasks, preserving input order. */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (let i = next++; i < items.length; i = next++) {
+      results[i] = await fn(items[i] as T);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export type ImportRowResult =
   | {
       title: string;
@@ -41,11 +66,13 @@ async function requireAdmin(): Promise<{ userId: string } | null> {
 
 /**
  * Geocode + validate + **upsert** each reviewed draft. Re-importing the same
- * external URL updates the existing listing in place rather than creating a
- * duplicate — so the importer is idempotent and an admin can keep one
+ * event updates the existing listing in place rather than creating a duplicate —
+ * so the importer is idempotent and an admin can keep one
  * `community-listings.json` as the source of truth. Matching is on
- * `external_url` (see `findByExternalUrl`); an existing listing that's already
- * claimed / removed / under review is left untouched and reported as skipped.
+ * `(external_url, starts_at)` (see `findByExternalUrl`) — keyed on the date too
+ * so a series can share one landing-page URL across stops without collapsing; an
+ * existing listing that's already claimed / removed / under review is left
+ * untouched and reported as skipped.
  *
  * Per-row failures don't abort the batch — each row reports its own
  * success/error so the admin can fix and retry just the ones that failed.
@@ -54,11 +81,32 @@ export async function importAction(drafts: ListingDraft[]): Promise<ImportResult
   const admin = await requireAdmin();
   if (!admin) return { ok: false, error: 'Admin access required.' };
 
-  const results: ImportRowResult[] = [];
-  for (const draft of drafts) {
+  // Phase 1 — geocode + validate every row up front, fanned out so the slow
+  // per-row geocode doesn't serialize. Failures are captured per row (never
+  // thrown) so one bad address can't abort the batch.
+  const prepared = await mapWithConcurrency(drafts, GEOCODE_CONCURRENCY, async (draft) => {
     try {
       const { dto, geocoded } = await draftToDto(draft);
-      const existing = await repositories.communityListingRepo.findByExternalUrl(dto.externalUrl);
+      return { draft, dto, geocoded } as const;
+    } catch (err) {
+      return { draft, error: messageFor(err) } as const;
+    }
+  });
+
+  // Phase 2 — upsert sequentially (DB writes are fast, and the read-then-write
+  // upsert stays race-free one row at a time).
+  const results: ImportRowResult[] = [];
+  for (const p of prepared) {
+    if ('error' in p) {
+      results.push({ title: p.draft.title, ok: false, error: p.error });
+      continue;
+    }
+    const { draft, dto, geocoded } = p;
+    try {
+      const existing = await repositories.communityListingRepo.findByExternalUrl(
+        dto.externalUrl,
+        dto.startsAt,
+      );
 
       if (existing) {
         // Don't silently overwrite a listing that's left the editable states —
@@ -169,13 +217,20 @@ async function draftToDto(
   // string is parsed in the server's zone (UTC on Vercel) and the listing shows
   // hours off (the 5am-vs-9am bug). Falls back to UTC when there's no geocoded
   // zone. See `zonedWallClockToUtc`.
+  //
+  // All-day listings know only the date: ignore any clock time on the draft and
+  // anchor at NOON venue-local — a sentinel that keeps the calendar date stable
+  // across every viewer's timezone (noon-UTC lands on the same date worldwide).
+  // The end time is dropped too (it's not known when the start isn't).
+  const startLocal = d.allDay ? `${d.startsAtLocal.slice(0, 10)}T12:00` : d.startsAtLocal;
   const raw = {
     title: d.title,
     description: d.description,
     externalUrl: d.externalUrl,
     externalHostName: d.externalHostName,
-    startsAt: zonedWallClockToUtc(d.startsAtLocal, timeZone),
-    endsAt: d.endsAtLocal ? zonedWallClockToUtc(d.endsAtLocal, timeZone) : null,
+    startsAt: zonedWallClockToUtc(startLocal, timeZone),
+    endsAt: d.allDay ? null : d.endsAtLocal ? zonedWallClockToUtc(d.endsAtLocal, timeZone) : null,
+    allDay: d.allDay,
     location,
     timeZone,
     surface: d.surface,

@@ -31,6 +31,7 @@ type ListingRow = {
   external_host_name: string | null;
   starts_at: string;
   ends_at: string | null;
+  all_day: boolean;
   time_zone: string | null;
   address_line: string | null;
   city: string | null;
@@ -128,6 +129,7 @@ function rowToAggregate(row: ListingRow): CommunityListing {
     externalHostName: row.external_host_name,
     startsAt: new Date(row.starts_at),
     endsAt: row.ends_at ? new Date(row.ends_at) : null,
+    allDay: row.all_day ?? false,
     location: rowToLocation(row),
     timeZone: row.time_zone,
     surface: row.surface,
@@ -177,12 +179,19 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     return rowToAggregate(data as unknown as ListingRow);
   }
 
-  async findByExternalUrl(externalUrl: string): Promise<CommunityListingIdentity | null> {
-    // `external_url` isn't unique (a listing can be re-submitted); the importer
-    // upserts the earliest row so re-imports converge on one canonical listing.
+  async findByExternalUrl(
+    externalUrl: string,
+    startsAt: Date,
+  ): Promise<CommunityListingIdentity | null> {
+    // The importer's idempotency key is (external_url, starts_at), not the URL
+    // alone: a series can share one landing-page URL across stops on different
+    // dates, so we match the start instant too. `external_url` still isn't
+    // unique, so the earliest row wins and re-imports of the same event
+    // converge on it.
     const { data, error } = await this.table('community_listings')
       .select('id, slug, status')
       .eq('external_url', externalUrl)
+      .eq('starts_at', startsAt.toISOString())
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -208,6 +217,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       external_host_name: listing.externalHostName,
       starts_at: listing.startsAt.toISOString(),
       ends_at: listing.endsAt ? listing.endsAt.toISOString() : null,
+      all_day: listing.allDay,
       time_zone: listing.timeZone,
       address_line: loc?.addressLine ?? null,
       city: loc?.city ?? null,
@@ -318,6 +328,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         external_host_name: string | null;
         starts_at: string;
         ends_at: string | null;
+        all_day: boolean | null;
         time_zone: string | null;
         city: string | null;
         region: string | null;
@@ -337,6 +348,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         externalHostName: r.external_host_name,
         startsAt: new Date(r.starts_at),
         endsAt: r.ends_at ? new Date(r.ends_at) : null,
+        allDay: r.all_day ?? false,
         timeZone: r.time_zone,
         city: r.city,
         region: r.region,
@@ -349,7 +361,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     }
 
     let q = this.table('community_listings').select(
-      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, time_zone, city, region, surface, format, skill_level, status',
+      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, surface, format, skill_level, status',
     );
     // Default public view (no explicit statuses) + a signed-in viewer: also
     // return the viewer's own `hidden` listings so a submitter whose listing was
@@ -385,6 +397,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       | 'external_host_name'
       | 'starts_at'
       | 'ends_at'
+      | 'all_day'
       | 'time_zone'
       | 'city'
       | 'region'
@@ -403,6 +416,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       externalHostName: r.external_host_name,
       startsAt: new Date(r.starts_at),
       endsAt: r.ends_at ? new Date(r.ends_at) : null,
+      allDay: r.all_day ?? false,
       timeZone: r.time_zone,
       city: r.city,
       region: r.region,
@@ -417,7 +431,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
   async listHiddenBySubmitter(userId: string): Promise<CommunityListingSummary[]> {
     const { data, error } = await this.table('community_listings')
       .select(
-        'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, time_zone, city, region, surface, format, skill_level, status',
+        'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, surface, format, skill_level, status',
       )
       .eq('submitter_user_id', userId)
       .eq('status', 'hidden')
@@ -432,6 +446,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       external_host_name: string | null;
       starts_at: string;
       ends_at: string | null;
+      all_day: boolean | null;
       time_zone: string | null;
       city: string | null;
       region: string | null;
@@ -449,6 +464,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       externalHostName: r.external_host_name,
       startsAt: new Date(r.starts_at),
       endsAt: r.ends_at ? new Date(r.ends_at) : null,
+      allDay: r.all_day ?? false,
       timeZone: r.time_zone,
       city: r.city,
       region: r.region,
@@ -526,6 +542,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       externalHostName: row.external_host_name,
       startsAt: new Date(row.starts_at),
       endsAt: row.ends_at ? new Date(row.ends_at) : null,
+      allDay: row.all_day ?? false,
       timeZone: row.time_zone,
       location: rowToLocation(row),
       surface: row.surface,

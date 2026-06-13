@@ -110,6 +110,8 @@ export default async function CommunityListingDetailPage(props: PageProps) {
             slug={detail.slug}
             startsAt={detail.startsAt}
             endsAt={detail.endsAt}
+            allDay={detail.allDay}
+            timeZone={detail.timeZone}
             location={detail.location}
           />
         </>

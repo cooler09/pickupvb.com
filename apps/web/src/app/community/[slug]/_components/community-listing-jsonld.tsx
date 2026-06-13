@@ -9,17 +9,32 @@
  */
 import { JsonLd } from '@/components/json-ld';
 
+/** Calendar date (`YYYY-MM-DD`) of an instant in `tz` — schema.org's date-only form. */
+function ymdInZone(d: Date, timeZone: string | null): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    ...(timeZone ? { timeZone } : {}),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
 export function CommunityListingJsonLd({
   title,
   slug,
   startsAt,
   endsAt,
+  allDay,
+  timeZone,
   location,
 }: {
   title: string;
   slug: string;
   startsAt: Date;
   endsAt: Date | null;
+  /** When true, emit a date-only `startDate` (no fabricated clock time). */
+  allDay: boolean;
+  timeZone: string | null;
   location: {
     addressLine: string | null;
     city: string;
@@ -36,8 +51,10 @@ export function CommunityListingJsonLd({
     '@type': 'SportsEvent',
     name: title,
     sport: 'Volleyball',
-    startDate: startsAt.toISOString(),
-    ...(endsAt ? { endDate: endsAt.toISOString() } : {}),
+    // All-day listings carry only a calendar date (no real start time), so emit
+    // the schema.org date-only form rather than a misleading midnight/noon clock.
+    startDate: allDay ? ymdInZone(startsAt, timeZone) : startsAt.toISOString(),
+    ...(endsAt ? { endDate: allDay ? ymdInZone(endsAt, timeZone) : endsAt.toISOString() } : {}),
     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
     url,
     ...(location

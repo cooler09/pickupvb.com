@@ -23,6 +23,12 @@ const CommunityListingFields = z.object({
   externalHostName: z.string().max(120).optional().nullable(),
   startsAt: z.coerce.date(),
   endsAt: z.coerce.date().optional().nullable(),
+  /**
+   * True when only the calendar date is known (no published start time). The
+   * importer anchors `startsAt` at noon venue-local and the UI renders the date
+   * alone. Defaults to false so existing timed listings are unaffected.
+   */
+  allDay: z.boolean().default(false),
   location: ListingLocationSchema.optional().nullable(),
   /** IANA timezone name resolved from venue coords. */
   timeZone: z.string().max(60).optional().nullable(),

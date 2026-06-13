@@ -24,10 +24,14 @@ export interface CommunityListingRepository {
   findById(id: string): Promise<CommunityListing | null>;
   findBySlug(slug: string): Promise<CommunityListing | null>;
   /**
-   * Identity of the earliest listing with this external URL, or null. The
-   * external URL is the stable cross-import key the admin importer upserts on.
+   * Identity of the earliest listing matching this external URL **and** start
+   * instant, or null. The importer's upsert key is `(externalUrl, startsAt)` —
+   * not the URL alone — so several stops of a series can share one landing-page
+   * URL (e.g. an AVP Grass schedule page that lists every event) without
+   * collapsing into a single listing, while a re-import of the *same* event
+   * still converges on its existing row.
    */
-  findByExternalUrl(externalUrl: string): Promise<CommunityListingIdentity | null>;
+  findByExternalUrl(externalUrl: string, startsAt: Date): Promise<CommunityListingIdentity | null>;
   save(listing: CommunityListing): Promise<void>;
   delete(id: string): Promise<void>;
 
@@ -89,6 +93,8 @@ export interface CommunityListingSummary {
   externalHostName: string | null;
   startsAt: Date;
   endsAt: Date | null;
+  /** True when only the date is known — render the date without a time. */
+  allDay: boolean;
   /** IANA timezone for the venue. Null when location is unknown. */
   timeZone: string | null;
   city: string | null;
@@ -110,6 +116,8 @@ export interface CommunityListingDetailReadModel {
   externalHostName: string | null;
   startsAt: Date;
   endsAt: Date | null;
+  /** True when only the date is known — render the date without a time. */
+  allDay: boolean;
   /** IANA timezone for the venue. Null when location is unknown. */
   timeZone: string | null;
   location: {

@@ -9,6 +9,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+// Bulk import geocodes + upserts every row inside the import server action.
+// The client chunks the upload so each call stays small, but raise the function
+// ceiling as defense-in-depth for a large single chunk (Vercel clamps to the
+// plan max). Default is well under what a 60-row geocode pass can need.
+export const maxDuration = 300;
+
 export default async function CommunityImportPage() {
   const viewer = await requireRealUser('/admin/community-import');
   if (!(await isPlatformAdmin(viewer.user.id))) notFound();
