@@ -57,6 +57,14 @@ describe('CommunityListing.create', () => {
     expect(listing.claimedAt).toBeNull();
   });
 
+  it('defaults allDay to false and carries an explicit true through', () => {
+    // allDay is optional at the boundary so existing persisted rows (and every
+    // pre-feature call site) read as a normal timed listing, never accidentally
+    // date-only. An explicit true round-trips for the importer's date-only rows.
+    expect(active().allDay).toBe(false);
+    expect(CommunityListing.create(createProps({ allDay: true })).allDay).toBe(true);
+  });
+
   it('rejects a title shorter than 3 or longer than 200 chars', () => {
     expect(() => CommunityListing.create(createProps({ title: 'ab' }))).toThrow(InvariantViolation);
     expect(() => CommunityListing.create(createProps({ title: 'x'.repeat(201) }))).toThrow(

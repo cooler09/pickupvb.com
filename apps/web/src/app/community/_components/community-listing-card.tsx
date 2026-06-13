@@ -7,6 +7,8 @@ export type CommunityListingCardData = {
   title: string;
   externalHostName: string | null;
   startsAt: Date | string;
+  /** True when only the date is known — render the date without a time. */
+  allDay?: boolean;
   /** IANA timezone for the venue. */
   timeZone?: string | null;
   city: string | null;
@@ -37,9 +39,10 @@ export function CommunityListingCard({ listing }: { listing: CommunityListingCar
       <p className="text-muted mt-1 text-xs">
         <LocalDateTime
           iso={startsAtIso}
-          variant="eventStart"
+          variant={listing.allDay ? 'eventDay' : 'eventStart'}
           {...(listing.timeZone !== undefined ? { timeZone: listing.timeZone } : {})}
         />
+        {listing.allDay && <span className="text-fg/50"> · time TBD</span>}
       </p>
       {place && <p className="text-fg/80 mt-1 text-sm">{place}</p>}
       {typeof listing.distanceKm === 'number' && (

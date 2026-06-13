@@ -12,6 +12,7 @@ describe('coerceDraft', () => {
       externalHostName: null,
       startsAtLocal: '',
       endsAtLocal: null,
+      allDay: false,
       addressLine: null,
       city: null,
       region: null,
@@ -21,6 +22,14 @@ describe('coerceDraft', () => {
       format: null,
       skillLevel: null,
     });
+  });
+
+  it('coerces allDay to a strict boolean — only literal true counts', () => {
+    // The all-day flag drives "render the date with no time"; a truthy-but-not-
+    // true value (or a missing key) must default to a timed listing, not opt in.
+    expect(coerceDraft({ title: 'Date-only tourney', allDay: true }).allDay).toBe(true);
+    expect(coerceDraft({ title: 'Timed', allDay: 'yes' }).allDay).toBe(false);
+    expect(coerceDraft({ title: 'Missing key' }).allDay).toBe(false);
   });
 
   it('defends against a non-object row', () => {

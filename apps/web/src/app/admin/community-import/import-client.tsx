@@ -39,6 +39,7 @@ export default function ImportClient() {
   const [drafts, setDrafts] = useState<ListingDraft[] | null>(null);
   const [results, setResults] = useState<ImportRowResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [pending, startTransition] = useTransition();
   const errorRef = useAlertReveal(error, Boolean(error));
 
@@ -60,13 +61,32 @@ export default function ImportClient() {
     e.target.value = '';
   }
 
+  // Import in client-driven chunks: each call handles a small slice so a large
+  // file can't blow the server-action timeout, and the progress bar advances per
+  // chunk. The server upsert is idempotent on externalUrl, so a mid-run failure
+  // leaves the succeeded rows saved and a retry won't duplicate them.
   function runImport() {
     if (!drafts) return;
+    const toImport = drafts;
+    const BATCH_SIZE = 8;
     setError(null);
+    setProgress({ done: 0, total: toImport.length });
     startTransition(async () => {
-      const res = await importAction(drafts);
-      if (res.ok) setResults(res.results);
-      else setError(res.error);
+      const all: ImportRowResult[] = [];
+      for (let i = 0; i < toImport.length; i += BATCH_SIZE) {
+        const batch = toImport.slice(i, i + BATCH_SIZE);
+        const res = await importAction(batch);
+        if (!res.ok) {
+          setError(res.error);
+          setProgress(null);
+          if (all.length > 0) setResults(all);
+          return;
+        }
+        all.push(...res.results);
+        setProgress({ done: Math.min(i + BATCH_SIZE, toImport.length), total: toImport.length });
+      }
+      setResults(all);
+      setProgress(null);
     });
   }
 
@@ -82,6 +102,7 @@ export default function ImportClient() {
     setDrafts(null);
     setResults(null);
     setError(null);
+    setProgress(null);
     setJsonText('');
   }
 
@@ -219,16 +240,28 @@ export default function ImportClient() {
           ))}
 
           {drafts.length > 0 && (
-            <button
-              type="button"
-              onClick={runImport}
-              disabled={pending}
-              className={primaryButtonClass('md')}
-            >
-              {pending
-                ? 'Importing…'
-                : `Import ${drafts.length} listing${drafts.length === 1 ? '' : 's'}`}
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={runImport}
+                disabled={pending}
+                className={primaryButtonClass('md')}
+              >
+                {pending
+                  ? progress
+                    ? `Importing… ${progress.done} / ${progress.total}`
+                    : 'Importing…'
+                  : `Import ${drafts.length} listing${drafts.length === 1 ? '' : 's'}`}
+              </button>
+              {pending && progress && (
+                <div className="bg-fg/10 h-1.5 w-full overflow-hidden rounded-full">
+                  <div
+                    className="bg-primary h-full transition-all"
+                    style={{ width: `${(progress.done / Math.max(progress.total, 1)) * 100}%` }}
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -310,10 +343,27 @@ function DraftCard({
             type="datetime-local"
             value={draft.endsAtLocal ?? ''}
             onChange={(e) => onChange({ endsAtLocal: e.target.value || null })}
-            className={inputClass}
+            disabled={draft.allDay}
+            className={`${inputClass} disabled:opacity-50`}
           />
         </div>
       </div>
+
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={draft.allDay}
+          onChange={(e) => onChange({ allDay: e.target.checked })}
+          className="mt-0.5"
+        />
+        <span>
+          All day / time TBD
+          <span className="text-muted block text-xs">
+            Show only the date — use this when the source publishes a date but no start time. The
+            clock time above is ignored (anchored to noon) and the end time is dropped.
+          </span>
+        </span>
+      </label>
 
       <div>
         <label className={labelClass}>Search address (optional)</label>

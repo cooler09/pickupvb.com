@@ -42,6 +42,32 @@ export function formatEventDateLong(d: Date | string, timeZone?: TZ): string {
   });
 }
 
+/**
+ * "Sat, Jun 7" — weekday + date with **no time**, for all-day listings on
+ * cards (the time is deliberately omitted because it isn't known).
+ */
+export function formatEventDay(d: Date | string, timeZone?: TZ): string {
+  const date = d instanceof Date ? d : new Date(d);
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
+/** "Sat, Jun 7, 2026" — all-day variant of `formatEventDateLong` (no time). */
+export function formatEventDayLong(d: Date | string, timeZone?: TZ): string {
+  const date = d instanceof Date ? d : new Date(d);
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
 /** "6:30 PM" — used for times when the date is shown elsewhere. */
 export function formatTime(d: Date | string, timeZone?: TZ): string {
   const date = d instanceof Date ? d : new Date(d);

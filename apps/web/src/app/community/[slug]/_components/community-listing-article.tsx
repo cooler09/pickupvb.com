@@ -49,13 +49,30 @@ export function CommunityListingArticle({ detail }: { detail: CommunityListingDe
       <div className="border-border-base bg-md-surface-container rounded-shape-sm space-y-1 border p-4">
         <p className="text-fg text-sm font-semibold">When</p>
         <p className="text-sm">
-          <LocalDateTime iso={detail.startsAt} variant="eventDateLong" timeZone={detail.timeZone} />{' '}
-          at <LocalDateTime iso={detail.startsAt} variant="time" timeZone={detail.timeZone} />
-          {detail.endsAt && (
+          {detail.allDay ? (
             <>
-              {' '}
-              &ndash;{' '}
-              <LocalDateTime iso={detail.endsAt} variant="time" timeZone={detail.timeZone} />
+              <LocalDateTime
+                iso={detail.startsAt}
+                variant="eventDayLong"
+                timeZone={detail.timeZone}
+              />
+              <span className="text-muted"> · time TBD</span>
+            </>
+          ) : (
+            <>
+              <LocalDateTime
+                iso={detail.startsAt}
+                variant="eventDateLong"
+                timeZone={detail.timeZone}
+              />{' '}
+              at <LocalDateTime iso={detail.startsAt} variant="time" timeZone={detail.timeZone} />
+              {detail.endsAt && (
+                <>
+                  {' '}
+                  &ndash;{' '}
+                  <LocalDateTime iso={detail.endsAt} variant="time" timeZone={detail.timeZone} />
+                </>
+              )}
             </>
           )}
         </p>

@@ -89,6 +89,8 @@ export interface CommunityListingSummary {
   externalHostName: string | null;
   startsAt: Date;
   endsAt: Date | null;
+  /** True when only the date is known — render the date without a time. */
+  allDay: boolean;
   /** IANA timezone for the venue. Null when location is unknown. */
   timeZone: string | null;
   city: string | null;
@@ -110,6 +112,8 @@ export interface CommunityListingDetailReadModel {
   externalHostName: string | null;
   startsAt: Date;
   endsAt: Date | null;
+  /** True when only the date is known — render the date without a time. */
+  allDay: boolean;
   /** IANA timezone for the venue. Null when location is unknown. */
   timeZone: string | null;
   location: {

@@ -367,6 +367,7 @@ export type Database = {
       community_listings: {
         Row: {
           address_line: string | null;
+          all_day: boolean;
           city: string | null;
           claimed_at: string | null;
           claimed_by_user_id: string | null;
@@ -396,6 +397,7 @@ export type Database = {
         };
         Insert: {
           address_line?: string | null;
+          all_day?: boolean;
           city?: string | null;
           claimed_at?: string | null;
           claimed_by_user_id?: string | null;
@@ -425,6 +427,7 @@ export type Database = {
         };
         Update: {
           address_line?: string | null;
+          all_day?: boolean;
           city?: string | null;
           claimed_at?: string | null;
           claimed_by_user_id?: string | null;
@@ -4566,6 +4569,7 @@ export type Database = {
           p_surface?: string;
         };
         Returns: {
+          all_day: boolean;
           city: string;
           distance_km: number;
           ends_at: string;

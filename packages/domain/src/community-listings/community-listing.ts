@@ -39,6 +39,13 @@ export interface CreateCommunityListingProps {
   externalHostName: string | null;
   startsAt: Date;
   endsAt: Date | null;
+  /**
+   * True when only the calendar date is known, not the start time (the common
+   * case for bulk-imported tournaments). `startsAt` is still a real instant —
+   * anchored at noon venue-local at the boundary — but the UI renders the date
+   * alone. Defaults to false (a normal timed listing).
+   */
+  allDay?: boolean;
   location: ListingLocation | null;
   /** IANA timezone name for the venue (e.g. `America/Los_Angeles`). */
   timeZone?: string | null;
@@ -54,6 +61,7 @@ export interface UpdateCommunityListingProps {
   externalHostName?: string | null;
   startsAt?: Date;
   endsAt?: Date | null;
+  allDay?: boolean;
   location?: ListingLocation | null;
   timeZone?: string | null;
   surface?: Surface | null;
@@ -121,6 +129,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     private _externalHostName: string | null,
     private _startsAt: Date,
     private _endsAt: Date | null,
+    private _allDay: boolean,
     private _location: ListingLocation | null,
     private _timeZone: string | null,
     private _surface: Surface | null,
@@ -155,6 +164,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
       props.externalHostName?.trim() || null,
       props.startsAt,
       props.endsAt,
+      props.allDay ?? false,
       location,
       props.timeZone ?? null,
       props.surface,
@@ -182,6 +192,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     externalHostName: string | null;
     startsAt: Date;
     endsAt: Date | null;
+    allDay?: boolean;
     location: ListingLocation | null;
     timeZone?: string | null;
     surface: Surface | null;
@@ -202,6 +213,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
       props.externalHostName,
       props.startsAt,
       props.endsAt,
+      props.allDay ?? false,
       props.location,
       props.timeZone ?? null,
       props.surface,
@@ -233,6 +245,10 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
   }
   get endsAt(): Date | null {
     return this._endsAt;
+  }
+  /** True when only the date is known — the UI renders the date without a time. */
+  get allDay(): boolean {
+    return this._allDay;
   }
   get location(): ListingLocation | null {
     return this._location;
@@ -289,6 +305,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     }
     if (props.startsAt !== undefined) this._startsAt = props.startsAt;
     if (props.endsAt !== undefined) this._endsAt = props.endsAt;
+    if (props.allDay !== undefined) this._allDay = props.allDay;
     if (props.location !== undefined) this._location = normalizeLocation(props.location);
     if (props.timeZone !== undefined) this._timeZone = props.timeZone ?? null;
     if (props.surface !== undefined) this._surface = props.surface;
