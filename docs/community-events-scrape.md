@@ -95,21 +95,48 @@ Beach→Santa Cruz; North Beach/Ocean Park→Santa Monica; Waterfront Park→Mon
 Beach Blvd→Huntington Beach; East Beach→Santa Barbara; Hermosa Pier→Hermosa
 Beach; Dockweiler→Los Angeles.
 
+### Deeper sweep (2026-06-12, round 2) — regional organizers
+
+Added ~38 events across IL/GA/TX/CO. **Fetchable ✅:** Players Sport & Social
+(`playerssports.net/page/upcoming-volleyball-tournaments` — a whole Chicago
+season of dated sand+grass tournaments, per-series shared URLs); Chicago Sport &
+Social (`chicagosocial.com`); Angry Dragon (`angrydragonvolleyball.com/tournaments`
+— Atlanta grass, unique per-event URLs); Spikefest (Dallas); MotherLode
+(`motherlodevolleyball.com` — Aspen). **Didn't pan out ⚠️:** SSOVA schedule
+(image, not text — register at `ssova.bracketpal.com`); `texasvolleyballtour.com`
+(403); BVNE (routes to Volleyball Life SPA); New England Region `nevolleyball.org`
+(indoor juniors only); PNW Summer Classic (high-school event); `thedigbvb.com`
+(news, not a schedule); `coloradovolleyballtournaments.com` (self-signed cert).
+NVL/AVP-pro/`volleyballworld` are spectator tours — keep out unless asked.
+
+**Round 3** (+9 → TX-Houston, UT). **✅:** Houston Sports & Social
+(`houstonssc.com/leagues?sport=Sand+Volleyball` — dated one-day tournaments,
+unique `/league/<id>/details` URLs); SandBar SLC (`sandbarslc.com/tournaments/` +
+`sandbarbluffdale.com/tournaments/` — Utah sand, shared per-venue URL across
+dates). **Lesson:** most metro "Sport & Social / rec league" sites are
+**weekly-league only** — only some (Chicago Players, Houston SSC) post one-day
+_tournaments_; scan for a tournaments/one-day page before investing. **Didn't
+pan out:** Austin Sports Center (2027 juniors), Minneapolis (leagues),
+`sdbvl.com` (400), `nwvolleyball.com` (403), Volo (league-heavy, vague URLs),
+SSOVA schedule (still image-only). **Skipped as cross-file dup:** Pittsburgh
+Grass Open (already in the FB `community-listings.json`) — always check the FB
+set before adding a marquee event from another source.
+
 ## New avenues to try (next time)
 
 - **The Volleyball Life API** — by far the highest-leverage unlock. Inspect its
   network calls for a public JSON endpoint, or pull with a logged-in session
-  (mirror the FB scraper pattern). Would cover most of the registry above in one
-  pass.
-- **Regional beach associations** not yet swept: EVP Tour (East Coast), p1440
-  (juniors-heavy), NVL, BVNE (New England), Florida Region, Lone Star, Big
-  Sky/Rocky Mountain. Many post a season schedule page.
-- **More marquee grass tournaments**: Motherlode (Aspen), Hyannis (MA), Volleyball
-  City Clash (Holyoke MA — 2026 dates weren't posted as of this writing).
-- **Meetup** pickup/rec groups (recurring drop-ins) — different shape (weekly
-  recurring) than tournaments; decide whether recurring listings fit before
-  importing.
-- **Eventbrite** organizer pages for the big beach-social operators.
+  (mirror the FB scraper pattern). Backs BVNE, SSOVA, AVP America, Seaside, etc.
+- **Sport & Social / metro rec leagues in every big city** — the Chicago Players
+  pattern repeats nationwide (e.g. Houston SSC, Austin Sports Center, DC/Boston/
+  Denver/Atlanta social clubs). Each posts a dated season; high yield, server-rendered.
+- **Regional grass/sand series** still unswept: SSOVA (FL, via bracketpal), Texas
+  Volleyball Tour (403 — try a different fetch), EVP, p1440, NVL-amateur, Big
+  Sky/Rocky Mountain, Utah, Pacific NW adult (vs. the junior qualifier).
+- **More marquee**: Hyannis (MA), Volleyball City Clash (Holyoke MA), Fresh Coast
+  (Milwaukee), AVP Contender stops (Denver Open, etc.).
+- **Meetup / Eventbrite** pickup + beach-social operators (recurring drop-ins —
+  decide whether recurring listings fit before importing).
 
 ## Import — what the importer does now
 

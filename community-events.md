@@ -1,10 +1,10 @@
 # Community events — public-source scrape (running tally)
 
-> **Scraped:** 2026-06-12 · **Scope:** nationwide US, upcoming events only · **Sources:** public/no-login pages (AVP.com schedules, USA Volleyball events, CBVA, and individual tournament sites). Facebook **pages can't be scraped** (login wall), but a Facebook URL is fine as an event's link when a public source surfaces it.
+> **Scraped:** 2026-06-12 (+ 2026-06-12 deeper sweep) · **Scope:** nationwide US, upcoming events only · **Sources:** public/no-login pages — AVP schedules, USA Volleyball events, CBVA, and regional organizers (Players Sport & Social / Chicago, Angry Dragon / Atlanta, Spikefest / Dallas, MotherLode / Aspen, …). Facebook **pages can't be scraped** (login wall), but a Facebook URL is fine as an event's link when a public source surfaces it.
 
 ## How to use this file
 
-- **74 import-ready events** live in [`community-events-public.json`](community-events-public.json) (the community-listing draft contract). Upload that file at `https://pickupvb.com/admin/community-import` (platform-admin only). The importer geocodes each address, resolves the timezone, and lets you review/fix every row before saving — now with a progress bar and chunked uploads so a large file won't time out. It's **idempotent on `(externalUrl, date)`**, so re-uploading after edits won't create duplicates.
+- **121 import-ready events** live in [`community-events-public.json`](community-events-public.json) (the community-listing draft contract). Upload that file at `https://pickupvb.com/admin/community-import` (platform-admin only). The importer geocodes each address, resolves the timezone, and lets you review/fix every row before saving — now with a progress bar and chunked uploads so a large file won't time out. It's **idempotent on `(externalUrl, date)`**, so re-uploading after edits won't create duplicates.
 
 - This is **separate** from the existing [`community-listings.json`](community-listings.json) (49 Facebook-sourced PA/OH/KY listings, mostly past). These are kept apart on purpose so importing one doesn't touch the other.
 
@@ -112,6 +112,60 @@ _California Beach Volleyball Association sand tournaments (adult divisions: Open
 | CBVA Beach Doubles — Marine Ave, Manhattan Beach (Sep 20)     | 2026-09-20 | Manhattan Beach, CA  | sand    | doubles | —           | [link](https://cbva.com/tournaments/4739) |
 | CBVA Beach Doubles — Belmont Shore, Long Beach (Sep 26)       | 2026-09-26 | Long Beach, CA       | sand    | doubles | —           | [link](https://cbva.com/tournaments/4740) |
 | CBVA Beach Doubles — Dockweiler, Los Angeles (Sep 26)         | 2026-09-26 | Los Angeles, CA      | sand    | doubles | competitive | [link](https://cbva.com/tournaments/4742) |
+
+## 4. Regional series & metro tournaments (47)
+
+_Adult outdoor series from regional organizers — **Chicago** (Players Sport & Social: full sand + grass season; Chicago Sport & Social), **Atlanta** (Angry Dragon grass), **Dallas** (Spikefest), **Aspen** (MotherLode), **Houston** (Sports & Social), and **Salt Lake City** (SandBar). The weekly series share one landing URL per series/venue across dates (handled by the URL+date key)._
+
+| Event                                                          | Date       | Location            | Surface | Format  | Skill | Link                                                                               |
+| -------------------------------------------------------------- | ---------- | ------------------- | ------- | ------- | ----- | ---------------------------------------------------------------------------------- |
+| Players Beach Series — Montrose Beach, Chicago (Jun 27)        | 2026-06-27 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/players-beach-series)                    |
+| Players Beach Series — North Avenue Beach, Chicago (Jul 3)     | 2026-07-03 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/players-beach-series)                    |
+| Players Beach Series — North Avenue Beach, Chicago (Jul 12)    | 2026-07-12 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/players-beach-series)                    |
+| Players Beach Series — North Avenue Beach, Chicago (Aug 2)     | 2026-08-02 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/players-beach-series)                    |
+| Players Beach Series — Montrose Beach, Chicago (Aug 15)        | 2026-08-15 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/players-beach-series)                    |
+| Players Beach Series — Montrose Beach, Chicago (Aug 29)        | 2026-08-29 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/players-beach-series)                    |
+| Players Beach Series — North Avenue Beach, Chicago (Sep 7)     | 2026-09-07 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/players-beach-series)                    |
+| Players Beach Series — North Avenue Beach, Chicago (Sep 19)    | 2026-09-19 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/players-beach-series)                    |
+| Players Beach Series — North Avenue Beach, Chicago (Oct 3)     | 2026-10-03 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/players-beach-series)                    |
+| Players Friday Night 4s — North Avenue Beach, Chicago (Jun 19) | 2026-06-19 | Chicago, IL         | sand    | quads   | —     | [link](https://www.playerssports.net/page/friday-night-4s)                         |
+| Players Friday Night 4s — North Avenue Beach, Chicago (Jul 10) | 2026-07-10 | Chicago, IL         | sand    | quads   | —     | [link](https://www.playerssports.net/page/friday-night-4s)                         |
+| Players Friday Night 4s — North Avenue Beach, Chicago (Jul 31) | 2026-07-31 | Chicago, IL         | sand    | quads   | —     | [link](https://www.playerssports.net/page/friday-night-4s)                         |
+| Players Friday Night 4s — North Avenue Beach, Chicago (Aug 7)  | 2026-08-07 | Chicago, IL         | sand    | quads   | —     | [link](https://www.playerssports.net/page/friday-night-4s)                         |
+| Players Friday Night 4s — North Avenue Beach, Chicago (Aug 21) | 2026-08-21 | Chicago, IL         | sand    | quads   | —     | [link](https://www.playerssports.net/page/friday-night-4s)                         |
+| Players Friday Night 4s — North Avenue Beach, Chicago (Aug 28) | 2026-08-28 | Chicago, IL         | sand    | quads   | —     | [link](https://www.playerssports.net/page/friday-night-4s)                         |
+| Players Friday Night 4s — North Avenue Beach, Chicago (Sep 11) | 2026-09-11 | Chicago, IL         | sand    | quads   | —     | [link](https://www.playerssports.net/page/friday-night-4s)                         |
+| Players Grass Series — Montrose, Chicago (Jun 20)              | 2026-06-20 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Grass Series — Montrose, Chicago (Jul 5)               | 2026-07-05 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Grass Series — Montrose, Chicago (Jul 19)              | 2026-07-19 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Grass Series — Montrose, Chicago (Aug 8)               | 2026-08-08 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Grass Series — Montrose, Chicago (Aug 23)              | 2026-08-23 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Grass Series — Montrose, Chicago (Sep 26)              | 2026-09-26 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Grass Series — Montrose, Chicago (Oct 10)              | 2026-10-10 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Grass Series — Montrose, Chicago (Oct 24)              | 2026-10-24 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Grass Series — Montrose, Chicago (Nov 14)              | 2026-11-14 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Grass Series — Montrose, Chicago (Nov 28)              | 2026-11-28 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/players-grass-series)                    |
+| Players Beach Slap Party & Tournament                          | 2026-06-13 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/beach-slap)                              |
+| Players Big Dig Party & Tournament                             | 2026-07-25 | Chicago, IL         | sand    | —       | —     | [link](https://www.playerssports.net/page/bigdig)                                  |
+| Players Luau Volleyball Weekend                                | 2026-09-11 | Chicago, IL         | grass   | —       | —     | [link](https://www.playerssports.net/page/Luau)                                    |
+| Six Pack Beach Volleyball Tournament                           | 2026-06-27 | Chicago, IL         | sand    | —       | —     | [link](https://chicagosocial.com/cssc_tournaments/6-pack-volleyball/)              |
+| Volleywood Beach Volleyball Tournament                         | 2026-07-18 | Chicago, IL         | sand    | —       | —     | [link](https://chicagosocial.com/cssc_tournaments/volleywood-beach-tournament/)    |
+| Angry Dragon DragonSlayer (Grass 2s)                           | 2026-06-13 | Doraville, GA       | grass   | doubles | —     | [link](https://www.angrydragonvolleyball.com/tournaments/dragonslayer-saturday26)  |
+| Angry Dragon DragonSlayer (Reverse Coed 3s)                    | 2026-06-14 | Doraville, GA       | grass   | triples | —     | [link](https://www.angrydragonvolleyball.com/tournaments/dragonslayer-sunday26)    |
+| Angry Dragon Tripocalypse (Grass 2s)                           | 2026-08-22 | Doraville, GA       | grass   | doubles | —     | [link](https://www.angrydragonvolleyball.com/tournaments/tripocalypse-saturday-26) |
+| Angry Dragon Tripocalypse (Coed 3s)                            | 2026-08-23 | Doraville, GA       | grass   | triples | —     | [link](https://www.angrydragonvolleyball.com/tournaments/tripocalypse-sunday-2026) |
+| Angry Dragon Volloween (Reverse Coed 4s)                       | 2026-10-10 | Doraville, GA       | grass   | quads   | —     | [link](https://www.angrydragonvolleyball.com/tournaments/volloween-2026-2)         |
+| Spikefest (Dallas) — Sand 3s                                   | 2026-07-18 | Allen, TX           | sand    | triples | —     | [link](https://spikefest.com/)                                                     |
+| MotherLode Volleyball Classic                                  | 2026-09-05 | Aspen, CO           | sand    | doubles | —     | [link](https://www.motherlodevolleyball.com/)                                      |
+| Houston SSC — King/Queen of the Court (Sand 2s)                | 2026-06-13 | Houston, TX         | sand    | doubles | —     | [link](https://www.houstonssc.com/league/101861/details)                           |
+| Houston SSC — Playin' for Pride Charity (Sand 4s)              | 2026-06-20 | Houston, TX         | sand    | quads   | —     | [link](https://www.houstonssc.com/league/102190/details)                           |
+| Houston SSC — Playin' for Camp Safety Charity (Sand 4s)        | 2026-06-27 | Houston, TX         | sand    | quads   | —     | [link](https://www.houstonssc.com/league/101862/details)                           |
+| SandBar SLC — Coed 4s (Jun 20)                                 | 2026-06-20 | North Salt Lake, UT | sand    | quads   | —     | [link](https://sandbarslc.com/tournaments/)                                        |
+| SandBar SLC — Coed 2s (AA/A/BB) (Jun 27)                       | 2026-06-27 | North Salt Lake, UT | sand    | doubles | —     | [link](https://sandbarslc.com/tournaments/)                                        |
+| SandBar SLC — Men's/Women's 3s (Jul 25)                        | 2026-07-25 | North Salt Lake, UT | sand    | triples | —     | [link](https://sandbarslc.com/tournaments/)                                        |
+| SandBar SLC — Coed 2s — Real Estate Summer Slam (Aug 1)        | 2026-08-01 | North Salt Lake, UT | sand    | doubles | —     | [link](https://sandbarslc.com/tournaments/)                                        |
+| SandBar South — Men's/Women's 2s (Jul 11)                      | 2026-07-11 | Bluffdale, UT       | sand    | doubles | —     | [link](https://sandbarbluffdale.com/tournaments/)                                  |
+| SandBar South — Men's/Women's 2s (Jul 18)                      | 2026-07-18 | Bluffdale, UT       | sand    | doubles | —     | [link](https://sandbarbluffdale.com/tournaments/)                                  |
 
 ## Appendix — found but NOT in the import JSON
 

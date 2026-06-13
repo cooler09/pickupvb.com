@@ -88,18 +88,18 @@ export default async function LeavingPage(props: { searchParams: SearchParams })
       </p>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-        {/* Plain <a> on purpose — we want a normal navigation, not a Next
-            router transition, so the destination opens as a real cross-site
-            request. `noopener noreferrer` prevents the destination from
-            reaching back into our window or seeing our path as the referrer. */}
+        {/* Same-tab navigation (no `target="_blank"`) so an external link opens
+            exactly one new tab total: the caller's link opened *this*
+            interstitial in a new tab, and Continue navigates this same tab to
+            the destination. Plain <a> (not <Link>) so it's a real cross-site
+            request, not a Next router transition; `noreferrer` suppresses the
+            Referer so the destination can't see our path. */}
         <a
           href={destination}
-          target="_blank"
-          rel="noopener noreferrer nofollow external"
+          rel="noreferrer nofollow external"
           className={primaryButtonClass('md')}
         >
           Continue to {displayHost} <span aria-hidden="true">↗</span>
-          <span className="sr-only"> (opens in new tab)</span>
         </a>
         <Link
           href="/"
