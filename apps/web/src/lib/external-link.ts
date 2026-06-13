@@ -34,6 +34,37 @@ const TRUSTED_HOSTS: ReadonlySet<string> = new Set([
   'tiktok.com',
   'youtube.com',
   'youtu.be',
+  // Volleyball registration platforms + organizers we link to from the
+  // **community directory** (admin-curated listings, not arbitrary user input).
+  // These are the off-platform sources our scraped listings point at; warning
+  // before sending a player to a tournament's own sign-up page is pure friction.
+  // Entries match the host and every subdomain (so `usav.volleyballlife.com`,
+  // `ddd.volleyballlife.com`, … are covered by `volleyballlife.com`).
+  'volleyballlife.com', // AVP America, USA Volleyball Beach Tour, Seaside, DDD, p1440, BVNE … (per-affiliate subdomains)
+  'volosports.com', // Volo — leagues / pickup / drop-in across ~13 metros
+  'cbva.com', // California Beach Volleyball Association
+  'avp.com', // AVP Pro + AVP Grass Tour
+  'usavolleyball.org', // USA Volleyball
+  'p1440.com',
+  'bvne.org', // Beach Volleyball National Events
+  'ssova.com', // Sunshine State Outdoor Volleyball Association (FL)
+  // Marquee tournaments with their own sites.
+  'pottstownrumble.com',
+  'waupacaboatride.com',
+  'seasidebeachvolleyball.com',
+  'motherlodevolleyball.com',
+  // Regional / metro organizers currently in the directory.
+  'playerssports.net', // Players Sport & Social (Chicago)
+  'chicagosocial.com', // Chicago Sport & Social Club
+  'houstonssc.com', // Houston Sports & Social Club
+  'sandbarslc.com', // SandBar (Salt Lake City)
+  'sandbarbluffdale.com', // SandBar South (Bluffdale, UT)
+  'angrydragonvolleyball.com', // Atlanta grass
+  'spikefest.com', // Dallas
+  'amarilloxtremevolleyball.com',
+  'riseevents.us',
+  'novaeventmanagement.com',
+  'gatewayvb.org',
 ]);
 
 /**

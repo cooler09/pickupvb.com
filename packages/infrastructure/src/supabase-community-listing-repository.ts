@@ -7,6 +7,7 @@ import {
   UserId,
   type CommunityListingDetailReadModel,
   type CommunityListingIdentity,
+  type CommunityListingMapPin,
   type CommunityListingRepository,
   type CommunityListingSearchQuery,
   type CommunityListingStatus,
@@ -563,6 +564,75 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       };
     });
     return { rows, total: count ?? rows.length };
+  }
+
+  async listMapPins(query: CommunityListingSearchQuery): Promise<CommunityListingMapPin[]> {
+    const out: CommunityListingMapPin[] = [];
+
+    // Geo/near: the distance-ordered RPC is radius-bounded, so one page covers it.
+    if (query.near) {
+      const rows = await this.search({ ...query, limit: 1000 });
+      for (const r of rows) {
+        if (typeof r.latitude === 'number' && typeof r.longitude === 'number') {
+          out.push({
+            slug: r.slug,
+            title: r.title,
+            city: r.city,
+            region: r.region,
+            latitude: r.latitude,
+            longitude: r.longitude,
+          });
+        }
+      }
+      return out;
+    }
+
+    // Non-geo: page through EVERY matching row (PostgREST caps each response at
+    // `max_rows`), with a lightweight slug/title/place/geo projection, until a
+    // short page — bounded by a safety cap so a bad filter can't loop forever.
+    const statuses = query.statuses ?? ['active'];
+    const viewerIsUuid =
+      !!query.viewerId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.viewerId);
+    const PAGE = 1000;
+    const SAFETY_CAP = 20000;
+    for (let start = 0; start < SAFETY_CAP; start += PAGE) {
+      let q = this.table('community_listings').select('slug, title, city, region, geo');
+      if (!query.statuses && viewerIsUuid) {
+        q = q.or(`status.eq.active,and(submitter_user_id.eq.${query.viewerId},status.eq.hidden)`);
+      } else {
+        q = q.in('status', statuses as unknown as string[]);
+      }
+      if (query.surface) q = q.eq('surface', query.surface);
+      if (query.format) q = q.eq('format', query.format);
+      if (query.skillLevel) q = q.eq('skill_level', query.skillLevel);
+      if (query.startsAfter) q = q.gte('starts_at', query.startsAfter.toISOString());
+      if (query.startsBefore) q = q.lte('starts_at', query.startsBefore.toISOString());
+      q = q
+        .order('starts_at', { ascending: query.order !== 'desc' })
+        .range(start, start + PAGE - 1);
+
+      const { data, error } = await q;
+      if (error) throw new Error(`CommunityListing.listMapPins failed: ${error.message}`);
+      const rows = (data ?? []) as unknown as Array<
+        Pick<ListingRow, 'slug' | 'title' | 'city' | 'region' | 'geo'>
+      >;
+      for (const r of rows) {
+        const point = parsePointFromGeo(r.geo);
+        if (point) {
+          out.push({
+            slug: r.slug,
+            title: r.title,
+            city: r.city,
+            region: r.region,
+            latitude: point.latitude,
+            longitude: point.longitude,
+          });
+        }
+      }
+      if (rows.length < PAGE) break;
+    }
+    return out;
   }
 
   async listHiddenBySubmitter(userId: string): Promise<CommunityListingSummary[]> {

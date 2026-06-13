@@ -61,6 +61,14 @@ export interface CommunityListingRepository {
     query: CommunityListingSearchQuery,
   ): Promise<{ rows: CommunityListingSummary[]; total: number }>;
   /**
+   * **Every** matching listing that has coordinates — for the map's heatmap /
+   * cluster view (vs. `searchPage`'s one screen). A lightweight projection
+   * (slug/title/place/coords only) that pages past PostgREST's `max_rows` so the
+   * whole set lands on the map, not just the first page. Coord-less listings are
+   * omitted (they can't be plotted).
+   */
+  listMapPins(query: CommunityListingSearchQuery): Promise<CommunityListingMapPin[]>;
+  /**
    * The viewer's own `hidden` listings. Surfaced on the `/community` listing as
    * the in-app recovery path for a listing auto-hidden by reports — auto-hide is
    * a DB trigger with no notification, so without this the submitter has no way
@@ -71,6 +79,16 @@ export interface CommunityListingRepository {
     idOrSlug: string,
     viewerId: string | null,
   ): Promise<CommunityListingDetailReadModel | null>;
+}
+
+/** Minimal map-pin projection: enough to plot + label a listing, nothing more. */
+export interface CommunityListingMapPin {
+  slug: string;
+  title: string;
+  city: string | null;
+  region: string | null;
+  latitude: number;
+  longitude: number;
 }
 
 export interface CommunityListingSearchQuery {

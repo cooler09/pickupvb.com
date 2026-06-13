@@ -29,9 +29,6 @@ const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
 const WHENS = ['upcoming', 'past'] as const;
 const VIEWS = ['list', 'map'] as const;
 const PER_PAGE = 24;
-// Map view loads coords in one PostgREST page (≤ max_rows). If a filter matches
-// more, the surplus is still reachable through the paginated list.
-const MAP_CAP = 1000;
 const DEFAULT_RADIUS_KM = 40;
 
 type Surface = (typeof SURFACES)[number];
@@ -186,32 +183,20 @@ export default async function CommunityListingsPage(props: {
       }
     : null;
 
-  // Map view draws every matching listing that has coordinates (not just the
-  // current page slice), so it gets its own wide fetch — only when actually on
-  // the map, to keep the list view light. Pins are the coord-bearing rows.
-  const mapRows =
+  // Map view plots EVERY matching listing with coordinates (the whole heatmap,
+  // not just one page) — so it gets its own fetch that pages past max_rows, only
+  // when actually on the map to keep the list view light. `listMapPins` already
+  // filters to coord-bearing rows.
+  const mapPins: MapPin[] =
     view === 'map'
-      ? (
-          await repositories.communityListingRepo.searchPage({
-            ...filters,
-            limit: MAP_CAP,
-            offset: 0,
-          })
-        ).rows
+      ? (await repositories.communityListingRepo.listMapPins(filters)).map((p) => ({
+          href: `/community/${p.slug}`,
+          title: p.title,
+          subtitle: [p.city, p.region].filter(Boolean).join(', ') || null,
+          latitude: p.latitude,
+          longitude: p.longitude,
+        }))
       : [];
-  const mapPins: MapPin[] = mapRows.flatMap((l) =>
-    typeof l.latitude === 'number' && typeof l.longitude === 'number'
-      ? [
-          {
-            href: `/community/${l.slug}`,
-            title: l.title,
-            subtitle: [l.city, l.region].filter(Boolean).join(', ') || null,
-            latitude: l.latitude,
-            longitude: l.longitude,
-          },
-        ]
-      : [],
-  );
 
   // Preserve the active view (map) across tab / filter-clear navigations. List
   // is the default, so it carries no param.
