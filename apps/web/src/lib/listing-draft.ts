@@ -32,6 +32,14 @@ export type ListingDraft = {
   region: string | null;
   postalCode: string | null;
   country: string | null;
+  /**
+   * Exact venue coordinates when the source already provides them (e.g. the
+   * Volleyball Life API). When both are present the importer uses them directly
+   * and **skips geocoding** the address — accurate venue pin, no MapTiler call.
+   * Null when unknown (the importer geocodes the address text as usual).
+   */
+  latitude: number | null;
+  longitude: number | null;
   surface: Surface | null;
   format: Format | null;
   skillLevel: SkillLevel | null;
@@ -56,6 +64,12 @@ function enumOrNull<T extends string>(value: unknown, allowed: readonly T[]): T 
     : null;
 }
 
+/** A finite number (accepts numeric strings), else null. */
+function numOrNull(value: unknown): number | null {
+  const n = typeof value === 'string' ? Number(value) : value;
+  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+}
+
 /** Coerce one raw row (untrusted JSON) into a fully-typed, defensive `ListingDraft`. */
 export function coerceDraft(raw: unknown): ListingDraft {
   const r = (raw ?? {}) as Record<string, unknown>;
@@ -72,6 +86,8 @@ export function coerceDraft(raw: unknown): ListingDraft {
     region: strOrNull(r.region),
     postalCode: strOrNull(r.postalCode),
     country: strOrNull(r.country),
+    latitude: numOrNull(r.latitude),
+    longitude: numOrNull(r.longitude),
     surface: enumOrNull(r.surface, SURFACE_VALUES),
     format: enumOrNull(r.format, FORMAT_VALUES),
     skillLevel: enumOrNull(r.skillLevel, SKILL_VALUES),

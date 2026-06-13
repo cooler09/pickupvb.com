@@ -13,6 +13,8 @@ import { CommunitySubmitActions } from './_components/community-submit-actions';
 import { MyHiddenCommunityListings } from './_components/my-hidden-community-listings';
 import PinMapLazy from '@/components/pin-map-lazy';
 import type { MapPin } from '@/components/pin-map';
+import { JsonLd } from '@/components/json-ld';
+import { PROD_APP_URL } from '@/lib/app-url';
 
 // ISR: the public (viewer-`null`) list is identical for every logged-out visitor
 // + crawler, so it serves per-URL (filters/page live in `searchParams`) from the
@@ -128,6 +130,34 @@ export default async function CommunityListingsPage(props: {
   const total = allListings.length;
   const listings = allListings.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
+  // `ItemList` JSON-LD for the index, so crawlers see an explicit, ordered list
+  // of the listing URLs (a discovery hint on top of the in-page <a>s). Emit it
+  // only on the indexable canonical page — the bare, unfiltered, unpaged list
+  // view — matching the same predicate `generateMetadata` uses to `noindex`
+  // filter/page/tab/map permutations, so we don't attach structured data to a
+  // near-duplicate slice.
+  const isCanonicalList =
+    view === 'list' &&
+    page === 1 &&
+    !isPast &&
+    !surface &&
+    !format &&
+    !skillLevel &&
+    near === null &&
+    listings.length > 0;
+  const itemListJsonLd = isCanonicalList
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        itemListElement: listings.map((l, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          url: `${PROD_APP_URL}/community/${l.slug}`,
+          name: l.title,
+        })),
+      }
+    : null;
+
   // Map view draws every matching listing that has coordinates (not just the
   // current page slice) — pins are filtered to those the geocoder resolved.
   const mapPins: MapPin[] = allListings.flatMap((l) =>
@@ -182,6 +212,7 @@ export default async function CommunityListingsPage(props: {
 
   return (
     <section className="space-y-6">
+      {itemListJsonLd && <JsonLd data={itemListJsonLd} />}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-headline-lg font-bold">

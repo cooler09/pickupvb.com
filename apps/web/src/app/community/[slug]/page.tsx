@@ -108,6 +108,8 @@ export default async function CommunityListingDetailPage(props: PageProps) {
           <CommunityListingJsonLd
             title={detail.title}
             slug={detail.slug}
+            description={detail.description}
+            externalUrl={detail.externalUrl}
             startsAt={detail.startsAt}
             endsAt={detail.endsAt}
             allDay={detail.allDay}

@@ -115,10 +115,14 @@ export function CommunityListingArticle({ detail }: { detail: CommunityListingDe
           RSVP and full details are on the external site ({hostLabel}). PickupVB doesn&rsquo;t
           handle signups for community listings.
         </p>
+        {/* `ugc` marks this as a user-submitted destination (Google's UGC-link
+            attribute); `nofollow` keeps us from vouching for an unverified
+            external site. The crawlable source association is carried by the
+            SportsEvent JSON-LD `sameAs`, not by this hyperlink. */}
         <a
           href={externalLinkHref(detail.externalUrl)}
           target="_blank"
-          rel="noopener noreferrer nofollow"
+          rel="noopener noreferrer nofollow ugc"
           className={`${primaryButtonClass('md')} gap-2`}
         >
           Open on {hostLabel} →<span className="sr-only"> (opens in new tab)</span>
