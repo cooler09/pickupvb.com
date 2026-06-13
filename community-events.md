@@ -1,20 +1,20 @@
 # Community events — public-source scrape (running tally)
 
-> **Scraped:** 2026-06-12 · **Scope:** nationwide US, upcoming only · **869 import-ready events across 41 states.** Sources: the **Volleyball Life API** (the bulk — see §1) plus curated hand-scraped organizers (AVP, USA Volleyball, CBVA, Chicago/Atlanta/Dallas/Houston/SLC series). Facebook **pages can't be scraped** (login wall), but a FB URL is fine as a link when a public source surfaces it.
+> **Scraped:** 2026-06-12 · **Scope:** nationwide US, upcoming only · **1482 import-ready events across 42 states.** Sources: the **Volleyball Life API** (tournaments, §1) + the **Volo API** (leagues, pickup & drop-in, §2) + curated hand-scraped organizers (AVP, USA Volleyball, CBVA, Chicago/Atlanta/Dallas/Houston/SLC). Facebook **pages can't be scraped** (login wall), but a FB URL is fine as a link.
 
 ## How to use this file
 
-- **869 events** live in [`community-events-public.json`](community-events-public.json). Upload at `https://pickupvb.com/admin/community-import` (platform-admin only). The importer reviews each row, resolves timezone, and is **idempotent on `(externalUrl, date)`** so re-uploads don't duplicate.
+- **1482 events** live in [`community-events-public.json`](community-events-public.json). Upload at `https://pickupvb.com/admin/community-import` (platform-admin only). The importer reviews each row, resolves timezone, and is **idempotent on `(externalUrl, date)`** so re-uploads don't duplicate.
 
-- **That's a lot for the row-by-row review UI.** Pre-split copies (≤150 each) are in [`community-events-import/`](community-events-import/) — upload `part-01.json` … `part-06.json` one at a time if the full file is sluggish.
+- **That's a lot for the row-by-row review UI.** Pre-split copies (≤150 each) are in [`community-events-import/`](community-events-import/) — upload `part-01.json` … `part-NN.json` one at a time if the full file is sluggish.
 
 - Separate from [`community-listings.json`](community-listings.json) (49 Facebook listings, mostly past) — kept apart so importing one doesn't touch the other.
 
 ### ⚠️ Data caveats (review before import)
 
-- **Every row is all-day (`allDay: true`) — no invented start times.** Sources publish a date, not a clock time, so each listing carries the accurate date and the site renders it as "time TBD." Uncheck "All day" on a row during review if you learn the real time.
+- **Times:** Volo rows (§2) carry **real local start times**. Everything else is **all-day** (`allDay: true`, "time TBD") — those sources publish a date, not a clock time, and we don't invent one. Uncheck "All day" during review if you learn a real time.
 
-- **VBL events carry EXACT venue coordinates** (lat/lng straight from the API → precise map pins, no geocoding). The hand-scraped rows are **city-level** (geocoded from the city). Both are fine; VBL pins are just sharper.
+- **Coordinates: every row carries lat/lng, baked into the JSON** — so the importer uses them directly and **never calls the geocoder** (which fails when `MAPTILER_API_KEY` is unset). VBL = exact venue coords; Volo + hand-scraped = city-level (offline-geocoded via the reverse_geocoder cities table). All map immediately on import.
 
 - **`format`/`skillLevel` are conservative** — blank when an event spans multiple formats/divisions rather than guessing.
 
@@ -30,7 +30,15 @@ _Pulled from the public Volleyball Life API (`api-v8.volleyballlife.com/tourname
 
 - **By month:** 2026-06 254, 2026-07 219, 2026-08 151, 2026-09 80, 2026-10 43, 2026-11 10, 2026-12 6, 2027-02 1, 2027-09 1
 
-## 2. Marquee national grass & sand tournaments (2)
+## 2. Volo Sports — leagues, pickup & tournaments (613)
+
+_Pulled from the Volo Hasura API (`volosports.com/hapi/v1/graphql`) — every upcoming public volleyball program across Volo's ~13 metros. Mostly **recurring leagues + weekly pickup/drop-in** (one listing each — the date/time shown is the season start / next session; recurrence is noted in the description), plus some tournaments & clinics. These carry **real local start times** (allDay:false). Summary below; full rows in the JSON._
+
+- **Top states:** CA 168, CO 110, MA 95, MD 93, NY 48, VA 43, DC 22, NJ 18, PA 9, SC 4, FL 3
+
+- **Surface tags:** None 333, sand 226, grass 30, indoor 24 (mostly untagged — Volo doesn't label indoor/outdoor in the feed)
+
+## 3. Marquee national grass & sand tournaments (2)
 
 _Hand-scraped events **not** on Volleyball Life (or recovered before the API pull)._
 
@@ -39,7 +47,7 @@ _Hand-scraped events **not** on Volleyball Life (or recovered before the API pul
 | AVP America Grass Nationals        | 2026-10-23 | Gainesville, FL | grass   | —      | —     | [link](https://avp.com/avp-america/special-events/avp-america-grass-nationals/) |
 | Susquehanna Smash (AVP Grass Tour) | 2026-08-01 | Manheim, PA     | grass   | —      | —     | [link](https://avp.com/avp-grass/schedule/)                                     |
 
-## 3. USA Volleyball Beach Tour — qualifiers not on VBL (10)
+## 4. USA Volleyball Beach Tour — qualifiers not on VBL (10)
 
 _USAV BNQ/BRQ events whose registration lives on a regional site rather than VBL (Amarillo, RISE, WEVA, Bravo, Chesapeake, …)._
 
@@ -56,7 +64,7 @@ _USAV BNQ/BRQ events whose registration lives on a regional site rather than VBL
 | Carolina Beach Boogie Regional Qualifier             | 2026-06-20 | Indian Trail, NC   | sand    | —      | —     | [link](https://www.riseevents.us/rise-events/outdoor/)                                   |
 | WEVA Beach Regional Qualifier                        | 2026-06-21 | Rochester, NY      | sand    | —      | —     | [link](https://www.novaeventmanagement.com/events/)                                      |
 
-## 4. CBVA — California adult beach tournaments (45)
+## 5. CBVA — California adult beach tournaments (45)
 
 _California Beach Volleyball Association sand tournaments; canonical per-event URLs at cbva.com. Not on Volleyball Life._
 
@@ -108,7 +116,7 @@ _California Beach Volleyball Association sand tournaments; canonical per-event U
 | CBVA Beach Doubles — Belmont Shore, Long Beach (Sep 26)       | 2026-09-26 | Long Beach, CA       | sand    | doubles | —           | [link](https://cbva.com/tournaments/4740) |
 | CBVA Beach Doubles — Dockweiler, Los Angeles (Sep 26)         | 2026-09-26 | Los Angeles, CA      | sand    | doubles | competitive | [link](https://cbva.com/tournaments/4742) |
 
-## 5. Regional series & metro tournaments (47)
+## 6. Regional series & metro tournaments (47)
 
 _Adult outdoor series from organizers not on VBL — **Chicago** (Players Sport & Social; Chicago Sport & Social), **Atlanta** (Angry Dragon), **Dallas** (Spikefest), **Aspen** (MotherLode), **Houston** (Sports & Social), **Salt Lake City** (SandBar)._
 

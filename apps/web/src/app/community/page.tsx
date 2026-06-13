@@ -2,10 +2,9 @@ import Link from 'next/link';
 import { primaryButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
 import type { Metadata } from 'next/types';
-import { SearchCommunityListingsQuery } from '@pickupvb/application';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
 import { eventBucket } from '@/lib/date-formats';
-import { handlers } from '@/lib/handlers';
+import { repositories } from '@/lib/handlers';
 import { Pagination } from '@/components/pagination';
 import { NearMeButton } from '../events/near-me-button';
 import { LocationSearch } from '../events/location-search';
@@ -30,7 +29,9 @@ const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
 const WHENS = ['upcoming', 'past'] as const;
 const VIEWS = ['list', 'map'] as const;
 const PER_PAGE = 24;
-const FETCH_CAP = 120;
+// Map view loads coords in one PostgREST page (≤ max_rows). If a filter matches
+// more, the surplus is still reachable through the paginated list.
+const MAP_CAP = 1000;
 const DEFAULT_RADIUS_KM = 40;
 
 type Surface = (typeof SURFACES)[number];
@@ -116,29 +117,29 @@ export default async function CommunityListingsPage(props: {
   const startOfToday = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
   );
-  // Load a generous window and slice for display (pattern #12). This removes the
-  // old silent 60-row cap; if community volume ever exceeds FETCH_CAP per view,
-  // swap to keyset paging (offset/count) in the repo — tracked in
-  // docs/audits/community-listings.md CL-6.
-  // viewer-`null`: the cached list is the public view. A signed-in submitter's
+  // Shared filters for both the page query and the map query. Upcoming:
+  // soonest-first. Past: most-recent-first so the freshest history leads.
+  // viewer-`null`: the cached list is the public view; a signed-in submitter's
   // own hidden listings are surfaced separately by <MyHiddenCommunityListings />
   // so the page stays cookie-free (P3 #17).
-  const allListings = await handlers.searchCommunityListings.execute(
-    new SearchCommunityListingsQuery(null, {
-      limit: FETCH_CAP,
-      // Upcoming: soonest-first. Past: most-recent-first (order desc) so the
-      // freshest history leads instead of the oldest archived event.
-      ...(isPast
-        ? { startsBefore: startOfToday, order: 'desc' as const }
-        : { startsAfter: startOfToday }),
-      ...(near ? { near } : {}),
-      ...(surface ? { surface } : {}),
-      ...(format ? { format } : {}),
-      ...(skillLevel ? { skillLevel } : {}),
-    }),
-  );
-  const total = allListings.length;
-  const listings = allListings.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const filters = {
+    ...(isPast
+      ? { startsBefore: startOfToday, order: 'desc' as const }
+      : { startsAfter: startOfToday }),
+    ...(near ? { near } : {}),
+    ...(surface ? { surface } : {}),
+    ...(format ? { format } : {}),
+    ...(skillLevel ? { skillLevel } : {}),
+  };
+
+  // Real keyset pagination: fetch only this page's slice + the total count, so
+  // the directory scales past PostgREST's `max_rows` (the old FETCH_CAP window
+  // capped the whole page — incl. the map — at 120). CL-6.
+  const { rows: listings, total } = await repositories.communityListingRepo.searchPage({
+    ...filters,
+    limit: PER_PAGE,
+    offset: (page - 1) * PER_PAGE,
+  });
 
   // Upcoming list view groups the page's cards into "Today / Tomorrow / This
   // week / Next week / Later" sections (computed in each event's own timezone
@@ -186,8 +187,19 @@ export default async function CommunityListingsPage(props: {
     : null;
 
   // Map view draws every matching listing that has coordinates (not just the
-  // current page slice) — pins are filtered to those the geocoder resolved.
-  const mapPins: MapPin[] = allListings.flatMap((l) =>
+  // current page slice), so it gets its own wide fetch — only when actually on
+  // the map, to keep the list view light. Pins are the coord-bearing rows.
+  const mapRows =
+    view === 'map'
+      ? (
+          await repositories.communityListingRepo.searchPage({
+            ...filters,
+            limit: MAP_CAP,
+            offset: 0,
+          })
+        ).rows
+      : [];
+  const mapPins: MapPin[] = mapRows.flatMap((l) =>
     typeof l.latitude === 'number' && typeof l.longitude === 'number'
       ? [
           {
@@ -243,11 +255,7 @@ export default async function CommunityListingsPage(props: {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-headline-lg font-bold">
-            Community listings{' '}
-            <span className="text-muted text-base font-normal">
-              · {total}
-              {total >= FETCH_CAP ? '+' : ''}
-            </span>
+            Community listings <span className="text-muted text-base font-normal">· {total}</span>
           </h1>
           <p className="text-muted mt-1 max-w-2xl text-sm">
             Volleyball events shared by other players — Facebook posts, Meetup groups, and other
