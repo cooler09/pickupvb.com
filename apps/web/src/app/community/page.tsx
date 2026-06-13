@@ -11,6 +11,8 @@ import { LocationSearch } from '../events/location-search';
 import { CommunityListingCard } from './_components/community-listing-card';
 import { CommunitySubmitActions } from './_components/community-submit-actions';
 import { MyHiddenCommunityListings } from './_components/my-hidden-community-listings';
+import CommunityMapLazy from '@/components/community-map-lazy';
+import type { CommunityPin } from '@/components/community-map';
 
 // ISR: the public (viewer-`null`) list is identical for every logged-out visitor
 // + crawler, so it serves per-URL (filters/page live in `searchParams`) from the
@@ -23,6 +25,7 @@ const SURFACES = ['indoor', 'grass', 'sand'] as const;
 const FORMATS = ['sixes', 'quads', 'triples', 'doubles'] as const;
 const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
 const WHENS = ['upcoming', 'past'] as const;
+const VIEWS = ['list', 'map'] as const;
 const PER_PAGE = 24;
 const FETCH_CAP = 120;
 const DEFAULT_RADIUS_KM = 40;
@@ -31,6 +34,7 @@ type Surface = (typeof SURFACES)[number];
 type Format = (typeof FORMATS)[number];
 type Skill = (typeof SKILLS)[number];
 type When = (typeof WHENS)[number];
+type View = (typeof VIEWS)[number];
 
 export async function generateMetadata(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -45,6 +49,7 @@ export async function generateMetadata(props: {
     sp['skill'] != null ||
     sp['lat'] != null ||
     sp['when'] === 'past' ||
+    sp['view'] === 'map' ||
     (sp['page'] != null && sp['page'] !== '1');
   return {
     title: 'Community listings',
@@ -87,6 +92,7 @@ export default async function CommunityListingsPage(props: {
   const skillLevel: Skill | undefined = pick(get('skill'), SKILLS);
   const when: When = pick(get('when'), WHENS) ?? 'upcoming';
   const isPast = when === 'past';
+  const view: View = pick(get('view'), VIEWS) ?? 'list';
   const page = Math.max(1, Number.parseInt(get('page') ?? '1', 10) || 1);
 
   // Optional "near me" / city search. `lat`/`lng`/`radiusKm` are written by the
@@ -122,6 +128,27 @@ export default async function CommunityListingsPage(props: {
   const total = allListings.length;
   const listings = allListings.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
+  // Map view draws every matching listing that has coordinates (not just the
+  // current page slice) — pins are filtered to those the geocoder resolved.
+  const mapPins: CommunityPin[] = allListings.flatMap((l) =>
+    typeof l.latitude === 'number' && typeof l.longitude === 'number'
+      ? [
+          {
+            slug: l.slug,
+            title: l.title,
+            city: l.city,
+            region: l.region,
+            latitude: l.latitude,
+            longitude: l.longitude,
+          },
+        ]
+      : [],
+  );
+
+  // Preserve the active view (map) across tab / filter-clear navigations. List
+  // is the default, so it carries no param.
+  const viewParam: Record<string, string> = view === 'map' ? { view: 'map' } : {};
+
   // Non-location filters, preserved across the "clear location" link.
   const baseFilterQuery: Record<string, string> = {
     ...(surface ? { surface } : {}),
@@ -144,6 +171,7 @@ export default async function CommunityListingsPage(props: {
   const hasFilters = Boolean(surface || format || skillLevel);
   const clearFiltersQuery: Record<string, string> = {
     when,
+    ...viewParam,
     ...(near
       ? {
           lat: near.latitude.toFixed(6),
@@ -175,7 +203,10 @@ export default async function CommunityListingsPage(props: {
 
       <div className="border-border-base flex gap-1 border-b">
         <Link
-          href={{ pathname: '/community', query: { ...filterQuery, when: 'upcoming' } }}
+          href={{
+            pathname: '/community',
+            query: { ...filterQuery, ...viewParam, when: 'upcoming' },
+          }}
           aria-current={!isPast ? 'page' : undefined}
           className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
             !isPast ? 'border-primary text-primary' : 'text-muted hover:text-fg border-transparent'
@@ -184,7 +215,7 @@ export default async function CommunityListingsPage(props: {
           Upcoming
         </Link>
         <Link
-          href={{ pathname: '/community', query: { ...filterQuery, when: 'past' } }}
+          href={{ pathname: '/community', query: { ...filterQuery, ...viewParam, when: 'past' } }}
           aria-current={isPast ? 'page' : undefined}
           className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
             isPast ? 'border-primary text-primary' : 'text-muted hover:text-fg border-transparent'
@@ -201,13 +232,33 @@ export default async function CommunityListingsPage(props: {
           <span className="text-muted text-sm">
             Within {radiusKm} km ·{' '}
             <Link
-              href={{ pathname: '/community', query: { ...baseFilterQuery, when } }}
+              href={{ pathname: '/community', query: { ...baseFilterQuery, ...viewParam, when } }}
               className="text-primary hover:underline"
             >
               Clear location
             </Link>
           </span>
         )}
+        <div className="border-border-base rounded-shape-sm ml-auto flex border p-0.5">
+          <Link
+            href={{ pathname: '/community', query: { ...filterQuery, when } }}
+            aria-current={view === 'list' ? 'page' : undefined}
+            className={`rounded-[0.3rem] px-3 py-1 text-sm font-medium ${
+              view === 'list' ? 'bg-fg/10 text-fg' : 'text-muted hover:text-fg hover:bg-fg/5'
+            }`}
+          >
+            List
+          </Link>
+          <Link
+            href={{ pathname: '/community', query: { ...filterQuery, when, view: 'map' } }}
+            aria-current={view === 'map' ? 'page' : undefined}
+            className={`rounded-[0.3rem] px-3 py-1 text-sm font-medium ${
+              view === 'map' ? 'bg-fg/10 text-fg' : 'text-muted hover:text-fg hover:bg-fg/5'
+            }`}
+          >
+            Map
+          </Link>
+        </div>
       </div>
 
       <form
@@ -288,7 +339,41 @@ export default async function CommunityListingsPage(props: {
 
       <MyHiddenCommunityListings />
 
-      {listings.length === 0 ? (
+      {view === 'map' ? (
+        mapPins.length === 0 ? (
+          <p className="bg-highlight/30 text-muted rounded-md p-6 text-center">
+            {total === 0
+              ? 'No community listings match your filters.'
+              : `None of the ${total} matching ${
+                  total === 1 ? 'listing has' : 'listings have'
+                } a mapped location yet.`}{' '}
+            <Link
+              href={{ pathname: '/community', query: { ...filterQuery, when } }}
+              className="text-primary font-semibold hover:underline"
+            >
+              View as list
+            </Link>
+            .
+          </p>
+        ) : (
+          <div className="space-y-2">
+            <CommunityMapLazy pins={mapPins} />
+            {mapPins.length < total && (
+              <p className="text-muted text-xs">
+                Showing {mapPins.length} of {total} listings that have a mapped location — the rest
+                are visible in{' '}
+                <Link
+                  href={{ pathname: '/community', query: { ...filterQuery, when } }}
+                  className="text-primary hover:underline"
+                >
+                  list view
+                </Link>
+                .
+              </p>
+            )}
+          </div>
+        )
+      ) : listings.length === 0 ? (
         <p className="bg-highlight/30 text-muted rounded-md p-6 text-center">
           {near ? (
             <>
