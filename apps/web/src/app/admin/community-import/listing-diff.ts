@@ -34,6 +34,8 @@ export function dtoMatchesListing(
   if ((listing.surface ?? null) !== (dto.surface ?? null)) return false;
   if ((listing.format ?? null) !== (dto.format ?? null)) return false;
   if ((listing.skillLevel ?? null) !== (dto.skillLevel ?? null)) return false;
+  if ((listing.eventType ?? null) !== (dto.eventType ?? null)) return false;
+  if ((listing.gender ?? null) !== (dto.gender ?? null)) return false;
   if (norm(listing.timeZone) !== norm(dto.timeZone)) return false;
 
   const a = listing.location;

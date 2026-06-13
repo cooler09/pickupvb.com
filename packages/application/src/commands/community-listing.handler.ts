@@ -102,6 +102,8 @@ export class CreateCommunityListingHandler {
       surface: dto.surface ?? null,
       format: dto.format ?? null,
       skillLevel: dto.skillLevel ?? null,
+      eventType: dto.eventType ?? null,
+      gender: dto.gender ?? null,
     });
 
     await this.repo.save(listing);
@@ -142,6 +144,8 @@ export class UpdateCommunityListingHandler {
       ...(dto.surface !== undefined ? { surface: dto.surface ?? null } : {}),
       ...(dto.format !== undefined ? { format: dto.format ?? null } : {}),
       ...(dto.skillLevel !== undefined ? { skillLevel: dto.skillLevel ?? null } : {}),
+      ...(dto.eventType !== undefined ? { eventType: dto.eventType ?? null } : {}),
+      ...(dto.gender !== undefined ? { gender: dto.gender ?? null } : {}),
     });
 
     await this.repo.save(listing);

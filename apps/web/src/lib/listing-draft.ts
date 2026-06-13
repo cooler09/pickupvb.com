@@ -1,4 +1,4 @@
-import { Format, SkillLevel, Surface } from '@pickupvb/domain';
+import { EventType, Format, Gender, SkillLevel, Surface } from '@pickupvb/domain';
 
 /**
  * A partial, *pre-geocode* community-listing draft. Mirrors the manual create
@@ -43,11 +43,20 @@ export type ListingDraft = {
   surface: Surface | null;
   format: Format | null;
   skillLevel: SkillLevel | null;
+  /**
+   * Event kind + gender, mirrored from the events model so the listing aligns
+   * with a real event's classification (and the `/community` Type filter). Null
+   * when the source doesn't say.
+   */
+  eventType: EventType | null;
+  gender: Gender | null;
 };
 
 const SURFACE_VALUES = Object.values(Surface) as Surface[];
 const FORMAT_VALUES = Object.values(Format) as Format[];
 const SKILL_VALUES = Object.values(SkillLevel) as SkillLevel[];
+const EVENT_TYPE_VALUES = Object.values(EventType) as EventType[];
+const GENDER_VALUES = Object.values(Gender) as Gender[];
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -91,6 +100,8 @@ export function coerceDraft(raw: unknown): ListingDraft {
     surface: enumOrNull(r.surface, SURFACE_VALUES),
     format: enumOrNull(r.format, FORMAT_VALUES),
     skillLevel: enumOrNull(r.skillLevel, SKILL_VALUES),
+    eventType: enumOrNull(r.eventType, EVENT_TYPE_VALUES),
+    gender: enumOrNull(r.gender, GENDER_VALUES),
   };
 }
 

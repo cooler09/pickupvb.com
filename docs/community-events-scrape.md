@@ -54,24 +54,53 @@ Related:
 
 ## The `ListingDraft` contract (one object per event)
 
-15 keys. See `apps/web/src/lib/listing-draft.ts` for the authoritative shape.
+17 keys. See `apps/web/src/lib/listing-draft.ts` for the authoritative shape.
 
-| field                                                | notes                                                                         |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `title`                                              | 3–200 chars. Required.                                                        |
-| `description`                                        | format/cost/divisions/venue + multi-day span. `''` if none.                   |
-| `externalUrl`                                        | real `https://` info/sign-up page (a shared series/landing page is fine).     |
-| `externalHostName`                                   | club/org/region name, or `null`.                                              |
-| `startsAtLocal`                                      | `YYYY-MM-DDTHH:mm`. For all-day rows use `…T12:00`.                           |
-| `endsAtLocal`                                        | `null` for all-day (and usually otherwise — span goes in description).        |
-| `allDay`                                             | **`true`** for date-only events (the common case).                            |
-| `addressLine`/`city`/`region`/`postalCode`/`country` | city+region+`"United States"` is the usual minimum; rest null.                |
-| `surface`                                            | `sand` \| `grass` \| `indoor` \| null. Beach tour = sand; grass tour = grass. |
-| `format`                                             | `doubles`/`triples`/`quads`/`sixes` or null.                                  |
-| `skillLevel`                                         | `beginner`/`intermediate`/`advanced`/`competitive` or null.                   |
+| field                                                | notes                                                                                                                            |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `title`                                              | 3–200 chars. Required.                                                                                                           |
+| `description`                                        | format/cost/divisions/venue + multi-day span. `''` if none.                                                                      |
+| `externalUrl`                                        | real `https://` info/sign-up page (a shared series/landing page is fine).                                                        |
+| `externalHostName`                                   | club/org/region name, or `null`.                                                                                                 |
+| `startsAtLocal`                                      | `YYYY-MM-DDTHH:mm`. For all-day rows use `…T12:00`.                                                                              |
+| `endsAtLocal`                                        | `null` for all-day (and usually otherwise — span goes in description).                                                           |
+| `allDay`                                             | **`true`** for date-only events (the common case).                                                                               |
+| `addressLine`/`city`/`region`/`postalCode`/`country` | city+region+`"United States"` is the usual minimum; rest null.                                                                   |
+| `surface`                                            | `sand` \| `grass` \| `indoor` \| null. Beach tour = sand; grass tour = grass.                                                    |
+| `format`                                             | `doubles`/`triples`/`quads`/`sixes` or null.                                                                                     |
+| `skillLevel`                                         | `beginner`/`intermediate`/`advanced`/`competitive` or null.                                                                      |
+| `eventType`                                          | `tournament` \| `league` \| `open_play` \| null. Reuses the **events** enum; powers the `/community` "Type" filter + card badge. |
+| `gender`                                             | `mens` \| `womens` \| `coed` \| null. Reuses the **events** enum. null when mixed-division or unstated.                          |
 
 Generate with a throwaway Python script (validate: every URL unique + `https://`,
 `startsAtLocal` matches the pattern, enums valid, `allDay` boolean).
+
+### Deriving `eventType` + `gender` (the classify() pass)
+
+These two were added 2026-06-13 to align community listings with the events
+model. The derivation is **post-hoc** (no extra API calls) and lives in
+`/tmp/enrich_types.py` (standalone backfill of `community-events-public.json` +
+chunks) and is mirrored into the final pass of `/tmp/build_volo.py`, so a fresh
+`build_vbl.py && build_volo.py` reproduces it:
+
+- **`eventType`** —
+  - **Volo**: matched on the `program=<_id>` in the row's URL against
+    `volo_raw.json`'s `program_type` (`LEAGUE`→league, `PICKUP`/`DROPIN`→open_play,
+    `TOURNAMENT`→tournament, `CLINIC`→open_play, `EVENT`→null).
+  - **Volleyball Life**: always `tournament` (the API pulled tournament summaries).
+  - **Other** (CBVA + hand-scraped): a host map first
+    (`cbva.com`→tournament, `chicagosocial.com`/`houstonssc.com`→league, …), then
+    a title/description keyword heuristic (`league`→league;
+    `pickup`/`drop-in`/`open play`→open_play; `tourney`/`classic`/`qualifier`/
+    `doubles`/…→tournament); **null when genuinely ambiguous** (≈11 rows, e.g.
+    Players "Friday Night 4s" — could be league or tournament).
+- **`gender`** — keyword scan of title+description. `mens` / `womens` / `coed`;
+  **null when BOTH men's and women's divisions appear** (mixed-division
+  tournament isn't single-gender) or when unstated. Strip `women`/`woman` before
+  testing for `men` so "women's" doesn't false-match `mens`.
+
+Per the project's "prefer null over a guess" rule, leave both null rather than
+forcing a class onto an ambiguous event.
 
 ## Source registry (what's fetchable, what isn't)
 
@@ -168,6 +197,20 @@ season "tour containers" (year-long date range + many `locations`). Keep only:
 `endDate-startDate ≤ 3` days **and** `len(locations)==1` **and** `isPublic` **and**
 `startDate ≥ today` **and** `"Adult" in tags`. As of 2026-06-12 that's **768
 events** (sand 524 / grass 234 / indoor 9).
+
+**Per-tournament enrichment (two more public endpoints, one call each).** The
+summaries feed has no street address and only a terse division list, so for each
+kept tournament also fetch (bounded concurrency ~8, cache to disk — re-runs free):
+
+- `GET …/Locations/GetAddresses?tournamentId=<id>` → `["123 St, City, ST 00000, USA"]`.
+  Parse it for `addressLine` + a **more accurate** city/state/zip (override the
+  reverse-geocode; keep the summary's exact coords). ~88% of tournaments return a
+  parseable address; the rest fall back to the reverse-geocoded city.
+- `GET …/tournament/<id>` → `{ description (HTML), divisions, externalRegistrationUrl, … }`.
+  Strip the HTML → a **real event description** (format, divisions, check-in time)
+  far better than a generated blurb; cap ~800 chars. (`division.location` has the
+  venue name + a maps-embed URL but **not** the clean street address — that's only
+  in `GetAddresses`.) Date is still date-only ⇒ keep `allDay`.
 
 **Two build tasks before this is import-ready:**
 

@@ -12,7 +12,9 @@ import {
   type CommunityListingSearchQuery,
   type CommunityListingStatus,
   type CommunityListingSummary,
+  type EventType,
   type Format,
+  type Gender,
   type ListingLocation,
   type SkillLevel,
   type Surface,
@@ -45,6 +47,8 @@ type ListingRow = {
   surface: Surface | null;
   format: Format | null;
   skill_level: SkillLevel | null;
+  event_type: EventType | null;
+  gender: Gender | null;
   status: CommunityListingStatus;
   report_count: number;
   claimed_event_id: string | null;
@@ -174,6 +178,8 @@ function rowToAggregate(row: ListingRow): CommunityListing {
     surface: row.surface,
     format: row.format,
     skillLevel: row.skill_level,
+    eventType: row.event_type,
+    gender: row.gender,
     status: row.status,
     reportCount: row.report_count,
     claimedEventId: row.claimed_event_id ? EventId(row.claimed_event_id) : null,
@@ -267,6 +273,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       surface: listing.surface,
       format: listing.format,
       skill_level: listing.skillLevel,
+      event_type: listing.eventType,
+      gender: listing.gender,
       status: listing.status,
       claimed_event_id: listing.claimedEventId ? String(listing.claimedEventId) : null,
       claimed_by_user_id: listing.claimedByUserId ? String(listing.claimedByUserId) : null,
@@ -352,6 +360,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         p_surface: query.surface ?? null,
         p_format: query.format ?? null,
         p_skill_level: query.skillLevel ?? null,
+        p_event_type: query.eventType ?? null,
         p_starts_after: query.startsAfter ? query.startsAfter.toISOString() : null,
         p_starts_before: query.startsBefore ? query.startsBefore.toISOString() : null,
         p_statuses: statuses,
@@ -369,6 +378,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         ends_at: string | null;
         all_day: boolean | null;
         time_zone: string | null;
+        event_type: string | null;
+        gender: string | null;
         city: string | null;
         region: string | null;
         surface: string | null;
@@ -396,6 +407,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         surface: r.surface as CommunityListingSummary['surface'],
         format: r.format as CommunityListingSummary['format'],
         skillLevel: r.skill_level as CommunityListingSummary['skillLevel'],
+        eventType: r.event_type as CommunityListingSummary['eventType'],
+        gender: r.gender as CommunityListingSummary['gender'],
         status: r.status as CommunityListingSummary['status'],
         distanceKm: r.distance_km,
         latitude: r.latitude,
@@ -404,7 +417,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     }
 
     let q = this.table('community_listings').select(
-      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, geo, surface, format, skill_level, status',
+      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, geo, surface, format, skill_level, event_type, gender, status',
     );
     // Default public view (no explicit statuses) + a signed-in viewer: also
     // return the viewer's own `hidden` listings so a submitter whose listing was
@@ -423,6 +436,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     if (query.surface) q = q.eq('surface', query.surface);
     if (query.format) q = q.eq('format', query.format);
     if (query.skillLevel) q = q.eq('skill_level', query.skillLevel);
+    if (query.eventType) q = q.eq('event_type', query.eventType);
     if (query.startsAfter) q = q.gte('starts_at', query.startsAfter.toISOString());
     if (query.startsBefore) q = q.lte('starts_at', query.startsBefore.toISOString());
     q = q.order('starts_at', { ascending: query.order !== 'desc' }).limit(limit);
@@ -448,6 +462,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       | 'surface'
       | 'format'
       | 'skill_level'
+      | 'event_type'
+      | 'gender'
       | 'status'
     >;
     const rows = (data ?? []) as unknown as SearchRow[];
@@ -471,6 +487,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         surface: r.surface,
         format: r.format,
         skillLevel: r.skill_level,
+        eventType: r.event_type,
+        gender: r.gender,
         status: r.status,
         distanceKm: null,
       };
@@ -496,7 +514,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     // scales past PostgREST's `max_rows` cap.
     const statuses = query.statuses ?? ['active'];
     let q = this.table('community_listings').select(
-      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, geo, surface, format, skill_level, status',
+      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, geo, surface, format, skill_level, event_type, gender, status',
       { count: 'exact' },
     );
     const viewerIsUuid =
@@ -510,6 +528,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     if (query.surface) q = q.eq('surface', query.surface);
     if (query.format) q = q.eq('format', query.format);
     if (query.skillLevel) q = q.eq('skill_level', query.skillLevel);
+    if (query.eventType) q = q.eq('event_type', query.eventType);
     if (query.startsAfter) q = q.gte('starts_at', query.startsAfter.toISOString());
     if (query.startsBefore) q = q.lte('starts_at', query.startsBefore.toISOString());
     q = q
@@ -537,6 +556,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       | 'surface'
       | 'format'
       | 'skill_level'
+      | 'event_type'
+      | 'gender'
       | 'status'
     >;
     const rows = ((data ?? []) as unknown as SearchRow[]).map((r) => {
@@ -559,6 +580,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         surface: r.surface,
         format: r.format,
         skillLevel: r.skill_level,
+        eventType: r.event_type,
+        gender: r.gender,
         status: r.status,
         distanceKm: null,
       };
@@ -638,7 +661,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
   async listHiddenBySubmitter(userId: string): Promise<CommunityListingSummary[]> {
     const { data, error } = await this.table('community_listings')
       .select(
-        'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, surface, format, skill_level, status',
+        'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, surface, format, skill_level, event_type, gender, status',
       )
       .eq('submitter_user_id', userId)
       .eq('status', 'hidden')
@@ -660,6 +683,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       surface: CommunityListingSummary['surface'];
       format: CommunityListingSummary['format'];
       skill_level: CommunityListingSummary['skillLevel'];
+      event_type: CommunityListingSummary['eventType'];
+      gender: CommunityListingSummary['gender'];
       status: CommunityListingSummary['status'];
     };
     return ((data ?? []) as unknown as Row[]).map((r) => ({
@@ -682,6 +707,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       surface: r.surface,
       format: r.format,
       skillLevel: r.skill_level,
+      eventType: r.event_type,
+      gender: r.gender,
       status: r.status,
       distanceKm: null,
     }));
@@ -759,6 +786,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       surface: row.surface,
       format: row.format,
       skillLevel: row.skill_level,
+      eventType: row.event_type,
+      gender: row.gender,
       status: row.status,
       reportCount: row.report_count,
       submitter: {

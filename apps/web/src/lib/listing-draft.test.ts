@@ -23,6 +23,8 @@ describe('coerceDraft', () => {
       surface: 'grass',
       format: null,
       skillLevel: null,
+      eventType: null,
+      gender: null,
     });
   });
 
@@ -49,6 +51,20 @@ describe('coerceDraft', () => {
     expect(coerceDraft({ title: 'Date-only tourney', allDay: true }).allDay).toBe(true);
     expect(coerceDraft({ title: 'Timed', allDay: 'yes' }).allDay).toBe(false);
     expect(coerceDraft({ title: 'Missing key' }).allDay).toBe(false);
+  });
+
+  it('accepts valid eventType/gender enums and nulls invalid/missing ones', () => {
+    expect(
+      coerceDraft({ title: 'League night', eventType: 'league', gender: 'coed' }),
+    ).toMatchObject({ eventType: 'league', gender: 'coed' });
+    // open_play is the events-model value for pickup / drop-in.
+    expect(coerceDraft({ title: 'Pickup', eventType: 'open_play' }).eventType).toBe('open_play');
+    // Out-of-enum guesses are coerced to null, not passed through.
+    expect(coerceDraft({ title: 'Bad', eventType: 'pickup', gender: 'mixed' })).toMatchObject({
+      eventType: null,
+      gender: null,
+    });
+    expect(coerceDraft({ title: 'Missing' })).toMatchObject({ eventType: null, gender: null });
   });
 
   it('defends against a non-object row', () => {

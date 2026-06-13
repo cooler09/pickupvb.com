@@ -266,6 +266,8 @@ async function draftToDto(
     surface: d.surface,
     format: d.format,
     skillLevel: d.skillLevel,
+    eventType: d.eventType,
+    gender: d.gender,
   };
 
   return { dto: CreateCommunityListingSchema.parse(raw), geocoded };

@@ -1,4 +1,4 @@
-import type { Format, SkillLevel, Surface } from '../events/enums.js';
+import type { EventType, Format, Gender, SkillLevel, Surface } from '../events/enums.js';
 import type { CommunityListing, CommunityListingStatus } from './community-listing.js';
 
 /**
@@ -96,6 +96,8 @@ export interface CommunityListingSearchQuery {
   surface?: Surface;
   format?: Format;
   skillLevel?: SkillLevel;
+  /** Filter by event kind (tournament / league / open_play). */
+  eventType?: EventType;
   startsAfter?: Date;
   startsBefore?: Date;
   /**
@@ -135,6 +137,9 @@ export interface CommunityListingSummary {
   surface: Surface | null;
   format: Format | null;
   skillLevel: SkillLevel | null;
+  /** Event kind + gender, mirrored from the events model. Null = unknown. */
+  eventType: EventType | null;
+  gender: Gender | null;
   status: CommunityListingStatus;
   distanceKm: number | null;
 }
@@ -166,6 +171,8 @@ export interface CommunityListingDetailReadModel {
   surface: Surface | null;
   format: Format | null;
   skillLevel: SkillLevel | null;
+  eventType: EventType | null;
+  gender: Gender | null;
   status: CommunityListingStatus;
   reportCount: number;
   submitter: {

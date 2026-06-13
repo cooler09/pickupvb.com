@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { primaryButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
 import type { Metadata } from 'next/types';
-import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
+import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL, TYPE_LABEL } from '@/lib/enum-labels';
 import { eventBucket } from '@/lib/date-formats';
 import { repositories } from '@/lib/handlers';
 import { Pagination } from '@/components/pagination';
@@ -26,6 +26,7 @@ export const revalidate = 60;
 const SURFACES = ['indoor', 'grass', 'sand'] as const;
 const FORMATS = ['sixes', 'quads', 'triples', 'doubles'] as const;
 const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
+const EVENT_TYPES = ['tournament', 'league', 'open_play'] as const;
 const WHENS = ['upcoming', 'past'] as const;
 const VIEWS = ['list', 'map'] as const;
 const PER_PAGE = 24;
@@ -34,6 +35,7 @@ const DEFAULT_RADIUS_KM = 40;
 type Surface = (typeof SURFACES)[number];
 type Format = (typeof FORMATS)[number];
 type Skill = (typeof SKILLS)[number];
+type EventTypeFilter = (typeof EVENT_TYPES)[number];
 type When = (typeof WHENS)[number];
 type View = (typeof VIEWS)[number];
 
@@ -48,6 +50,7 @@ export async function generateMetadata(props: {
     sp['surface'] != null ||
     sp['format'] != null ||
     sp['skill'] != null ||
+    sp['type'] != null ||
     sp['lat'] != null ||
     sp['when'] === 'past' ||
     sp['view'] === 'map' ||
@@ -91,6 +94,7 @@ export default async function CommunityListingsPage(props: {
   const surface: Surface | undefined = pick(get('surface'), SURFACES);
   const format: Format | undefined = pick(get('format'), FORMATS);
   const skillLevel: Skill | undefined = pick(get('skill'), SKILLS);
+  const eventType: EventTypeFilter | undefined = pick(get('type'), EVENT_TYPES);
   const when: When = pick(get('when'), WHENS) ?? 'upcoming';
   const isPast = when === 'past';
   const view: View = pick(get('view'), VIEWS) ?? 'list';
@@ -127,6 +131,7 @@ export default async function CommunityListingsPage(props: {
     ...(surface ? { surface } : {}),
     ...(format ? { format } : {}),
     ...(skillLevel ? { skillLevel } : {}),
+    ...(eventType ? { eventType } : {}),
   };
 
   // Real keyset pagination: fetch only this page's slice + the total count, so
@@ -168,6 +173,7 @@ export default async function CommunityListingsPage(props: {
     !surface &&
     !format &&
     !skillLevel &&
+    !eventType &&
     near === null &&
     listings.length > 0;
   const itemListJsonLd = isCanonicalList
@@ -207,6 +213,7 @@ export default async function CommunityListingsPage(props: {
     ...(surface ? { surface } : {}),
     ...(format ? { format } : {}),
     ...(skillLevel ? { skill: skillLevel } : {}),
+    ...(eventType ? { type: eventType } : {}),
   };
   // All active state, preserved when switching tabs / applying filters / paging.
   const filterQuery: Record<string, string> = {
@@ -221,7 +228,7 @@ export default async function CommunityListingsPage(props: {
   };
   // "Clear filters" drops the surface/format/skill dropdowns but keeps the tab +
   // any active location (which has its own "Clear location" affordance). (CU-6)
-  const hasFilters = Boolean(surface || format || skillLevel);
+  const hasFilters = Boolean(surface || format || skillLevel || eventType);
   const clearFiltersQuery: Record<string, string> = {
     when,
     ...viewParam,
@@ -313,7 +320,7 @@ export default async function CommunityListingsPage(props: {
 
       <form
         method="get"
-        className="border-border-base bg-md-surface-container rounded-shape-sm grid gap-3 border p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
+        className="border-border-base bg-md-surface-container rounded-shape-sm grid gap-3 border p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]"
       >
         <input type="hidden" name="when" value={when} />
         {/* Preserve an active location across an Apply (the GET form would
@@ -325,6 +332,19 @@ export default async function CommunityListingsPage(props: {
             <input type="hidden" name="radiusKm" value={String(radiusKm)} />
           </>
         )}
+        <label className="text-sm">
+          <span className="text-muted block text-xs font-semibold tracking-wide uppercase">
+            Type
+          </span>
+          <select name="type" defaultValue={eventType ?? ''} className={fieldInputClass}>
+            <option value="">Any</option>
+            {EVENT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {TYPE_LABEL[t]}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="text-sm">
           <span className="text-muted block text-xs font-semibold tracking-wide uppercase">
             Surface

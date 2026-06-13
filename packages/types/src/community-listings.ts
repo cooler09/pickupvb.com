@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Format, SkillLevel, Surface } from '@pickupvb/domain';
+import { EventType, Format, Gender, SkillLevel, Surface } from '@pickupvb/domain';
 
 const enumValues = <T extends Record<string, string>>(e: T) =>
   Object.values(e) as [T[keyof T], ...T[keyof T][]];
@@ -35,6 +35,9 @@ const CommunityListingFields = z.object({
   surface: z.enum(enumValues(Surface)).optional().nullable(),
   format: z.enum(enumValues(Format)).optional().nullable(),
   skillLevel: z.enum(enumValues(SkillLevel)).optional().nullable(),
+  /** Event kind + gender, mirrored from the events model (for filter + badge). */
+  eventType: z.enum(enumValues(EventType)).optional().nullable(),
+  gender: z.enum(enumValues(Gender)).optional().nullable(),
 });
 
 export const CreateCommunityListingSchema = CommunityListingFields.refine(

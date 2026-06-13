@@ -33,6 +33,18 @@ const SKILLS = [
   ['advanced', 'Advanced'],
   ['competitive', 'Competitive'],
 ] as const;
+const EVENT_TYPES = [
+  ['', 'Unspecified'],
+  ['tournament', 'Tournament'],
+  ['league', 'League'],
+  ['open_play', 'Pickup / open play'],
+] as const;
+const GENDERS = [
+  ['', 'Any / mixed'],
+  ['mens', "Men's"],
+  ['womens', "Women's"],
+  ['coed', 'Coed'],
+] as const;
 
 export default function ImportClient() {
   const [jsonText, setJsonText] = useState('');
@@ -532,6 +544,41 @@ function DraftCard({
                 className={inputClass}
               >
                 {SKILLS.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>Type</label>
+              <select
+                value={draft.eventType ?? ''}
+                onChange={(e) =>
+                  onChange({ eventType: (e.target.value || null) as ListingDraft['eventType'] })
+                }
+                className={inputClass}
+              >
+                {EVENT_TYPES.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Gender</label>
+              <select
+                value={draft.gender ?? ''}
+                onChange={(e) =>
+                  onChange({ gender: (e.target.value || null) as ListingDraft['gender'] })
+                }
+                className={inputClass}
+              >
+                {GENDERS.map(([v, l]) => (
                   <option key={v} value={v}>
                     {l}
                   </option>
