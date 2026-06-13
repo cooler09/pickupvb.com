@@ -543,6 +543,8 @@ export class SupabaseEventRepository implements EventRepository {
       time_zone: string | null;
       city: string;
       region: string;
+      latitude: number | null;
+      longitude: number | null;
       spots_remaining: number | null;
       distance_km: number | null;
       series_name: string | null;
@@ -593,6 +595,8 @@ export class SupabaseEventRepository implements EventRepository {
       timeZone: r.time_zone,
       city: r.city,
       region: r.region,
+      latitude: r.latitude,
+      longitude: r.longitude,
       spotsRemaining: r.spots_remaining,
       distanceKm: r.distance_km,
       seriesName: r.series_name,
@@ -793,6 +797,10 @@ export class SupabaseEventRepository implements EventRepository {
         timeZone: r.time_zone,
         city: r.city,
         region: r.region,
+        // This list (profile attending/hosting) isn't mapped; like distanceKm,
+        // it leaves the map-only coords null rather than widening the view select.
+        latitude: null,
+        longitude: null,
         spotsRemaining,
         distanceKm: null,
         seriesName: r.series_name,
