@@ -401,6 +401,9 @@ export interface VolleyballEventSummary {
   timeZone: string | null;
   city: string;
   region: string;
+  /** Venue coordinates, or null when the event has no geocoded location (map pin). */
+  latitude: number | null;
+  longitude: number | null;
   spotsRemaining: number | null;
   distanceKm: number | null;
   /** Series breadcrumb (ADR 0006). */

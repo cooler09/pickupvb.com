@@ -11,11 +11,12 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { TILE, markerIcon } from './leaflet-tiles';
 
-export type CommunityPin = {
-  slug: string;
+export type MapPin = {
+  /** Internal route the popup links to, e.g. `/events/abc` or `/community/foo`. */
+  href: string;
   title: string;
-  city: string | null;
-  region: string | null;
+  /** Secondary line under the title (place, distance, …). Optional. */
+  subtitle?: string | null;
   latitude: number;
   longitude: number;
 };
@@ -28,7 +29,7 @@ const DEFAULT_ZOOM = 4;
  * Inner layer that owns the marker-cluster group. Lives under <MapContainer>
  * so it can grab the Leaflet map via useMap(). Rebuilds when `pins` change.
  */
-function ClusterLayer({ pins }: { pins: CommunityPin[] }) {
+function ClusterLayer({ pins }: { pins: MapPin[] }) {
   const map = useMap();
 
   useEffect(() => {
@@ -53,40 +54,39 @@ function ClusterLayer({ pins }: { pins: CommunityPin[] }) {
   return null;
 }
 
-// Build popup content as DOM nodes (not an HTML string) so listing titles —
-// which come from user/scraped submissions — can't inject markup.
-function buildPopup(pin: CommunityPin): HTMLElement {
+// Build popup content as DOM nodes (not an HTML string) so titles — which can
+// come from user/scraped submissions — can't inject markup.
+function buildPopup(pin: MapPin): HTMLElement {
   const el = document.createElement('div');
 
   const title = document.createElement('strong');
   title.textContent = pin.title;
   el.appendChild(title);
 
-  const place = [pin.city, pin.region].filter(Boolean).join(', ');
-  if (place) {
+  if (pin.subtitle) {
     el.appendChild(document.createElement('br'));
-    const placeEl = document.createElement('span');
-    placeEl.textContent = place;
-    el.appendChild(placeEl);
+    const sub = document.createElement('span');
+    sub.textContent = pin.subtitle;
+    el.appendChild(sub);
   }
 
   el.appendChild(document.createElement('br'));
   const link = document.createElement('a');
-  link.href = `/community/${pin.slug}`;
+  link.href = pin.href;
   link.textContent = 'View details →';
   el.appendChild(link);
 
   return el;
 }
 
-export default function CommunityMap({ pins }: { pins: CommunityPin[] }) {
+export default function PinMap({ pins }: { pins: MapPin[] }) {
   return (
     <MapContainer
       center={DEFAULT_CENTER}
       zoom={DEFAULT_ZOOM}
       scrollWheelZoom
       style={{ height: '70vh', minHeight: '420px', width: '100%', borderRadius: '0.5rem' }}
-      aria-label={`Map of ${pins.length} community volleyball ${pins.length === 1 ? 'event' : 'events'}`}
+      aria-label={`Map showing ${pins.length} ${pins.length === 1 ? 'location' : 'locations'}`}
     >
       <TileLayer attribution={TILE.attribution} url={TILE.url} maxZoom={19} />
       <ClusterLayer pins={pins} />

@@ -11,8 +11,8 @@ import { LocationSearch } from '../events/location-search';
 import { CommunityListingCard } from './_components/community-listing-card';
 import { CommunitySubmitActions } from './_components/community-submit-actions';
 import { MyHiddenCommunityListings } from './_components/my-hidden-community-listings';
-import CommunityMapLazy from '@/components/community-map-lazy';
-import type { CommunityPin } from '@/components/community-map';
+import PinMapLazy from '@/components/pin-map-lazy';
+import type { MapPin } from '@/components/pin-map';
 
 // ISR: the public (viewer-`null`) list is identical for every logged-out visitor
 // + crawler, so it serves per-URL (filters/page live in `searchParams`) from the
@@ -130,14 +130,13 @@ export default async function CommunityListingsPage(props: {
 
   // Map view draws every matching listing that has coordinates (not just the
   // current page slice) — pins are filtered to those the geocoder resolved.
-  const mapPins: CommunityPin[] = allListings.flatMap((l) =>
+  const mapPins: MapPin[] = allListings.flatMap((l) =>
     typeof l.latitude === 'number' && typeof l.longitude === 'number'
       ? [
           {
-            slug: l.slug,
+            href: `/community/${l.slug}`,
             title: l.title,
-            city: l.city,
-            region: l.region,
+            subtitle: [l.city, l.region].filter(Boolean).join(', ') || null,
             latitude: l.latitude,
             longitude: l.longitude,
           },
@@ -357,7 +356,7 @@ export default async function CommunityListingsPage(props: {
           </p>
         ) : (
           <div className="space-y-2">
-            <CommunityMapLazy pins={mapPins} />
+            <PinMapLazy pins={mapPins} />
             {mapPins.length < total && (
               <p className="text-muted text-xs">
                 Showing {mapPins.length} of {total} listings that have a mapped location — the rest

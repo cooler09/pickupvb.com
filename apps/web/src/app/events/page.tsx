@@ -11,6 +11,7 @@ import { EventTimeframeTabs } from './_components/event-timeframe-tabs';
 import { ActiveFilterChips } from './_components/active-filter-chips';
 import { primaryButtonClass } from '@/components/primary-button';
 import { Pagination } from '@/components/pagination';
+import PinMapLazy from '@/components/pin-map-lazy';
 import { loadEventsPage, PAGE_SIZE } from './_loaders/load-events-page';
 
 export const metadata: Metadata = {
@@ -46,6 +47,9 @@ export default async function EventsPage(props: {
     friendCount,
     friendNameById,
     pageEvents,
+    mapPins,
+    mappableCount,
+    view,
     total,
     page,
     flatParams,
@@ -57,6 +61,7 @@ export default async function EventsPage(props: {
     tabHref,
     buildRemoveHref,
     clearAllHref,
+    viewHref,
   } = await loadEventsPage(searchParams);
 
   return (
@@ -95,6 +100,26 @@ export default async function EventsPage(props: {
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <LocationSearch />
             <NearMeButton />
+            <div className="border-border-base rounded-shape-sm flex border p-0.5">
+              <Link
+                href={viewHref('cards')}
+                aria-current={view === 'cards' ? 'page' : undefined}
+                className={`rounded-[0.3rem] px-3 py-1 text-sm font-medium ${
+                  view === 'cards' ? 'bg-fg/10 text-fg' : 'text-muted hover:text-fg hover:bg-fg/5'
+                }`}
+              >
+                Cards
+              </Link>
+              <Link
+                href={viewHref('map')}
+                aria-current={view === 'map' ? 'page' : undefined}
+                className={`rounded-[0.3rem] px-3 py-1 text-sm font-medium ${
+                  view === 'map' ? 'bg-fg/10 text-fg' : 'text-muted hover:text-fg hover:bg-fg/5'
+                }`}
+              >
+                Map
+              </Link>
+            </div>
           </div>
         )}
       </div>
@@ -135,6 +160,31 @@ export default async function EventsPage(props: {
           clearAllHref={clearAllHref}
           canHost={signedIn}
         />
+      ) : view === 'map' ? (
+        mapPins.length === 0 ? (
+          <p className="bg-highlight/30 text-muted rounded-md p-6 text-center">
+            None of the {total} matching {total === 1 ? 'event has' : 'events have'} a mapped
+            location yet.{' '}
+            <Link href={viewHref('cards')} className="text-primary font-semibold hover:underline">
+              View as cards
+            </Link>
+            .
+          </p>
+        ) : (
+          <div className="space-y-2">
+            <PinMapLazy pins={mapPins} />
+            {mappableCount < total && (
+              <p className="text-muted text-xs">
+                Showing {mappableCount} of {total} events that have a mapped location — the rest are
+                visible in{' '}
+                <Link href={viewHref('cards')} className="text-primary hover:underline">
+                  card view
+                </Link>
+                .
+              </p>
+            )}
+          </div>
+        )
       ) : (
         <>
           <ul className="stagger-in grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

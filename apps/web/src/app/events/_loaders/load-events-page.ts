@@ -28,6 +28,9 @@ import {
 import type { Timeframe } from '../_components/event-timeframe-tabs';
 import type { FilterKey } from '../_components/active-filter-chips';
 import type { FollowingEmptyReason } from '../_components/events-empty-state';
+import type { MapPin } from '@/components/pin-map';
+
+export type EventsView = 'cards' | 'map';
 
 /** Cards per page in the events grid (fills the 3-column grid evenly). */
 export const PAGE_SIZE = 12;
@@ -49,6 +52,10 @@ export type EventsPageModel = {
   friendCount: number;
   friendNameById: Map<string, string>;
   pageEvents: EventCardData[];
+  /** Map pins for every matching event with coordinates (full set, not the page slice). */
+  mapPins: MapPin[];
+  mappableCount: number;
+  view: EventsView;
   total: number;
   page: number;
   flatParams: Record<string, string | undefined>;
@@ -60,6 +67,7 @@ export type EventsPageModel = {
   tabHref: (target: Timeframe) => Route;
   buildRemoveHref: (key: FilterKey) => Route;
   clearAllHref: Route;
+  viewHref: (target: EventsView) => Route;
 };
 
 function pick<T extends string>(value: string | undefined, allowed: readonly T[]): T | undefined {
@@ -128,10 +136,17 @@ export async function loadEventsPage(
     explicitWhen ??
     (user && friendIds.length >= FOLLOWING_DEFAULT_THRESHOLD ? 'following' : 'upcoming');
 
+  // Card ⇄ map toggle. The Following feed isn't location-scoped (and carries no
+  // coords), so map view only applies to the upcoming/past search tabs.
+  const view: EventsView = get('view') === 'map' && when !== 'following' ? 'map' : 'cards';
+
   const now = new Date();
 
   let events: EventCardData[] = [];
   let followingEmptyReason: FollowingEmptyReason = null;
+  // Coordinates for the map, keyed by event id (only the search tabs populate
+  // this — the `search_events` RPC projects lat/lng).
+  const coordsById = new Map<string, { latitude: number; longitude: number }>();
 
   if (when === 'following') {
     if (!user) {
@@ -218,6 +233,11 @@ export async function loadEventsPage(
       isFundraiser: e.isFundraiser,
       divisions: e.divisions,
     }));
+    for (const e of rawEvents) {
+      if (typeof e.latitude === 'number' && typeof e.longitude === 'number') {
+        coordsById.set(e.id, { latitude: e.latitude, longitude: e.longitude });
+      }
+    }
   }
 
   // Free / Paid filter, in-memory over the fetched set (price isn't a search
@@ -242,6 +262,23 @@ export async function loadEventsPage(
       return minPriceCents(a) - minPriceCents(b);
     });
   }
+
+  // Map pins for the full (filtered) result set — events without coordinates
+  // are simply absent from the map, still visible in the card list.
+  const mapPins: MapPin[] = events.flatMap((e) => {
+    const c = coordsById.get(e.id);
+    if (!c) return [];
+    return [
+      {
+        href: `/events/${e.id}`,
+        title: e.title,
+        subtitle: [e.city, e.region].filter(Boolean).join(', ') || null,
+        latitude: c.latitude,
+        longitude: c.longitude,
+      },
+    ];
+  });
+  const mappableCount = mapPins.length;
 
   const communityListings =
     when === 'upcoming'
@@ -309,6 +346,11 @@ export async function loadEventsPage(
         params.set('lng', String(lng));
         params.set('radiusKm', String(radiusKm));
       }
+      // Preserve the card/map view across tab/filter/chip navigation. Cards is
+      // the default, so only `map` is serialized.
+      const targetView =
+        overrides.view !== undefined ? overrides.view : view === 'map' ? 'map' : null;
+      if (targetView === 'map') params.set('view', 'map');
     }
     const q = params.toString();
     return (q ? `/events?${q}` : '/events') as Route;
@@ -316,7 +358,13 @@ export async function loadEventsPage(
 
   const tabHref = (target: Timeframe): Route => buildHref({ when: target });
   const buildRemoveHref = (key: FilterKey): Route => buildHref({ [key]: null });
-  const clearAllHref = (when === 'upcoming' ? '/events' : `/events?when=${when}`) as Route;
+  const viewHref = (target: EventsView): Route => buildHref({ view: target });
+  const clearAllBase = when === 'upcoming' ? '/events' : `/events?when=${when}`;
+  const clearAllHref = (
+    view === 'map'
+      ? `${clearAllBase}${clearAllBase.includes('?') ? '&' : '?'}view=map`
+      : clearAllBase
+  ) as Route;
 
   // Paginate the result set in-memory. Filter/tab/chip links don't carry a
   // `page` param, so changing a filter naturally resets to page 1; clamp here
@@ -354,6 +402,9 @@ export async function loadEventsPage(
     friendCount: friendIds.length,
     friendNameById,
     pageEvents,
+    mapPins,
+    mappableCount,
+    view,
     total,
     page,
     flatParams,
@@ -365,5 +416,6 @@ export async function loadEventsPage(
     tabHref,
     buildRemoveHref,
     clearAllHref,
+    viewHref,
   };
 }
