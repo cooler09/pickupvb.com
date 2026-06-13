@@ -16,7 +16,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 40.16343,
-    "longitude": -76.39496
+    "longitude": -76.39496,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "USA Volleyball Beach National Championship",
@@ -35,7 +37,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 36.85293,
-    "longitude": -75.97799
+    "longitude": -75.97799,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "AXV Beach #3 Regional Qualifier",
@@ -54,7 +58,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 35.222,
-    "longitude": -101.8313
+    "longitude": -101.8313,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "AXV Beach #4 Regional Qualifier",
@@ -73,7 +79,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 35.222,
-    "longitude": -101.8313
+    "longitude": -101.8313,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Market City Tournament 4 (Carolina Region)",
@@ -92,7 +100,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 35.70791,
-    "longitude": -79.81364
+    "longitude": -79.81364,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Bluegrass Beach Bash #2 (Pioneer Region BRQ)",
@@ -111,7 +121,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 36.99032,
-    "longitude": -86.4436
+    "longitude": -86.4436,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Bluegrass Beach Bash #3 (Pioneer Region BRQ)",
@@ -130,7 +142,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 36.99032,
-    "longitude": -86.4436
+    "longitude": -86.4436,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "June First Wave Chesapeake Beach Regional Qualifier",
@@ -149,7 +163,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 38.6918,
-    "longitude": -75.076
+    "longitude": -75.076,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "June Second Wave Chesapeake Beach Regional Qualifier",
@@ -168,7 +184,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 38.6918,
-    "longitude": -75.076
+    "longitude": -75.076,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Carolina Beach Boogie Regional Qualifier",
@@ -187,7 +205,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 35.07681,
-    "longitude": -80.66924
+    "longitude": -80.66924,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "WEVA Beach Regional Qualifier",
@@ -206,7 +226,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 43.15478,
-    "longitude": -77.61556
+    "longitude": -77.61556,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Jun 13)",
@@ -225,7 +247,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Mission Beach, San Diego (Jun 13)",
@@ -244,7 +268,9 @@
     "format": "doubles",
     "skillLevel": "competitive",
     "latitude": 32.71533,
-    "longitude": -117.15726
+    "longitude": -117.15726,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Jun 13)",
@@ -263,7 +289,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 36.97412,
-    "longitude": -122.0308
+    "longitude": -122.0308,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Belmont Shore, Long Beach (Jun 14)",
@@ -282,7 +310,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.76696,
-    "longitude": -118.18923
+    "longitude": -118.18923,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — North Beach, Santa Monica (Jun 14)",
@@ -301,7 +331,9 @@
     "format": "doubles",
     "skillLevel": "competitive",
     "latitude": 34.01945,
-    "longitude": -118.49119
+    "longitude": -118.49119,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Belmont Shore, Long Beach (Jul 4)",
@@ -320,7 +352,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.76696,
-    "longitude": -118.18923
+    "longitude": -118.18923,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Belmont Shore, Long Beach (Jul 5)",
@@ -339,7 +373,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.76696,
-    "longitude": -118.18923
+    "longitude": -118.18923,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Jul 11)",
@@ -358,7 +394,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Ocean Beach, San Diego (Jul 11)",
@@ -377,7 +415,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 32.71533,
-    "longitude": -117.15726
+    "longitude": -117.15726,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Jul 11)",
@@ -396,7 +436,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 36.97412,
-    "longitude": -122.0308
+    "longitude": -122.0308,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Beach Blvd, Huntington Beach (Jul 12)",
@@ -415,7 +457,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.6603,
-    "longitude": -117.99923
+    "longitude": -117.99923,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — East Beach, Santa Barbara (Jul 12)",
@@ -434,7 +478,9 @@
     "format": "doubles",
     "skillLevel": "competitive",
     "latitude": 34.42083,
-    "longitude": -119.69819
+    "longitude": -119.69819,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Waterfront Park, Monterey (Jul 18)",
@@ -453,7 +499,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 36.60024,
-    "longitude": -121.89468
+    "longitude": -121.89468,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Jul 18)",
@@ -472,7 +520,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 34.01945,
-    "longitude": -118.49119
+    "longitude": -118.49119,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Jul 19)",
@@ -491,7 +541,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 34.01945,
-    "longitude": -118.49119
+    "longitude": -118.49119,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Jul 25)",
@@ -510,7 +562,9 @@
     "format": "doubles",
     "skillLevel": "competitive",
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Ocean Beach, San Diego (Jul 25)",
@@ -529,7 +583,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 32.71533,
-    "longitude": -117.15726
+    "longitude": -117.15726,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Jul 25)",
@@ -548,7 +604,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 36.97412,
-    "longitude": -122.0308
+    "longitude": -122.0308,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Jul 26)",
@@ -567,7 +625,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Waterfront Park, Monterey (Aug 1)",
@@ -586,7 +646,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 36.60024,
-    "longitude": -121.89468
+    "longitude": -121.89468,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "Michelob Ultra Premier (CBVA Open) — Hermosa Beach",
@@ -605,7 +667,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.86224,
-    "longitude": -118.39952
+    "longitude": -118.39952,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Rosecrans, Manhattan Beach (Aug 2)",
@@ -624,7 +688,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "CBVA Beach Doubles — Ocean Beach, San Diego (Aug 8)",
@@ -643,7 +709,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 32.71533,
-    "longitude": -117.15726
+    "longitude": -117.15726,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Aug 8)",
@@ -662,7 +730,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 36.97412,
-    "longitude": -122.0308
+    "longitude": -122.0308,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Aug 8)",
@@ -681,7 +751,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 34.01945,
-    "longitude": -118.49119
+    "longitude": -118.49119,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Coed 4s — Marine Ave, Manhattan Beach (Aug 9)",
@@ -700,7 +772,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Aug 9)",
@@ -719,7 +793,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 34.01945,
-    "longitude": -118.49119
+    "longitude": -118.49119,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Aug 15)",
@@ -738,7 +814,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 34.01945,
-    "longitude": -118.49119
+    "longitude": -118.49119,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Aug 16)",
@@ -757,7 +835,9 @@
     "format": "doubles",
     "skillLevel": "competitive",
     "latitude": 34.01945,
-    "longitude": -118.49119
+    "longitude": -118.49119,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Aug 22)",
@@ -776,7 +856,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Ocean Beach, San Diego (Aug 22)",
@@ -795,7 +877,9 @@
     "format": "doubles",
     "skillLevel": "competitive",
     "latitude": 32.71533,
-    "longitude": -117.15726
+    "longitude": -117.15726,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Aug 22)",
@@ -814,7 +898,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 36.97412,
-    "longitude": -122.0308
+    "longitude": -122.0308,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Aug 23)",
@@ -833,7 +919,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Waterfront Park, Monterey (Aug 29)",
@@ -852,7 +940,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 36.60024,
-    "longitude": -121.89468
+    "longitude": -121.89468,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "CBVA Beach Doubles — Hermosa Pier, Hermosa Beach (Sep 5)",
@@ -871,7 +961,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.86224,
-    "longitude": -118.39952
+    "longitude": -118.39952,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Hermosa Pier, Hermosa Beach (Sep 6)",
@@ -890,7 +982,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.86224,
-    "longitude": -118.39952
+    "longitude": -118.39952,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Manhattan Pier, Manhattan Beach (Sep 6)",
@@ -909,7 +1003,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Main Beach, Santa Cruz (Sep 12)",
@@ -928,7 +1024,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 36.97412,
-    "longitude": -122.0308
+    "longitude": -122.0308,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Sep 12)",
@@ -947,7 +1045,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 34.01945,
-    "longitude": -118.49119
+    "longitude": -118.49119,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Ocean Park, Santa Monica (Sep 13)",
@@ -966,7 +1066,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 34.01945,
-    "longitude": -118.49119
+    "longitude": -118.49119,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Marine Ave, Manhattan Beach (Sep 19)",
@@ -985,7 +1087,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Waterfront Park, Monterey (Sep 19)",
@@ -1004,7 +1108,9 @@
     "format": "doubles",
     "skillLevel": "competitive",
     "latitude": 36.60024,
-    "longitude": -121.89468
+    "longitude": -121.89468,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "CBVA Beach Doubles — Marine Ave, Manhattan Beach (Sep 20)",
@@ -1023,7 +1129,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.88474,
-    "longitude": -118.41091
+    "longitude": -118.41091,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Belmont Shore, Long Beach (Sep 26)",
@@ -1042,7 +1150,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.76696,
-    "longitude": -118.18923
+    "longitude": -118.18923,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "CBVA Beach Doubles — Dockweiler, Los Angeles (Sep 26)",
@@ -1061,7 +1171,9 @@
     "format": "doubles",
     "skillLevel": "competitive",
     "latitude": 34.05223,
-    "longitude": -118.24368
+    "longitude": -118.24368,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Series — Montrose Beach, Chicago (Jun 27)",
@@ -1080,7 +1192,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Jul 3)",
@@ -1099,7 +1213,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Jul 12)",
@@ -1118,7 +1234,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Aug 2)",
@@ -1137,7 +1255,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Series — Montrose Beach, Chicago (Aug 15)",
@@ -1156,7 +1276,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Series — Montrose Beach, Chicago (Aug 29)",
@@ -1175,7 +1297,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Sep 7)",
@@ -1194,7 +1318,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Sep 19)",
@@ -1213,7 +1339,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Series — North Avenue Beach, Chicago (Oct 3)",
@@ -1232,7 +1360,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Jun 19)",
@@ -1251,7 +1381,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Jul 10)",
@@ -1270,7 +1402,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Jul 31)",
@@ -1289,7 +1423,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Aug 7)",
@@ -1308,7 +1444,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Aug 21)",
@@ -1327,7 +1465,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Aug 28)",
@@ -1346,7 +1486,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Players Friday Night 4s — North Avenue Beach, Chicago (Sep 11)",
@@ -1365,7 +1507,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Jun 20)",
@@ -1384,7 +1528,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Jul 5)",
@@ -1403,7 +1549,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Jul 19)",
@@ -1422,7 +1570,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Aug 8)",
@@ -1441,7 +1591,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Aug 23)",
@@ -1460,7 +1612,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Sep 26)",
@@ -1479,7 +1633,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Oct 10)",
@@ -1498,7 +1654,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Oct 24)",
@@ -1517,7 +1675,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Nov 14)",
@@ -1536,7 +1696,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Grass Series — Montrose, Chicago (Nov 28)",
@@ -1555,7 +1717,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Players Beach Slap Party & Tournament",
@@ -1574,7 +1738,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Players Big Dig Party & Tournament",
@@ -1593,7 +1759,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Players Luau Volleyball Weekend",
@@ -1612,7 +1780,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Six Pack Beach Volleyball Tournament",
@@ -1631,7 +1801,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleywood Beach Volleyball Tournament",
@@ -1650,7 +1822,9 @@
     "format": null,
     "skillLevel": null,
     "latitude": 41.85003,
-    "longitude": -87.65005
+    "longitude": -87.65005,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Angry Dragon DragonSlayer (Grass 2s)",
@@ -1669,7 +1843,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.89816,
-    "longitude": -84.28326
+    "longitude": -84.28326,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Angry Dragon DragonSlayer (Reverse Coed 3s)",
@@ -1688,7 +1864,9 @@
     "format": "triples",
     "skillLevel": null,
     "latitude": 33.89816,
-    "longitude": -84.28326
+    "longitude": -84.28326,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Angry Dragon Tripocalypse (Grass 2s)",
@@ -1707,7 +1885,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 33.89816,
-    "longitude": -84.28326
+    "longitude": -84.28326,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Angry Dragon Tripocalypse (Coed 3s)",
@@ -1726,7 +1906,9 @@
     "format": "triples",
     "skillLevel": null,
     "latitude": 33.89816,
-    "longitude": -84.28326
+    "longitude": -84.28326,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Angry Dragon Volloween (Reverse Coed 4s)",
@@ -1745,7 +1927,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 33.89816,
-    "longitude": -84.28326
+    "longitude": -84.28326,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Spikefest (Dallas) — Sand 3s",
@@ -1764,7 +1948,9 @@
     "format": "triples",
     "skillLevel": null,
     "latitude": 33.10317,
-    "longitude": -96.67055
+    "longitude": -96.67055,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "MotherLode Volleyball Classic",
@@ -1783,7 +1969,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 39.1911,
-    "longitude": -106.81754
+    "longitude": -106.81754,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Houston SSC — King/Queen of the Court (Sand 2s)",
@@ -1802,7 +1990,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 29.76328,
-    "longitude": -95.36327
+    "longitude": -95.36327,
+    "eventType": "league",
+    "gender": "womens"
   },
   {
     "title": "Houston SSC — Playin' for Pride Charity (Sand 4s)",
@@ -1821,7 +2011,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 29.76328,
-    "longitude": -95.36327
+    "longitude": -95.36327,
+    "eventType": "league",
+    "gender": "coed"
   },
   {
     "title": "Houston SSC — Playin' for Camp Safety Charity (Sand 4s)",
@@ -1840,7 +2032,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 29.76328,
-    "longitude": -95.36327
+    "longitude": -95.36327,
+    "eventType": "league",
+    "gender": "coed"
   },
   {
     "title": "SandBar SLC — Coed 4s (Jun 20)",
@@ -1859,7 +2053,9 @@
     "format": "quads",
     "skillLevel": null,
     "latitude": 40.84856,
-    "longitude": -111.90688
+    "longitude": -111.90688,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "SandBar SLC — Coed 2s (AA/A/BB) (Jun 27)",
@@ -1878,7 +2074,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 40.84856,
-    "longitude": -111.90688
+    "longitude": -111.90688,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "SandBar SLC — Men's/Women's 3s (Jul 25)",
@@ -1897,7 +2095,9 @@
     "format": "triples",
     "skillLevel": null,
     "latitude": 40.84856,
-    "longitude": -111.90688
+    "longitude": -111.90688,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "SandBar SLC — Coed 2s — Real Estate Summer Slam (Aug 1)",
@@ -1916,7 +2116,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 40.84856,
-    "longitude": -111.90688
+    "longitude": -111.90688,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "SandBar South — Men's/Women's 2s (Jul 11)",
@@ -1935,7 +2137,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 40.48967,
-    "longitude": -111.93882
+    "longitude": -111.93882,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "SandBar South — Men's/Women's 2s (Jul 18)",
@@ -1954,7 +2158,9 @@
     "format": "doubles",
     "skillLevel": null,
     "latitude": 40.48967,
-    "longitude": -111.93882
+    "longitude": -111.93882,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "OLD AF BEACH DOUBLES",
@@ -1973,7 +2179,9 @@
     "longitude": -95.592867,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "AVP 1-Star Juniors Evening Event & Adult King Tournament 2026",
@@ -1992,7 +2200,9 @@
     "longitude": -93.21497,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Dig It AVP (AVPA Qualifier) '26 (RallyVB ATL)",
@@ -2011,7 +2221,9 @@
     "longitude": -84.745783,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Virginia Beach Open Stay & Play",
@@ -2030,7 +2242,9 @@
     "longitude": -75.977508,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "46th ANNUAL MARINA GREEN OPEN - Saturday Mens/Womens/Jrs. Grass Doubles",
@@ -2049,7 +2263,9 @@
     "longitude": -122.439016,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "USA Volleyball Beach Tour - 501 Volley North Little Rock - Delta Region National Qualifier June 13-14, 2026",
@@ -2068,7 +2284,9 @@
     "longitude": -92.213842,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Blue Sky Adult June '26",
@@ -2087,7 +2305,9 @@
     "longitude": -79.06327,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Dig Appointment Summer Series - Men's & Women's Doubles",
@@ -2106,7 +2326,9 @@
     "longitude": -77.318032,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Total Prime Sports Series AVP #8",
@@ -2125,7 +2347,9 @@
     "longitude": -89.930833,
     "surface": "sand",
     "format": null,
-    "skillLevel": "advanced"
+    "skillLevel": "advanced",
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Rat Lord Rodent Rumble",
@@ -2144,7 +2368,9 @@
     "longitude": -82.0918,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "PLAYERS PARTY! Kona Big Wave Summer Splash - Women's/Men's/Junior Boys",
@@ -2163,7 +2389,9 @@
     "longitude": -74.034652,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "GAV Grass Season Opener",
@@ -2182,7 +2410,9 @@
     "longitude": -74.451147,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "AVP 💵 'n National Qualifier",
@@ -2201,7 +2431,9 @@
     "longitude": -111.629119,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Truly $2500 Semi Coed 4x4- Check in 5pm",
@@ -2220,7 +2452,9 @@
     "longitude": -96.940878,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Naples Father Daughter 4 on 4 Tourney Saturday 13 June 2026",
@@ -2239,7 +2473,9 @@
     "longitude": -81.809978,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "The 4 Eyes Beach Tournament by Out of System",
@@ -2258,7 +2494,9 @@
     "longitude": -118.402277,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Late Night Legends COED 2s",
@@ -2277,7 +2515,9 @@
     "longitude": -95.112703,
     "surface": "sand",
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Women's Queen of the Beach",
@@ -2296,7 +2536,9 @@
     "longitude": -93.21497,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Grassroots: M/W 3s (SAT 6/13) + REVCO 2s (SUN 6/14) - 2026",
@@ -2315,7 +2557,9 @@
     "longitude": -82.593787,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Shank City VB: Participation Trophy, Vol. 2 - M/W Doubles",
@@ -2334,7 +2578,9 @@
     "longitude": -79.104749,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "UFDA Spikes",
@@ -2353,7 +2599,9 @@
     "longitude": -93.580844,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "The Grand Prize (15k Guaranteed Prize Pool)",
@@ -2372,7 +2620,9 @@
     "longitude": -80.983603,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Florida Dinosaur Doubles - Spring 2026",
@@ -2391,7 +2641,9 @@
     "longitude": -82.742547,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "TLS | 10th Annual Triplepalooza '26",
@@ -2410,7 +2662,9 @@
     "longitude": -122.020523,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 OKRVA Beach Regional Championships",
@@ -2429,7 +2683,9 @@
     "longitude": -97.47659,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "HDVA: Grass Revco 2's",
@@ -2448,7 +2704,9 @@
     "longitude": -121.322997,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "NVC Tournament 3",
@@ -2467,7 +2725,9 @@
     "longitude": -71.292681,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "M/W Grass Triples Cash Payout Volleyball Tournament",
@@ -2486,7 +2746,9 @@
     "longitude": -96.130156,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "SSOVA's June 13/14 Men's/Women's/Coed’s St. Pete Beach, Beach Volleyball Tournament",
@@ -2505,7 +2767,9 @@
     "longitude": -82.751375,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Blind Draw 4s",
@@ -2524,7 +2788,9 @@
     "longitude": -96.522244,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Best of the Beach 4s Tournament",
@@ -2543,7 +2809,9 @@
     "longitude": -73.672605,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Mid-Year Chaser Men's And Women's Doubles Tournament '26",
@@ -2562,7 +2830,9 @@
     "longitude": -94.585578,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Oremfest Summer Volleyball Tournament",
@@ -2581,7 +2851,9 @@
     "longitude": -111.710213,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "A Sizzlin Good Time- Adult M/W Doubles and Juniors",
@@ -2600,7 +2872,9 @@
     "longitude": -117.238363,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Mt Vernon Volleyball Fundraiser - coed reverse 4v4 2026, 6p",
@@ -2619,7 +2893,9 @@
     "longitude": -86.145916,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "BYOT Co-ed 4's (Minimum 1 Woman) #2 2026",
@@ -2638,7 +2914,9 @@
     "longitude": -97.47255,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Boise Bounce '26",
@@ -2657,7 +2935,9 @@
     "longitude": -116.43039,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Saturday Triples - The Raiders Open",
@@ -2676,7 +2956,9 @@
     "longitude": -87.909269,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Block Party - Adult Co-Ed 4's",
@@ -2695,7 +2977,9 @@
     "longitude": -95.196018,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Balls & Chains 2026",
@@ -2714,7 +2998,9 @@
     "longitude": -94.585578,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "True North: Polaris Series Reverse Coed Quads",
@@ -2733,7 +3019,9 @@
     "longitude": -93.249375,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "ADV Dragon Slayer (Day 1 - Men's & Women's Grass 2's)",
@@ -2752,7 +3040,9 @@
     "longitude": -84.262448,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "6/13/2026 SAND RCO 2s",
@@ -2771,7 +3061,9 @@
     "longitude": -71.944968,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Drew University Grass Tournament",
@@ -2790,7 +3082,9 @@
     "longitude": -74.426639,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Nashville Beach Men's & Women's 2's   AA, A, BB",
@@ -2809,7 +3103,9 @@
     "longitude": -86.898758,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Highline - Men's/Women's Open",
@@ -2828,7 +3124,9 @@
     "longitude": -118.488446,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "WVS Adult Coed Doubles",
@@ -2847,6 +3145,8 @@
     "longitude": -77.89239,
     "surface": "sand",
     "format": null,
-    "skillLevel": "advanced"
+    "skillLevel": "advanced",
+    "eventType": "tournament",
+    "gender": "coed"
   }
 ]

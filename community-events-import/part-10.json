@@ -16,7 +16,9 @@
     "longitude": -118.49119,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": "womens"
   },
   {
     "title": "Thursday - Intermediate Indoor Volleyball - South San Jose",
@@ -35,7 +37,9 @@
     "longitude": -121.89496,
     "surface": "indoor",
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Beginner Sand Volleyball - Mountain View",
@@ -54,7 +58,9 @@
     "longitude": -122.11746,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Friday - Competitive Beach Volleyball - Arlington",
@@ -73,7 +79,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Friday - Volleyball - Somerville",
@@ -92,7 +100,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Friday - World Cup 6v6 Open (B/C) Beach Volleyball - Canton",
@@ -111,7 +121,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Friday - Volleyball - Somerville",
@@ -130,7 +142,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Friday - Volleyball - Somerville",
@@ -149,7 +163,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Friday - 6v6 Open (B/C) Beach Volleyball - Federal Hill",
@@ -168,7 +184,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Friday - Rec/Int (6v6 Coed) Sand Volleyball - RiNo",
@@ -187,7 +205,9 @@
     "longitude": -104.9847,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": "coed"
   },
   {
     "title": "Friday - (6v6 Coed) Rec/Int Volleyball - RiNo",
@@ -206,7 +226,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": "coed"
   },
   {
     "title": "Saturday - Competitive Beach Volleyball - Arlington",
@@ -225,7 +247,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball - Somerville",
@@ -244,7 +268,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Grass Volleyball - Adams Morgan",
@@ -263,7 +289,9 @@
     "longitude": -77.10026,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - 6v6 Open (B/C) Beach Volleyball - Federal Hill",
@@ -282,7 +310,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - World Cup 6v6 Open (B/C) Beach Volleyball - Canton",
@@ -301,7 +331,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - 2v2 Volleyball - Arlington",
@@ -320,7 +352,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball - Somerville",
@@ -339,7 +373,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Grass Volleyball - Adams Morgan",
@@ -358,7 +394,9 @@
     "longitude": -77.0369,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball Dating Event - Lower East Side",
@@ -377,7 +415,9 @@
     "longitude": -74.006,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Saturday - Rec/Int PM- 2 Games/Week (6v6 Coed) Sand Volleyball - South Broadway",
@@ -396,7 +436,9 @@
     "longitude": -104.9847,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": "coed"
   },
   {
     "title": "Volo Beach Volleyball Classic II",
@@ -415,7 +457,9 @@
     "longitude": -104.9847,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "7/25 - Saturday Bumps After Dark:  A Volleyball Lock-in (Kind-of) - Volo Sports Arena (RiNo)",
@@ -434,7 +478,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Saturday - Rec (6v6 Coed) Sand Volleyball - RiNo",
@@ -453,7 +499,9 @@
     "longitude": -104.9847,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": "coed"
   },
   {
     "title": "Sunday - AM Beach Volleyball - Arlington",
@@ -472,7 +520,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - 2v2 Beach Volleyball - Arlington",
@@ -491,7 +541,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday Evening - 6v6 Open (B/C) Beach Volleyball - Federal Hill",
@@ -510,7 +562,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Competitive Beach Volleyball - Arlington",
@@ -529,7 +583,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Volleyball - National Mall",
@@ -548,7 +604,9 @@
     "longitude": -77.0369,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Beach Volleyball - Lincoln Beach",
@@ -567,7 +625,9 @@
     "longitude": -77.0369,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - 6v6 Open (B/C) Beach Volleyball - Canton",
@@ -586,7 +646,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Beginner Sand Volleyball - Mountain View",
@@ -605,7 +667,9 @@
     "longitude": -122.11746,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Intermediate Sand Volleyball - Mountain View",
@@ -624,7 +688,9 @@
     "longitude": -122.11746,
     "surface": "sand",
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Volleyball - Boston - Downtown",
@@ -643,7 +709,9 @@
     "longitude": -71.05977,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Morristown",
@@ -662,7 +730,9 @@
     "longitude": -74.48099,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Indoor Volleyball - Manayunk",
@@ -681,7 +751,9 @@
     "longitude": -75.16379,
     "surface": "indoor",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Grass Volleyball - Manayunk",
@@ -700,7 +772,9 @@
     "longitude": -75.16379,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Volleyball - Morristown",
@@ -719,7 +793,9 @@
     "longitude": -74.48099,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Grass Volleyball - Manayunk",
@@ -738,7 +814,9 @@
     "longitude": -75.16379,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Volleyball - South Boston",
@@ -757,7 +835,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Volleyball - South Boston",
@@ -776,7 +856,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Volleyball - Somerville",
@@ -795,7 +877,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Volleyball - South Boston",
@@ -814,7 +898,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Volleyball - Williamsburg",
@@ -833,7 +919,9 @@
     "longitude": -73.94958,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Volleyball - Somerville",
@@ -852,7 +940,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Volleyball - South Boston",
@@ -871,7 +961,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - South Boston",
@@ -890,7 +982,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Somerville",
@@ -909,7 +1003,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Williamsburg",
@@ -928,7 +1024,9 @@
     "longitude": -73.94958,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Volleyball - Somerville",
@@ -947,7 +1045,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Friday - Volleyball - Somerville",
@@ -966,7 +1066,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Beach Volleyball City Champ Tournament",
@@ -985,7 +1087,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Sunday - Volleyball - South Boston",
@@ -1004,7 +1108,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Volleyball - South Boston",
@@ -1023,7 +1129,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - 4v4 Competitive (A/BB) Beach Volleyball - Canton",
@@ -1042,7 +1150,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - 6v6 Open (B/C) Beach Volleyball - Federal Hill",
@@ -1061,7 +1171,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Beach Volleyball - Arlington",
@@ -1080,7 +1192,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - 4v4 Open Competitive (A/BB) Beach Volleyball - Federal Hill",
@@ -1099,7 +1213,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - 4v4 Open Competitive (A/BB) Beach Volleyball - Canton",
@@ -1118,7 +1234,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Beach Volleyball - Arlington",
@@ -1137,7 +1255,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - 4v4 Open Competitive (A/BB) Beach Volleyball - Federal Hill",
@@ -1156,7 +1276,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - SPRINT Grass Volleyball - Nat'l Mall",
@@ -1175,7 +1297,9 @@
     "longitude": -77.0369,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - 6v6 (B/C) Beach Volleyball - Federal Hill",
@@ -1194,7 +1318,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Social 4v4 Volleyball - Ocean Beach",
@@ -1213,7 +1339,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Social 6v6 Beach Volleyball - Pacific Beach",
@@ -1232,7 +1360,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday 5PM - Social 6v6 Beach Volleyball - Pacific Beach",
@@ -1251,7 +1381,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Intermediate 4v4 Volleyball - Ocean Beach",
@@ -1270,7 +1402,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - 4v4 Competitive (A/BB) Beach Volleyball - Federal Hill",
@@ -1289,7 +1423,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Beach Volleyball - Arlington",
@@ -1308,7 +1444,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - 6v6 (B/C) Beach Volleyball - Canton",
@@ -1327,7 +1465,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - 6v6 (B/C) Beach Volleyball - Federal Hill",
@@ -1346,7 +1486,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Social 6v6 Beach Volleyball - Pacific Beach",
@@ -1365,7 +1507,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Intermediate 4v4 Volleyball - Ocean Beach",
@@ -1384,7 +1528,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Competitive 4v4 Volleyball - Ocean Beach",
@@ -1403,7 +1549,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - 6v6 (B/C) Beach Volleyball - Federal Hill",
@@ -1422,7 +1570,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - SPRINT Grass Volleyball - Nat'l Mall",
@@ -1441,7 +1591,9 @@
     "longitude": -77.0369,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - 6v6 Social (C) Beach Volleyball + Flip Cup - Federal Hill",
@@ -1460,7 +1612,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - 6v6 Social (C) Beach Volleyball + Flip Cup - Canton",
@@ -1479,7 +1633,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Beach Volleyball - Arlington",
@@ -1498,7 +1654,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Social 4v4 Volleyball - Ocean Beach",
@@ -1517,7 +1675,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Social 6v6 Beach Volleyball - Pacific Beach",
@@ -1536,7 +1696,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Intermediate 4v4 Volleyball - Ocean Beach",
@@ -1555,7 +1717,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Friday - 6v6 Open (B/C) Beach Volleyball - Canton",
@@ -1574,7 +1738,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - 6v6 Open (B/C) Beach Volleyball - Canton",
@@ -1593,7 +1759,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball - Ocean Beach",
@@ -1612,7 +1780,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball - Ocean Beach",
@@ -1631,7 +1801,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball - Ocean Beach",
@@ -1650,7 +1822,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball - Ocean Beach",
@@ -1669,7 +1843,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball - Ocean Beach",
@@ -1688,7 +1864,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Beach Volleyball - Arlington",
@@ -1707,7 +1885,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - 6v6 Open (B/C) Beach Volleyball - Canton",
@@ -1726,7 +1906,9 @@
     "longitude": -76.61219,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Volleyball - Pacific Beach",
@@ -1745,7 +1927,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday PM - Doubleheader Social 4v4 Volleyball - Ocean Beach",
@@ -1764,7 +1948,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday PM - Doubleheader Intermediate 4v4 Volleyball - Ocean Beach",
@@ -1783,7 +1969,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday AM - Doubleheader Intermediate 4v4 Volleyball - Ocean Beach",
@@ -1802,7 +1990,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday AM - Doubleheader Competitive 4v4 Volleyball - Ocean Beach",
@@ -1821,7 +2011,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Volleyball - Morristown",
@@ -1840,7 +2032,9 @@
     "longitude": -74.481,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Intermediate Volleyball - Marina",
@@ -1859,7 +2053,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Recreational Volleyball - The Mission",
@@ -1878,7 +2074,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Beginner Volleyball Team Lessons - Clairemont",
@@ -1897,7 +2095,9 @@
     "longitude": -117.15726,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Intermediate Volleyball - The Mission",
@@ -1916,7 +2116,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Social 6v6 Beach Volleyball - Pacific Beach",
@@ -1935,7 +2137,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Corporate League Volleyball - The Mission",
@@ -1954,7 +2158,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Grass Volleyball - The Mission",
@@ -1973,7 +2179,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Doubleheader Social 4v4 Volleyball - Del Mar",
@@ -1992,7 +2200,9 @@
     "longitude": -117.26531,
     "surface": null,
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Competitive Volleyball - Potrero Hill",
@@ -2011,7 +2221,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Intermediate Volleyball - The Mission",
@@ -2030,7 +2242,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Indoor 6v6 Intermediate Volleyball - UTC",
@@ -2049,7 +2263,9 @@
     "longitude": -117.15726,
     "surface": "indoor",
     "format": "sixes",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Grass Volleyball - Golden Gate Park",
@@ -2068,7 +2284,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Competitive 2v2 Beach Volleyball - Clairemont",
@@ -2087,7 +2305,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Intermediate Volleyball - Marina",
@@ -2106,7 +2326,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Intermediate 4v4 Beach Volleyball - Clairemont",
@@ -2125,7 +2347,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Grass Volleyball - Marina",
@@ -2144,7 +2368,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Grass Volleyball - The Mission",
@@ -2163,7 +2389,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Recreational Volleyball - The Mission",
@@ -2182,7 +2410,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Doubleheader Competitive 4v4 Volleyball - Del Mar",
@@ -2201,7 +2431,9 @@
     "longitude": -117.26531,
     "surface": null,
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Intermediate Volleyball - The Mission",
@@ -2220,7 +2452,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Recreational Volleyball - The Mission",
@@ -2239,7 +2473,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Women's Volleyball - Potrero Hill",
@@ -2258,7 +2494,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": "womens"
   },
   {
     "title": "Thursday - Intermediate Volleyball - The Mission",
@@ -2277,7 +2515,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Grass Volleyball - The Mission",
@@ -2296,7 +2536,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Intermediate Grass Volleyball - The Mission",
@@ -2315,7 +2557,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Doubleheader Intermediate 4v4 Volleyball - Del Mar",
@@ -2334,7 +2578,9 @@
     "longitude": -117.26531,
     "surface": null,
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Competitive Volleyball - Potrero Hill",
@@ -2353,7 +2599,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Party Volleyball + Flip Cup - Marina",
@@ -2372,7 +2620,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Competitive 4v4 Beach Volleyball - Clairemont",
@@ -2391,7 +2641,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Recreational Volleyball - The Mission",
@@ -2410,7 +2662,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "End of Summer Showdown: 4v4 Volleyball Tournament",
@@ -2429,7 +2683,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Sunday - Social 6v6 Beach Volleyball - Clairemont",
@@ -2448,7 +2704,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Intermediate 4v4 Beach Volleyball - Clairemont",
@@ -2467,7 +2725,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Sunday - Intermediate 6v6 Indoor Volleyball - Clairemont",
@@ -2486,7 +2746,9 @@
     "longitude": -117.15726,
     "surface": "indoor",
     "format": "sixes",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday 5PM - Intermediate 4v4 Volleyball - Ocean Beach",
@@ -2505,7 +2767,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Intermediate 4v4 Volleyball - Ocean Beach",
@@ -2524,7 +2788,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Competitive 4v4 Volleyball - Ocean Beach",
@@ -2543,7 +2809,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Doubleheader Intermediate 4v4 Volleyball - Del Mar",
@@ -2562,7 +2830,9 @@
     "longitude": -117.26531,
     "surface": null,
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Spike and Tiki - Volleyball Tournament - Club Volo",
@@ -2581,7 +2851,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Labor Day Volleyball Tournament",
@@ -2600,7 +2872,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "SPIKETOBERFEST Volleyball Tournament",
@@ -2619,7 +2893,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Saturday - PB Fest Volo 4sum Volleyball Tournament - Pacific Beach",
@@ -2638,7 +2914,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Saturday - PB Fest Volo 2v2 Volleyball Tournament - Pacific Beach",
@@ -2657,6 +2935,8 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "doubles",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   }
 ]

@@ -16,7 +16,9 @@
     "longitude": -74.006,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -35,7 +37,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -54,7 +58,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -73,7 +79,9 @@
     "longitude": -74.006,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -92,7 +100,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -111,7 +121,9 @@
     "longitude": -105.08748,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Tuesday - Volleyball (Advance/Competitive) - Club Volo Brewers Hill",
@@ -130,7 +142,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Tuesday - Volleyball - Club Volo Brewers Hill",
@@ -149,7 +163,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "6/16 CRLS Indoor 6v6 Coed Volleyball Tournament",
@@ -168,7 +184,9 @@
     "longitude": -71.10561,
     "surface": "indoor",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Tuesday - Volleyball - Club Volo Baltimore Peninsula",
@@ -187,7 +205,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Outdoor Grass Volleyball Pickup - Open",
@@ -206,7 +226,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Tuesday - Doubleheader Social 4v4 Volleyball - Del Mar",
@@ -225,7 +247,9 @@
     "longitude": -117.26531,
     "surface": null,
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -244,7 +268,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -263,7 +289,9 @@
     "longitude": -77.0369,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -282,7 +310,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -301,7 +331,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -320,7 +352,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -339,7 +373,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -358,7 +394,9 @@
     "longitude": -74.07764,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -377,7 +415,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -396,7 +436,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -415,7 +457,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -434,7 +478,9 @@
     "longitude": -73.94958,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Wednesday - Volleyball - South Boston",
@@ -453,7 +499,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleyball  Pickup - Coed",
@@ -472,7 +520,9 @@
     "longitude": -80.13005,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball  Pickup - Coed",
@@ -491,7 +541,9 @@
     "longitude": -79.93092,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Wednesday - Volleyball - Club Volo Brewers Hill",
@@ -510,7 +562,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Club Volo Brewers Hill",
@@ -529,7 +583,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Club Volo Baltimore Peninsula",
@@ -548,7 +604,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Club Volo Baltimore Peninsula",
@@ -567,7 +625,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Wednesday - Doubleheader Intermediate 4v4 Volleyball - Ocean Beach",
@@ -586,7 +646,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Outdoor Grass Volleyball Pickup - Open",
@@ -605,7 +667,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Wednesday - Social 6v6 Beach Volleyball - Pacific Beach",
@@ -624,7 +688,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Open",
@@ -643,7 +709,9 @@
     "longitude": -74.48099,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -662,7 +730,9 @@
     "longitude": -77.0369,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -681,7 +751,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -700,7 +772,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -719,7 +793,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -738,7 +814,9 @@
     "longitude": -74.07764,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -757,7 +835,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -776,7 +856,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -795,7 +877,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -814,7 +898,9 @@
     "longitude": -74.07764,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Open",
@@ -833,7 +919,9 @@
     "longitude": -75.16379,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -852,7 +940,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -871,7 +961,9 @@
     "longitude": -73.94958,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball  Pickup - Open",
@@ -890,7 +982,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Thursday - Volleyball - South Boston",
@@ -909,7 +1003,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Volleyball - Club Volo Baltimore Peninsula",
@@ -928,7 +1024,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Thursday - Volleyball Pickup - Club Volo Brewers Hill",
@@ -947,7 +1045,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Simmons University Indoor Volleyball Tournament (6v6 Open)",
@@ -966,7 +1066,9 @@
     "longitude": -71.05977,
     "surface": "indoor",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Thursday - Rec- 2 games/night Volleyball - Berkeley",
@@ -985,7 +1087,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Social 4v4 Volleyball - Ocean Beach",
@@ -1004,7 +1108,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Thursday - Social 6v6 Beach Volleyball - Pacific Beach",
@@ -1023,7 +1129,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Outdoor Grass Volleyball Pickup - Open",
@@ -1042,7 +1150,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Thursday - Intermediate 4v4 Volleyball - Ocean Beach",
@@ -1061,7 +1171,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -1080,7 +1192,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Open",
@@ -1099,7 +1213,9 @@
     "longitude": -74.48099,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1118,7 +1234,9 @@
     "longitude": -75.16379,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1137,7 +1255,9 @@
     "longitude": -77.0369,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1156,7 +1276,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -1175,7 +1297,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1194,7 +1318,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -1213,7 +1339,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1232,7 +1360,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -1251,7 +1381,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -1270,7 +1402,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1289,7 +1423,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Friday - Volleyball - Club Volo Brewers Hill",
@@ -1308,7 +1444,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "School's Out Beach Volleyball Tournament | Club Volo",
@@ -1327,7 +1465,9 @@
     "longitude": -77.10428,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Friday - Volleyball - Club Volo Brewers Hill",
@@ -1346,7 +1486,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -1365,7 +1507,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -1384,7 +1528,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -1403,7 +1549,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Friday - USA Theme: Bump Out Volleyball Night - Canton",
@@ -1422,7 +1570,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": null,
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Open",
@@ -1441,7 +1591,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -1460,7 +1612,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1479,7 +1633,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -1498,7 +1654,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Saturday 6/20 - Volleyball Clinic - Canton",
@@ -1517,7 +1675,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball - Club Volo Brewers Hill",
@@ -1536,7 +1696,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1555,7 +1717,9 @@
     "longitude": -73.94958,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Saturday - Volleyball - Somerville",
@@ -1574,7 +1738,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Saturday - Volleyball - Club Volo Brewers Hill",
@@ -1593,7 +1759,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Saturday 6/20 - Volleyball Clinic - Canton",
@@ -1612,7 +1780,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -1631,7 +1801,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "June Jamboree 6v6 Grass Volleyball Tournament",
@@ -1650,7 +1822,9 @@
     "longitude": -104.9847,
     "surface": "grass",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "June Jamboree 4v4 Grass Volleyball Tournament",
@@ -1669,7 +1843,9 @@
     "longitude": -104.9847,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Saturday - Beach Volleyball - Santa Monica",
@@ -1688,7 +1864,9 @@
     "longitude": -118.49119,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1707,7 +1885,9 @@
     "longitude": -73.94958,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1726,7 +1906,9 @@
     "longitude": -77.0369,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 4v4 - Coed",
@@ -1745,7 +1927,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1764,7 +1948,9 @@
     "longitude": -118.49119,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1783,7 +1969,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -1802,7 +1990,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1821,7 +2011,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1840,7 +2032,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -1859,7 +2053,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Sunday - Volleyball - Club Volo Brewers Hill",
@@ -1878,7 +2074,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -1897,7 +2095,9 @@
     "longitude": -74.006,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball  Pickup - 6v6 - Open",
@@ -1916,7 +2116,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Sunday - Volleyball - Club Volo Brewers Hill",
@@ -1935,7 +2137,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -1954,7 +2158,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Open",
@@ -1973,7 +2179,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Sunday - Rec Volleyball - RiNo",
@@ -1992,7 +2200,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -2011,7 +2221,9 @@
     "longitude": -118.49119,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2030,7 +2242,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Sunday - Beach Volleyball - Santa Monica",
@@ -2049,7 +2263,9 @@
     "longitude": -118.49119,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 4v4 - Coed",
@@ -2068,7 +2284,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 4v4 - Coed",
@@ -2087,7 +2305,9 @@
     "longitude": -117.15726,
     "surface": null,
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 4v4 - Coed",
@@ -2106,7 +2326,9 @@
     "longitude": -117.15726,
     "surface": null,
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Monday - Volleyball - South Boston",
@@ -2125,7 +2347,9 @@
     "longitude": -71.05977,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleyball  Pickup - Coed",
@@ -2144,7 +2368,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Monday - Volleyball - Club Volo Baltimore Peninsula",
@@ -2163,7 +2389,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Monday - Volleyball - Club Volo Baltimore Peninsula",
@@ -2182,7 +2410,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Monday, Tuesday - Volleyball - Murray Hill & Gramercy",
@@ -2201,7 +2431,9 @@
     "longitude": -74.006,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Volleyball Pickup - Club Volo Brewers Hill",
@@ -2220,7 +2452,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Monday - Int/Upper Int Volleyball - City Park",
@@ -2239,7 +2473,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Monday - Rec Volleyball - City Park",
@@ -2258,7 +2494,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - Open",
@@ -2277,7 +2515,9 @@
     "longitude": -74.48099,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2296,7 +2536,9 @@
     "longitude": -71.10561,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2315,7 +2557,9 @@
     "longitude": -74.006,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -2334,7 +2578,9 @@
     "longitude": -77.0369,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -2353,7 +2599,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2372,7 +2620,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -2391,7 +2641,9 @@
     "longitude": -77.10428,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2410,7 +2662,9 @@
     "longitude": -74.006,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 4v4 - Coed",
@@ -2429,7 +2683,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2448,7 +2704,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -2467,7 +2725,9 @@
     "longitude": -105.08748,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Tuesday - Volleyball - Somerville",
@@ -2486,7 +2746,9 @@
     "longitude": -71.0995,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Tuesday - Volleyball - Club Volo Baltimore Peninsula",
@@ -2505,7 +2767,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Tuesday - Volleyball (Advance/Competitive) - Club Volo Brewers Hill",
@@ -2524,7 +2788,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Tuesday - Volleyball (All Levels) - Club Volo Brewers Hill",
@@ -2543,7 +2809,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Tuesday - Volleyball - Club Volo Baltimore Peninsula",
@@ -2562,7 +2830,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "6/23 CRLS Indoor 6v6 Coed Volleyball Tournament",
@@ -2581,7 +2851,9 @@
     "longitude": -71.10561,
     "surface": "indoor",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Tuesday - Volleyball - Thornton",
@@ -2600,7 +2872,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Outdoor Grass Volleyball Pickup - Open",
@@ -2619,7 +2893,9 @@
     "longitude": -122.41942,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2638,7 +2914,9 @@
     "longitude": -74.006,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2657,7 +2935,9 @@
     "longitude": -104.9847,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 4v4 - Coed",
@@ -2676,7 +2956,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2695,7 +2977,9 @@
     "longitude": -117.15726,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - Coed",
@@ -2714,7 +2998,9 @@
     "longitude": -122.41942,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Volleyball Pickup - 6v6 - Coed",
@@ -2733,7 +3019,9 @@
     "longitude": -117.15726,
     "surface": null,
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": "coed"
   },
   {
     "title": "Wednesday - Volleyball - Miami Beach",
@@ -2752,7 +3040,9 @@
     "longitude": -80.13005,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Club Volo Brewers Hill",
@@ -2771,7 +3061,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Club Volo Baltimore Peninsula",
@@ -2790,7 +3082,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Club Volo Baltimore Peninsula",
@@ -2809,7 +3103,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - Club Volo Brewers Hill",
@@ -2828,7 +3124,9 @@
     "longitude": -76.61219,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "open_play",
+    "gender": null
   },
   {
     "title": "Wednesday - Volleyball - City Park",
@@ -2847,6 +3145,8 @@
     "longitude": -104.9847,
     "surface": null,
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "league",
+    "gender": null
   }
 ]

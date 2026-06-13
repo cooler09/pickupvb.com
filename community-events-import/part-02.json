@@ -16,7 +16,9 @@
     "longitude": -84.29208,
     "surface": "sand",
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Red, White, & Sand Rumble  - USA Volleyball Beach Tour - Kingdom Beach - Heart of America Beach National Qualifier",
@@ -35,7 +37,9 @@
     "longitude": -94.812537,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "USA Volleyball Beach Tour - Charlotte Open - Carolina Region National Qualifier",
@@ -54,7 +58,9 @@
     "longitude": -80.908685,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Garden State Throwdown Day 1",
@@ -73,7 +79,9 @@
     "longitude": -74.138303,
     "surface": "grass",
     "format": null,
-    "skillLevel": "advanced"
+    "skillLevel": "advanced",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Grass Dragon Coed 4’s 6/13/26",
@@ -92,7 +100,9 @@
     "longitude": -80.358226,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "VIP Doubles Series, Event 3",
@@ -111,7 +121,9 @@
     "longitude": -76.57428,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "2026 IVP at the Beach House Luau Tournament #2",
@@ -130,7 +142,9 @@
     "longitude": -104.717828,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "SCV Men's and Women's Doubles",
@@ -149,7 +163,9 @@
     "longitude": -73.212027,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Sunday Doubles Series - Non-Coed Doubles - #3",
@@ -168,7 +184,9 @@
     "longitude": -77.89239,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Total Prime Sports Series AVP #9",
@@ -187,7 +205,9 @@
     "longitude": -89.930833,
     "surface": "sand",
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "USA Volleyball Beach Tour - Absolute Beach - Lone Star Region National Qualifier",
@@ -206,7 +226,9 @@
     "longitude": -95.112703,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Get Rumble Ready with Dent",
@@ -225,7 +247,9 @@
     "longitude": -75.5011,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Kona Big Wave Summer Splash - Coed/Junior Girls",
@@ -244,7 +268,9 @@
     "longitude": -74.034652,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Grass fundraiser",
@@ -263,7 +289,9 @@
     "longitude": -106.700045,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Sunday Men's 2x2 Spring EOS",
@@ -282,7 +310,9 @@
     "longitude": -104.868291,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "Sunday Women's 2x2 Spring EOS '26",
@@ -301,7 +331,9 @@
     "longitude": -104.868291,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Sunday CoEd 2x2 Spring EOS '26",
@@ -320,7 +352,9 @@
     "longitude": -104.868291,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Mid-Year Chaser Coed Doubles Tournament '26",
@@ -339,7 +373,9 @@
     "longitude": -94.585578,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "NEW HAVEN VOLLEYBALL GRASS RCO DOUBLES AND SOCIAL QUADS",
@@ -358,7 +394,9 @@
     "longitude": -72.898531,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Sizzlin' Good Time - Quads - Junior and Adult Divisions",
@@ -377,7 +415,9 @@
     "longitude": -117.238363,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Redefine Meals Sunday Sizzle",
@@ -396,7 +436,9 @@
     "longitude": -73.672605,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Sunday Pure Reverse 4s - The Raiders Open",
@@ -415,7 +457,9 @@
     "longitude": -87.909269,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "True North: Polaris Series Triples",
@@ -434,7 +478,9 @@
     "longitude": -93.249375,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "ADV Dragon Slayer (Day 2 - Reverse Coed Grass 3's)",
@@ -453,7 +499,9 @@
     "longitude": -84.262448,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "6/14/2026 Grass RCO 2s *Theme Week* :)",
@@ -472,7 +520,9 @@
     "longitude": -71.411754,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "6/14/2026 SAND M/W/Juniors 2s",
@@ -491,7 +541,9 @@
     "longitude": -71.944968,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Nashville Beach Coed 2's  AA, A, BB Divisions",
@@ -510,7 +562,9 @@
     "longitude": -86.898758,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Women's Indoor 6s '26",
@@ -529,7 +583,9 @@
     "longitude": -122.409236,
     "surface": "indoor",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "June 14th - Co-Ed Doubles AVP '26",
@@ -548,7 +604,9 @@
     "longitude": -86.809618,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Texas Legends Clinic with Katie Hashman & Emma Grace Robertson",
@@ -567,7 +625,9 @@
     "longitude": -97.683818,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Garden State Throwdown Day 2",
@@ -586,7 +646,9 @@
     "longitude": -74.138303,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "SCV Reverse Coed",
@@ -605,7 +667,9 @@
     "longitude": -73.212027,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Monday Same Gender 2x2 Mini Tournament - Check in 6:15pm",
@@ -624,7 +688,9 @@
     "longitude": -96.940878,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 U23 Beach National Team Trials",
@@ -643,7 +709,9 @@
     "longitude": -118.402277,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "USA Volleyball Beach Tour - Chesapeake Region June First Wave Beach Regional Qualifier",
@@ -662,7 +730,9 @@
     "longitude": -75.075324,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 Summer I Leagues: Alternate & Individual Registration",
@@ -681,7 +751,9 @@
     "longitude": -97.76051,
     "surface": "sand",
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Tuesday Coed 2x2 Mini Tournament Southside- Check in 6:15pm  (Rob's Bday)",
@@ -700,7 +772,9 @@
     "longitude": -96.940878,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "2026 USAV NORCECA Playoff #3",
@@ -719,7 +793,9 @@
     "longitude": -118.402277,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "USA Volleyball Beach Tour - Chesapeake Region June First Wave Beach Regional Qualifier '26 #2",
@@ -738,7 +814,9 @@
     "longitude": -75.075324,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 BPT Geneva Futures - SUI (Women Only)",
@@ -757,7 +835,9 @@
     "longitude": -118.340745,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "2026 BPT Ios Futures - GRE",
@@ -776,7 +856,9 @@
     "longitude": -118.340745,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 BPT Karpacz Futures - POL (Men Only)",
@@ -795,7 +877,9 @@
     "longitude": -118.340745,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "Vail Doubles Thursday Divisions",
@@ -814,7 +898,9 @@
     "longitude": -106.37808,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Thursday DINO KOB League - Summer",
@@ -833,7 +919,9 @@
     "longitude": -98.010059,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Alabama Beach Week (M/W Doubles - AVP) '26 (RallyVB HSV Adults)",
@@ -852,7 +940,9 @@
     "longitude": -86.587693,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "STVA BEACH - FATHER'S DAY BEACH BASH (Friday)",
@@ -871,7 +961,9 @@
     "longitude": -98.529792,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "DCP's SUMMER SERIES - Indoor Reverse Coed 4's and Coed 4's",
@@ -890,7 +982,9 @@
     "longitude": -84.076655,
     "surface": "indoor",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Adult: Friday Night Draw -- INSIDE (Register on your own)  June 19th '26",
@@ -909,7 +1003,9 @@
     "longitude": -97.47255,
     "surface": "sand",
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Aloha Friday, June 19th - No Partner Required Tournament",
@@ -928,7 +1024,9 @@
     "longitude": -117.238363,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 FRIDAY NIGHT LIGHTS #3",
@@ -947,7 +1045,9 @@
     "longitude": -84.473666,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Vail Doubles Friday Divisions",
@@ -966,7 +1066,9 @@
     "longitude": -106.37808,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Vail Doubles Sand Open Divisions",
@@ -985,7 +1087,9 @@
     "longitude": -106.37808,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Diggin' the Mountains Under the Lights '26",
@@ -1004,7 +1108,9 @@
     "longitude": -83.18043,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Beach Bash Adult Co-Ed Division June 19  '26",
@@ -1023,7 +1129,9 @@
     "longitude": -97.485344,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Co-ed King/Queen of the Court June 2026",
@@ -1042,7 +1150,9 @@
     "longitude": -155.989118,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Vollis Block Party @ Juana’s",
@@ -1061,7 +1171,9 @@
     "longitude": -86.862507,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Men’s/Women’s Open",
@@ -1080,7 +1192,9 @@
     "longitude": -111.857055,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Dig Appointment Summer Series - SHORTIES",
@@ -1099,7 +1213,9 @@
     "longitude": -77.318032,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "KARTOSHKA",
@@ -1118,7 +1234,9 @@
     "longitude": -93.488743,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Pure Rush Shades Showdown - Women's/Men's/Junior Boys",
@@ -1137,7 +1255,9 @@
     "longitude": -74.034652,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Save the B00bies 23rd Annual Charity Sand Volleyball Tournament!",
@@ -1156,7 +1276,9 @@
     "longitude": -96.940878,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Saturday, June 20th- 'UTL' AVPA King and Queen of the Court",
@@ -1175,7 +1297,9 @@
     "longitude": -86.836309,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Alabama Beach Week AVP (AVPA 2-Star Qualifier) '26 (RallyVB HSV)",
@@ -1194,7 +1318,9 @@
     "longitude": -86.587693,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "June Grass Joust",
@@ -1213,7 +1339,9 @@
     "longitude": -74.451147,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "SAT 6/20 ~ Beach Baller 26' #3 ~ EVENING TOURNEY!!",
@@ -1232,7 +1360,9 @@
     "longitude": -95.503086,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Hobbit Quads Tournament",
@@ -1251,7 +1381,9 @@
     "longitude": -93.21497,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "SFVA RAIN OR SHINE",
@@ -1270,7 +1402,9 @@
     "longitude": -122.478814,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Bonfire Reverse Coed",
@@ -1289,7 +1423,9 @@
     "longitude": -70.71029,
     "surface": "sand",
     "format": null,
-    "skillLevel": "intermediate"
+    "skillLevel": "intermediate",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "4/20 Tourney Featuring Torch",
@@ -1308,7 +1444,9 @@
     "longitude": -98.451513,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "GALVESTON SUNFEST 2026 - ADULT COED 4'S",
@@ -1327,7 +1465,9 @@
     "longitude": -94.754538,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Park & Sun Open #1",
@@ -1346,7 +1486,9 @@
     "longitude": -73.672605,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Jax Scene Father’s Day Beach Coed 2s/4s",
@@ -1365,7 +1507,9 @@
     "longitude": -81.659153,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Summer Trips Sandbagger X Gulf To Bay",
@@ -1384,7 +1528,9 @@
     "longitude": -82.657121,
     "surface": "grass",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "SSOVA's CASH PAYOUT June 20/21 Men's/Women's/Coed’s St. Pete Beach, Beach Volleyball Tournament",
@@ -1403,7 +1549,9 @@
     "longitude": -82.751375,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Summer Showdown",
@@ -1422,7 +1570,9 @@
     "longitude": -79.83439,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "King & Queen of the Beach Doubles",
@@ -1441,7 +1591,9 @@
     "longitude": -96.522244,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Cowboys & Pirates Coed 6s",
@@ -1460,7 +1612,9 @@
     "longitude": -96.522244,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Coed Doubles Tournament B/BB - NorthSound Sports Club",
@@ -1479,7 +1633,9 @@
     "longitude": -122.314994,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Strawberry Days UOVA Tournament",
@@ -1498,7 +1654,9 @@
     "longitude": -111.740767,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Father’s Day Tournament 2026",
@@ -1517,7 +1675,9 @@
     "longitude": -97.412313,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Vail Doubles Saturday Divisions",
@@ -1536,7 +1696,9 @@
     "longitude": -106.37808,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "Western Futures Tour Pro (FTP)",
@@ -1555,7 +1717,9 @@
     "longitude": -118.502151,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Men's and Women's Doubles Tourney #4  KOB/QOB WARM UP 2026",
@@ -1574,7 +1738,9 @@
     "longitude": -97.47255,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2nd Annual Juneteenth VB Tournament",
@@ -1593,7 +1759,9 @@
     "longitude": -94.585578,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Enigma Beach Doubles",
@@ -1612,7 +1780,9 @@
     "longitude": -72.716437,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 Chipper's Session 1 EOS Tournament Coed 4s",
@@ -1631,7 +1801,9 @@
     "longitude": -105.080022,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "GW Beach Regionals '26",
@@ -1650,7 +1822,9 @@
     "longitude": -90.636627,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Grass Jam 2026",
@@ -1669,7 +1843,9 @@
     "longitude": -121.588728,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "Nashville Beach Men's & Women's 2's   AA, A, BB",
@@ -1688,7 +1864,9 @@
     "longitude": -86.898758,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "6/20/2026 SAND M/W/Juniors 2s",
@@ -1707,7 +1885,9 @@
     "longitude": -71.944968,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "WVS 2026 Adult Beach Blast",
@@ -1726,7 +1906,9 @@
     "longitude": -77.89239,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "AVP America Spring Texas Triple Crown Series Finale $12,000 Purse",
@@ -1745,7 +1927,9 @@
     "longitude": -97.683818,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "BYOT Power Coed Quads",
@@ -1764,7 +1948,9 @@
     "longitude": -84.29208,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Pre-Rumble Clash Day 1",
@@ -1783,7 +1969,9 @@
     "longitude": -74.138303,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Sideout SMASH",
@@ -1802,7 +1990,9 @@
     "longitude": -71.208175,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "WVBNY SAND PIT BEACH BASH Coed 4s TOURNAMENT '26  1ST 15 TEAMS",
@@ -1821,7 +2011,9 @@
     "longitude": -73.731547,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "NCR Heatwave Classic",
@@ -1840,7 +2032,9 @@
     "longitude": -93.218462,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "June 20th Tournament",
@@ -1859,7 +2053,9 @@
     "longitude": -82.703433,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Love All Play All 2026",
@@ -1878,7 +2074,9 @@
     "longitude": -121.218278,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Lifty’s 4v4 Championship",
@@ -1897,7 +2095,9 @@
     "longitude": -121.262971,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "ADULTS: SandBox Solstice Kickoff (AVP M/W 2s - Open/AA)",
@@ -1916,7 +2116,9 @@
     "longitude": -81.64678,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "*AVP NEXT TOUR* The Coastal Clash 2026 ($10k Payout to Open Divisions)",
@@ -1935,7 +2137,9 @@
     "longitude": -80.166273,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "2v2 Men's & Women's AA and Women's B Tournament",
@@ -1954,7 +2158,9 @@
     "longitude": -111.773636,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Clovis / Fresno - Early Summer Sprint - Same Gender Doubles **DM ApexX USA Instagram to Register",
@@ -1973,7 +2179,9 @@
     "longitude": -119.6921,
     "surface": "grass",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Sunday Doubles Series - King and Queen of the Beach",
@@ -1992,7 +2200,9 @@
     "longitude": -77.89239,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Pure Rush Shades Showdown - Coed/Junior Girls/Adult-Child",
@@ -2011,7 +2221,9 @@
     "longitude": -74.034652,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Park & Sun Sunday Open",
@@ -2030,7 +2242,9 @@
     "longitude": -73.672605,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Vail Doubles Sunday Divisions",
@@ -2049,7 +2263,9 @@
     "longitude": -106.37808,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Vail Doubles Sunday Father/Daughter & Father/Son Divisions",
@@ -2068,7 +2284,9 @@
     "longitude": -106.37808,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 Chipper's Session 1 EOS Tournament Coed 6s",
@@ -2087,7 +2305,9 @@
     "longitude": -105.080022,
     "surface": "sand",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "6/21/2026 GRASS M/W TRIPLES",
@@ -2106,7 +2326,9 @@
     "longitude": -71.411754,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "6/21/2026 SAND RCO 2s",
@@ -2125,7 +2347,9 @@
     "longitude": -71.944968,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Nashville Beach Coed 2's  AA, A, BB Divisions",
@@ -2144,7 +2368,9 @@
     "longitude": -86.898758,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "2nd Annual Messeround Beach Tournament  6/21/26",
@@ -2163,7 +2389,9 @@
     "longitude": -97.485344,
     "surface": "sand",
     "format": null,
-    "skillLevel": "advanced"
+    "skillLevel": "advanced",
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "Pre-Rumble Clash Day 2",
@@ -2182,7 +2410,9 @@
     "longitude": -74.138303,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Sideout SMASH Coed",
@@ -2201,7 +2431,9 @@
     "longitude": -71.208175,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Clovis/Fresno - Early Summer Sprint - Reverse Coed Doubles **DM ApexX USA Instagram to Register",
@@ -2220,7 +2452,9 @@
     "longitude": -119.6921,
     "surface": "grass",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Monday Same Gender 2x2 Mini Tournament - Check in 6:15pm",
@@ -2239,7 +2473,9 @@
     "longitude": -96.940878,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "USA Volleyball Beach Tour - Chesapeake Region June Second Wave Beach Regional Qualifier '26",
@@ -2258,7 +2494,9 @@
     "longitude": -75.075324,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Tuesday Coed 2x2 Mini Tournament Southside- Check in 6:15pm",
@@ -2277,7 +2515,9 @@
     "longitude": -96.940878,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "4v4 Harrah's Cherokee Summerfest 2026",
@@ -2296,7 +2536,9 @@
     "longitude": -83.300335,
     "surface": "indoor",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "USA Volleyball Beach Tour - Chesapeake Region June Second Wave Beach Regional Qualifier '26 #2",
@@ -2315,7 +2557,9 @@
     "longitude": -75.075324,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Adult Clinic (with FAU Head Coach Steve Grotowski & Mike DiPierro) - GAC",
@@ -2334,7 +2578,9 @@
     "longitude": -74.211341,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 BPT Balikesir Futures - TUR",
@@ -2353,7 +2599,9 @@
     "longitude": -118.340745,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 BPT Bridlington Futures - ENG",
@@ -2372,7 +2620,9 @@
     "longitude": -118.340745,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 BPT Geneva Futures - SUI (Men Only)",
@@ -2391,7 +2641,9 @@
     "longitude": -118.340745,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "2026 BPT Hangzhou Futures - CHN",
@@ -2410,7 +2662,9 @@
     "longitude": -118.340745,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "HOT AUBURN NIGHTS - Friday/Saturday Mens/Womens Grass Doubles",
@@ -2429,7 +2683,9 @@
     "longitude": -121.107028,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Jasy's Tourney '26",
@@ -2448,7 +2704,9 @@
     "longitude": -82.784541,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Ogden Summer Slam  '26 Coed 4's - Friday Night",
@@ -2467,7 +2725,9 @@
     "longitude": -111.975552,
     "surface": "grass",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Aloha Friday, June 26th - No Partner Required Tournament",
@@ -2486,7 +2746,9 @@
     "longitude": -117.238363,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "2026 FRIDAY NIGHT LIGHTS #4- The Finale!",
@@ -2505,7 +2767,9 @@
     "longitude": -84.473666,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Friday @ The 34th Annual Pottstown Rumble 2026",
@@ -2524,7 +2788,9 @@
     "longitude": -75.654789,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Beach Bash Adult  Men's and Women's Divisions June 26 '26",
@@ -2543,7 +2809,9 @@
     "longitude": -97.485344,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Pro Divisions @ 34th Annual Pottstown Rumble 2026",
@@ -2562,7 +2830,9 @@
     "longitude": -75.654789,
     "surface": "grass",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "34th Annual Spectators 2026",
@@ -2581,7 +2851,9 @@
     "longitude": -75.654789,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "June 26/27th/28th Birmingham Beach Mid-Summer Doubles",
@@ -2600,7 +2872,9 @@
     "longitude": -86.809618,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "mens"
   },
   {
     "title": "Fundraiser Blind Draw 3's Adult Tournament- Remix",
@@ -2619,7 +2893,9 @@
     "longitude": -98.010059,
     "surface": "sand",
     "format": null,
-    "skillLevel": "beginner"
+    "skillLevel": "beginner",
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "2026 Dig or Die SoCo",
@@ -2638,7 +2914,9 @@
     "longitude": -104.717828,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Flourish Beach Women's Open #2",
@@ -2657,7 +2935,9 @@
     "longitude": -105.268135,
     "surface": "sand",
     "format": null,
-    "skillLevel": "competitive"
+    "skillLevel": "competitive",
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "USAV East Coast Championship BRQ (USAV Qualifier) '26 (RallyVB ATL)",
@@ -2676,7 +2956,9 @@
     "longitude": -84.745783,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Ranse Jones Beach Jam",
@@ -2695,7 +2977,9 @@
     "longitude": -77.89239,
     "surface": "sand",
     "format": "quads",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "HOT AUBURN NIGHTS - Saturday/Sunday RevCo Doubles",
@@ -2714,7 +2998,9 @@
     "longitude": -121.107028,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "North End Open",
@@ -2733,7 +3019,9 @@
     "longitude": -75.977936,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "First Coast Volleyball Jax Beach Series June 27-28 '26",
@@ -2752,7 +3040,9 @@
     "longitude": -81.396134,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "womens"
   },
   {
     "title": "Double Trouble 2026",
@@ -2771,7 +3061,9 @@
     "longitude": -117.416928,
     "surface": "grass",
     "format": "sixes",
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": "coed"
   },
   {
     "title": "CHAOS Raleigh 2026 June",
@@ -2790,7 +3082,9 @@
     "longitude": -78.631717,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "6/27 RCO Doubles @ Memorial in Scarborough",
@@ -2809,7 +3103,9 @@
     "longitude": -70.342522,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Rat Lord Rodent Rumble #2",
@@ -2828,7 +3124,9 @@
     "longitude": -82.0918,
     "surface": "grass",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   },
   {
     "title": "Inlet Splash - Women's/Men's/Junior Boys",
@@ -2847,6 +3145,8 @@
     "longitude": -74.034652,
     "surface": "sand",
     "format": null,
-    "skillLevel": null
+    "skillLevel": null,
+    "eventType": "tournament",
+    "gender": null
   }
 ]

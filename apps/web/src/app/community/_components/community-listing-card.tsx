@@ -1,5 +1,11 @@
 import Link from 'next/link';
-import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
+import {
+  SURFACE_LABEL,
+  FORMAT_LABEL,
+  SKILL_LABEL,
+  TYPE_LABEL,
+  GENDER_LABEL,
+} from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
 
 export type CommunityListingCardData = {
@@ -16,6 +22,9 @@ export type CommunityListingCardData = {
   surface: string | null;
   format: string | null;
   skillLevel: string | null;
+  /** Event kind + gender, mirrored from the events model. Null = unknown. */
+  eventType?: string | null;
+  gender?: string | null;
   status: string;
   /** Distance from the search origin in km, when a "near me" search is active. */
   distanceKm?: number | null;
@@ -55,6 +64,16 @@ export function CommunityListingCard({ listing }: { listing: CommunityListingCar
           </span>
         )}
         <span className="bg-md-warning/15 text-md-warning rounded px-1.5 py-0.5">Community</span>
+        {listing.eventType && (
+          <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 font-medium">
+            {TYPE_LABEL[listing.eventType] ?? listing.eventType}
+          </span>
+        )}
+        {listing.gender && (
+          <span className="bg-fg/5 rounded px-1.5 py-0.5">
+            {GENDER_LABEL[listing.gender] ?? listing.gender}
+          </span>
+        )}
         {listing.surface && (
           <span className="bg-fg/5 rounded px-1.5 py-0.5">
             {SURFACE_LABEL[listing.surface] ?? listing.surface}

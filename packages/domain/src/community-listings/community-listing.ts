@@ -2,7 +2,7 @@ import { AggregateRoot } from '../shared/aggregate-root.js';
 import { idConstructor, type Brand } from '../shared/brand.js';
 import { ConflictError, InvariantViolation } from '../shared/result.js';
 import type { EventId, UserId } from '../events/volleyball-event.js';
-import type { Format, SkillLevel, Surface } from '../events/enums.js';
+import type { EventType, Format, Gender, SkillLevel, Surface } from '../events/enums.js';
 import { maskPublicText } from '../moderation/content-moderation.js';
 import { ExternalUrl } from './external-url.js';
 
@@ -52,6 +52,14 @@ export interface CreateCommunityListingProps {
   surface: Surface | null;
   format: Format | null;
   skillLevel: SkillLevel | null;
+  /**
+   * Classification mirrored from the events model so the directory can filter
+   * and badge by kind. Both optional (default null = unknown) so existing call
+   * sites are unaffected. `eventType` reuses the events `event_type` enum
+   * (open_play / tournament / league); `gender` the `gender` enum.
+   */
+  eventType?: EventType | null;
+  gender?: Gender | null;
 }
 
 export interface UpdateCommunityListingProps {
@@ -67,6 +75,8 @@ export interface UpdateCommunityListingProps {
   surface?: Surface | null;
   format?: Format | null;
   skillLevel?: SkillLevel | null;
+  eventType?: EventType | null;
+  gender?: Gender | null;
 }
 
 function normalizeLocation(loc: ListingLocation | null): ListingLocation | null {
@@ -135,6 +145,8 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     private _surface: Surface | null,
     private _format: Format | null,
     private _skillLevel: SkillLevel | null,
+    private _eventType: EventType | null,
+    private _gender: Gender | null,
     private _status: CommunityListingStatus,
     private _reportCount: number,
     private _claimedEventId: EventId | null,
@@ -170,6 +182,8 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
       props.surface,
       props.format,
       props.skillLevel,
+      props.eventType ?? null,
+      props.gender ?? null,
       'active',
       0,
       null,
@@ -198,6 +212,8 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     surface: Surface | null;
     format: Format | null;
     skillLevel: SkillLevel | null;
+    eventType?: EventType | null;
+    gender?: Gender | null;
     status: CommunityListingStatus;
     reportCount: number;
     claimedEventId: EventId | null;
@@ -219,6 +235,8 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
       props.surface,
       props.format,
       props.skillLevel,
+      props.eventType ?? null,
+      props.gender ?? null,
       props.status,
       props.reportCount,
       props.claimedEventId,
@@ -266,6 +284,13 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
   get skillLevel(): SkillLevel | null {
     return this._skillLevel;
   }
+  /** Event kind (open_play / tournament / league), mirrored from events. */
+  get eventType(): EventType | null {
+    return this._eventType;
+  }
+  get gender(): Gender | null {
+    return this._gender;
+  }
   get status(): CommunityListingStatus {
     return this._status;
   }
@@ -311,6 +336,8 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     if (props.surface !== undefined) this._surface = props.surface;
     if (props.format !== undefined) this._format = props.format;
     if (props.skillLevel !== undefined) this._skillLevel = props.skillLevel;
+    if (props.eventType !== undefined) this._eventType = props.eventType;
+    if (props.gender !== undefined) this._gender = props.gender;
   }
 
   hide(): void {

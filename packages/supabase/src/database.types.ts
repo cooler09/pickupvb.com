@@ -376,9 +376,11 @@ export type Database = {
           created_at: string;
           description: string;
           ends_at: string | null;
+          event_type: Database['public']['Enums']['event_type'] | null;
           external_host_name: string | null;
           external_url: string;
           format: Database['public']['Enums']['format'] | null;
+          gender: Database['public']['Enums']['gender'] | null;
           geo: unknown;
           id: string;
           postal_code: string | null;
@@ -406,9 +408,11 @@ export type Database = {
           created_at?: string;
           description?: string;
           ends_at?: string | null;
+          event_type?: Database['public']['Enums']['event_type'] | null;
           external_host_name?: string | null;
           external_url: string;
           format?: Database['public']['Enums']['format'] | null;
+          gender?: Database['public']['Enums']['gender'] | null;
           geo?: unknown;
           id?: string;
           postal_code?: string | null;
@@ -436,9 +440,11 @@ export type Database = {
           created_at?: string;
           description?: string;
           ends_at?: string | null;
+          event_type?: Database['public']['Enums']['event_type'] | null;
           external_host_name?: string | null;
           external_url?: string;
           format?: Database['public']['Enums']['format'] | null;
+          gender?: Database['public']['Enums']['gender'] | null;
           geo?: unknown;
           id?: string;
           postal_code?: string | null;
@@ -4557,6 +4563,7 @@ export type Database = {
       };
       search_community_listings: {
         Args: {
+          p_event_type?: string;
           p_format?: string;
           p_lat?: number;
           p_limit?: number;
@@ -4573,10 +4580,14 @@ export type Database = {
           city: string;
           distance_km: number;
           ends_at: string;
+          event_type: string;
           external_host_name: string;
           external_url: string;
           format: string;
+          gender: string;
           id: string;
+          latitude: number;
+          longitude: number;
           region: string;
           short_code: string;
           skill_level: string;

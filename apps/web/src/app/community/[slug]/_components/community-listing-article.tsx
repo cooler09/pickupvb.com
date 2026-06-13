@@ -2,7 +2,13 @@ import type { CommunityListingDetailReadModel } from '@pickupvb/domain';
 import { primaryButtonClass } from '@/components/primary-button';
 import { LocalDateTime } from '@/components/local-datetime';
 import { externalLinkHref } from '@/lib/external-link';
-import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
+import {
+  SURFACE_LABEL,
+  FORMAT_LABEL,
+  SKILL_LABEL,
+  TYPE_LABEL,
+  GENDER_LABEL,
+} from '@/lib/enum-labels';
 
 /** Bare external host (e.g. `facebook.com`) from a URL, for the outbound CTA. */
 function externalHostFromUrl(url: string): string {
@@ -82,8 +88,22 @@ export function CommunityListingArticle({ detail }: { detail: CommunityListingDe
             <p className="text-sm">{place}</p>
           </>
         )}
-        {(detail.surface || detail.format || detail.skillLevel) && (
+        {(detail.eventType ||
+          detail.gender ||
+          detail.surface ||
+          detail.format ||
+          detail.skillLevel) && (
           <div className="mt-3 flex flex-wrap gap-1 text-[11px]">
+            {detail.eventType && (
+              <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 font-medium">
+                {TYPE_LABEL[detail.eventType] ?? detail.eventType}
+              </span>
+            )}
+            {detail.gender && (
+              <span className="bg-fg/5 rounded px-1.5 py-0.5">
+                {GENDER_LABEL[detail.gender] ?? detail.gender}
+              </span>
+            )}
             {detail.surface && (
               <span className="bg-fg/5 rounded px-1.5 py-0.5">
                 {SURFACE_LABEL[detail.surface] ?? detail.surface}
