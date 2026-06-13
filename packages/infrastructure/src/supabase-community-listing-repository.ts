@@ -57,7 +57,40 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-function parsePointFromGeo(geo: unknown): {
+/**
+ * Decode a PostGIS point delivered as EWKB hex — the form PostgREST actually
+ * returns for a `geography`/`geometry` column under `application/json` (e.g.
+ * `0101000020E6100000…`). Layout: 1 byte endianness, uint32 geometry type
+ * (with the 0x20000000 SRID flag set), optional uint32 SRID, then the X
+ * (longitude) and Y (latitude) float64s. Returns null for anything that isn't a
+ * 2D point so the caller can fall back to GeoJSON / WKT parsing.
+ */
+export function decodeEwkbHexPoint(hex: string): { latitude: number; longitude: number } | null {
+  // Shortest valid point is endianness+type+X+Y = 21 bytes = 42 hex chars.
+  if (hex.length < 42 || hex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(hex)) return null;
+  try {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    const view = new DataView(bytes.buffer);
+    const littleEndian = bytes[0] === 1;
+    const geomType = view.getUint32(1, littleEndian);
+    // Low 16 bits hold the base geometry type; Point = 1. Bail on anything else.
+    if ((geomType & 0xffff) !== 1) return null;
+    const hasSrid = (geomType & 0x20000000) !== 0;
+    const offset = 5 + (hasSrid ? 4 : 0);
+    if (bytes.length < offset + 16) return null;
+    const longitude = view.getFloat64(offset, littleEndian);
+    const latitude = view.getFloat64(offset + 8, littleEndian);
+    if (!isFiniteNumber(latitude) || !isFiniteNumber(longitude)) return null;
+    return { latitude, longitude };
+  } catch {
+    return null;
+  }
+}
+
+export function parsePointFromGeo(geo: unknown): {
   latitude: number;
   longitude: number;
 } | null {
@@ -78,9 +111,14 @@ function parsePointFromGeo(geo: unknown): {
     }
   }
 
-  // Defensive fallback for text payloads such as "SRID=4326;POINT(lng lat)"
-  // or "POINT(lng lat)".
+  // Geography columns come back from PostgREST as EWKB hex — decode that before
+  // the text fallbacks below.
   if (typeof geo === 'string') {
+    const ewkb = decodeEwkbHexPoint(geo);
+    if (ewkb) return ewkb;
+
+    // Defensive fallback for text payloads such as "SRID=4326;POINT(lng lat)"
+    // or "POINT(lng lat)".
     const m = geo.match(/POINT\s*\(\s*([-+\d.]+)\s+([-+\d.]+)\s*\)/i);
     if (m) {
       const lng = Number(m[1]);
