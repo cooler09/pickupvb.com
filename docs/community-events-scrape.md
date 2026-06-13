@@ -169,6 +169,20 @@ season "tour containers" (year-long date range + many `locations`). Keep only:
 `startDate ≥ today` **and** `"Adult" in tags`. As of 2026-06-12 that's **768
 events** (sand 524 / grass 234 / indoor 9).
 
+**Per-tournament enrichment (two more public endpoints, one call each).** The
+summaries feed has no street address and only a terse division list, so for each
+kept tournament also fetch (bounded concurrency ~8, cache to disk — re-runs free):
+
+- `GET …/Locations/GetAddresses?tournamentId=<id>` → `["123 St, City, ST 00000, USA"]`.
+  Parse it for `addressLine` + a **more accurate** city/state/zip (override the
+  reverse-geocode; keep the summary's exact coords). ~88% of tournaments return a
+  parseable address; the rest fall back to the reverse-geocoded city.
+- `GET …/tournament/<id>` → `{ description (HTML), divisions, externalRegistrationUrl, … }`.
+  Strip the HTML → a **real event description** (format, divisions, check-in time)
+  far better than a generated blurb; cap ~800 chars. (`division.location` has the
+  venue name + a maps-embed URL but **not** the clean street address — that's only
+  in `GetAddresses`.) Date is still date-only ⇒ keep `allDay`.
+
 **Two build tasks before this is import-ready:**
 
 1. **Reverse-geocode `coordinates`** → city/state/country for the draft (only 11%
