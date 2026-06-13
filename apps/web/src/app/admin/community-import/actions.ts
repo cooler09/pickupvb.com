@@ -15,6 +15,7 @@ import { geocodeAddress } from '@/lib/geocode';
 import { timeZoneForCoords, zonedWallClockToUtc } from '@/lib/timezone';
 import { communityListingCacheTag } from '@/lib/cache-tags';
 import type { ListingDraft } from '@/lib/listing-draft';
+import { dtoMatchesListing } from './listing-diff';
 
 const RETURN_PATH = '/admin/community-import';
 
@@ -49,7 +50,8 @@ export type ImportRowResult =
       ok: true;
       slug: string;
       geocoded: boolean;
-      action: 'created' | 'updated';
+      /** `unchanged` = an existing listing already matched the draft, so no write. */
+      action: 'created' | 'updated' | 'unchanged';
       /** True when the upserted row is currently hidden (won't show publicly). */
       hidden: boolean;
     }
@@ -119,6 +121,21 @@ export async function importAction(drafts: ListingDraft[]): Promise<ImportResult
           });
           continue;
         }
+        // Skip a no-op update: if the stored listing already matches the draft,
+        // report it "unchanged" rather than churning the row (and its caches) on
+        // every re-import. Only events that actually differ get written.
+        const current = await repositories.communityListingRepo.findById(existing.id);
+        if (current && dtoMatchesListing(current, dto)) {
+          results.push({
+            title: draft.title,
+            ok: true,
+            slug: existing.slug,
+            geocoded,
+            action: 'unchanged',
+            hidden: existing.status === 'hidden',
+          });
+          continue;
+        }
         await handlers.updateCommunityListing.execute(
           new UpdateCommunityListingCommand(existing.id, admin.userId, dto),
         );
@@ -152,7 +169,8 @@ export async function importAction(drafts: ListingDraft[]): Promise<ImportResult
     }
   }
 
-  if (results.some((r) => r.ok)) revalidatePath('/community');
+  // Only bust the public list cache when something actually changed.
+  if (results.some((r) => r.ok && r.action !== 'unchanged')) revalidatePath('/community');
   return { ok: true, results };
 }
 
