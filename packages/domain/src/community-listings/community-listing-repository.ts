@@ -99,6 +99,9 @@ export interface CommunityListingSummary {
   timeZone: string | null;
   city: string | null;
   region: string | null;
+  /** Venue coordinates, or null when the address never geocoded (no map pin). */
+  latitude: number | null;
+  longitude: number | null;
   surface: Surface | null;
   format: Format | null;
   skillLevel: SkillLevel | null;

@@ -337,6 +337,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         skill_level: string | null;
         status: string;
         distance_km: number | null;
+        latitude: number | null;
+        longitude: number | null;
       };
       const rows = (data ?? []) as RpcRow[];
       return rows.map((r) => ({
@@ -357,11 +359,13 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         skillLevel: r.skill_level as CommunityListingSummary['skillLevel'],
         status: r.status as CommunityListingSummary['status'],
         distanceKm: r.distance_km,
+        latitude: r.latitude,
+        longitude: r.longitude,
       }));
     }
 
     let q = this.table('community_listings').select(
-      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, surface, format, skill_level, status',
+      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, all_day, time_zone, city, region, geo, surface, format, skill_level, status',
     );
     // Default public view (no explicit statuses) + a signed-in viewer: also
     // return the viewer's own `hidden` listings so a submitter whose listing was
@@ -401,31 +405,37 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       | 'time_zone'
       | 'city'
       | 'region'
+      | 'geo'
       | 'surface'
       | 'format'
       | 'skill_level'
       | 'status'
     >;
     const rows = (data ?? []) as unknown as SearchRow[];
-    return rows.map((r) => ({
-      id: r.id,
-      slug: r.slug,
-      shortCode: r.short_code,
-      title: r.title,
-      externalUrl: r.external_url,
-      externalHostName: r.external_host_name,
-      startsAt: new Date(r.starts_at),
-      endsAt: r.ends_at ? new Date(r.ends_at) : null,
-      allDay: r.all_day ?? false,
-      timeZone: r.time_zone,
-      city: r.city,
-      region: r.region,
-      surface: r.surface,
-      format: r.format,
-      skillLevel: r.skill_level,
-      status: r.status,
-      distanceKm: null,
-    }));
+    return rows.map((r) => {
+      const point = parsePointFromGeo(r.geo);
+      return {
+        id: r.id,
+        slug: r.slug,
+        shortCode: r.short_code,
+        title: r.title,
+        externalUrl: r.external_url,
+        externalHostName: r.external_host_name,
+        startsAt: new Date(r.starts_at),
+        endsAt: r.ends_at ? new Date(r.ends_at) : null,
+        allDay: r.all_day ?? false,
+        timeZone: r.time_zone,
+        city: r.city,
+        region: r.region,
+        latitude: point?.latitude ?? null,
+        longitude: point?.longitude ?? null,
+        surface: r.surface,
+        format: r.format,
+        skillLevel: r.skill_level,
+        status: r.status,
+        distanceKm: null,
+      };
+    });
   }
 
   async listHiddenBySubmitter(userId: string): Promise<CommunityListingSummary[]> {
@@ -468,6 +478,10 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       timeZone: r.time_zone,
       city: r.city,
       region: r.region,
+      // Hidden-listing recovery strip is list-only (never mapped); like
+      // distanceKm, this path leaves the geo-derived coords null.
+      latitude: null,
+      longitude: null,
       surface: r.surface,
       format: r.format,
       skillLevel: r.skill_level,
