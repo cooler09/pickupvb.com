@@ -317,6 +317,57 @@ Mapping → `ListingDraft` (see `/tmp/build_volo.py` shape):
 Re-run with `/tmp/build_volo.py` (fetches the API, maps, merges into
 `community-events-public.json`, re-chunks). Etiquette: one query per run.
 
+## Meetup find pages — SOLVED + EXECUTED (pickup + leagues, REAL times)
+
+Meetup's **official API is not worth it** (GraphQL-only, OAuth, and creating a
+consumer needs a paid **Meetup Pro** subscription). But the **public city
+"find" pages are server-rendered with schema.org Event JSON-LD** — no login, no
+key:
+
+```
+https://www.meetup.com/find/?keywords=volleyball&location=us--<st>--<city>
+```
+
+> Prefer the **keyword-search form** above over the `/find/us--<st>--<city>/volleyball/`
+> topic path — the topic path 404s for metros where Meetup never minted a
+> volleyball topic page (Atlanta, Detroit, Nashville, San Antonio, St. Louis);
+> the keyword form resolves everywhere and embeds the **same** JSON-LD.
+
+Each page carries ~12–31 `"@type":"Event"` JSON-LD blocks (also a full
+`__APOLLO_STATE__` if you want more fields). Per event: `name`, canonical `url`
+(`meetup.com/<group>/events/<id>/`), `description`, **`startDate` as a real UTC
+ISO timestamp** (⇒ `allDay:false` — a step up from VBL/CBVA date-only), and a
+`location` Place with `addressLocality`/`addressRegion` (street is often a
+placeholder for tournaments).
+
+Mapping → `ListingDraft` (see `/tmp/build_meetup.py`):
+
+- **Real times.** Convert the UTC `startDate` to the metro's tz (Python
+  `zoneinfo`) for `startsAtLocal`; no `endDate` in the JSON-LD ⇒ `endsAtLocal:null`.
+- **Region casing is dirty** — Meetup ships `"nv"`, `"Ca"`, `"Wa"`, even wrong
+  (`"Pe"` for a Pittsburgh row). **Uppercase + validate against the 50-state set**,
+  fall back to the metro's state when invalid. Strip a trailing `", ST"` baked
+  into the locality (`"Maitland, FL"`), and title-case all-lowercase localities.
+- **Coords:** resolve the city via the offline `rg_cities1000` forward table
+  first; **fall back to the metro center** (always resolvable) so every row maps.
+  100% coverage — Meetup gives no `geo`.
+- **eventType:** Meetup's model is drop-in _meetups_, so default **`open_play`**
+  unless the title literally says _tournament_ (→tournament) or _league_
+  (→league). NB: the generic keyword heuristic treats "open"/"doubles" as
+  tournament signals — **don't** use it for Meetup ("Open" = open-skill here);
+  the Meetup branch in `classify()` uses a strict `\btourn` check.
+- **Dedup** globally on `(url, date)` — the same event appears in several
+  neighboring metros' find pages. Idempotent merge drops prior `meetup.com` rows.
+
+`/tmp/build_meetup.py` walks ~30 metros (1.5s between fetches — be polite), and is
+the **final merge stage**: it re-runs the shared coord-backfill + `classify()` +
+chunking over the whole set, so the output is complete on its own. Yield: **530
+events / ~all metros**, every one timed + mapped.
+
+**Full regen pipeline order:** `build_community_events.py` (clean base) →
+`build_vbl.py` (merge VBL) → `build_volo.py` (merge Volo) → **`build_meetup.py`
+(merge Meetup; final writer — chunks + classify + coords)**.
+
 ## New avenues to try (next time)
 
 - **Sport & Social / metro rec leagues in every big city** — the Chicago Players
@@ -327,8 +378,10 @@ Re-run with `/tmp/build_volo.py` (fetches the API, maps, merges into
   Sky/Rocky Mountain, Utah, Pacific NW adult (vs. the junior qualifier).
 - **More marquee**: Hyannis (MA), Volleyball City Clash (Holyoke MA), Fresh Coast
   (Milwaukee), AVP Contender stops (Denver Open, etc.).
-- **Meetup / Eventbrite** pickup + beach-social operators (recurring drop-ins —
-  decide whether recurring listings fit before importing).
+- **Eventbrite** pickup + beach-social operators (recurring drop-ins). Eventbrite
+  public event pages also carry schema.org Event JSON-LD — same approach as the
+  Meetup find-page scrape (now SOLVED, see above). Meetup descriptions sometimes
+  point at an Eventbrite registration page worth following.
 
 ## Import — what the importer does now
 
