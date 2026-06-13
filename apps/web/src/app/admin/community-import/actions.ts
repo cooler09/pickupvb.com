@@ -66,11 +66,13 @@ async function requireAdmin(): Promise<{ userId: string } | null> {
 
 /**
  * Geocode + validate + **upsert** each reviewed draft. Re-importing the same
- * external URL updates the existing listing in place rather than creating a
- * duplicate — so the importer is idempotent and an admin can keep one
+ * event updates the existing listing in place rather than creating a duplicate —
+ * so the importer is idempotent and an admin can keep one
  * `community-listings.json` as the source of truth. Matching is on
- * `external_url` (see `findByExternalUrl`); an existing listing that's already
- * claimed / removed / under review is left untouched and reported as skipped.
+ * `(external_url, starts_at)` (see `findByExternalUrl`) — keyed on the date too
+ * so a series can share one landing-page URL across stops without collapsing; an
+ * existing listing that's already claimed / removed / under review is left
+ * untouched and reported as skipped.
  *
  * Per-row failures don't abort the batch — each row reports its own
  * success/error so the admin can fix and retry just the ones that failed.
@@ -101,7 +103,10 @@ export async function importAction(drafts: ListingDraft[]): Promise<ImportResult
     }
     const { draft, dto, geocoded } = p;
     try {
-      const existing = await repositories.communityListingRepo.findByExternalUrl(dto.externalUrl);
+      const existing = await repositories.communityListingRepo.findByExternalUrl(
+        dto.externalUrl,
+        dto.startsAt,
+      );
 
       if (existing) {
         // Don't silently overwrite a listing that's left the editable states —

@@ -179,12 +179,19 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     return rowToAggregate(data as unknown as ListingRow);
   }
 
-  async findByExternalUrl(externalUrl: string): Promise<CommunityListingIdentity | null> {
-    // `external_url` isn't unique (a listing can be re-submitted); the importer
-    // upserts the earliest row so re-imports converge on one canonical listing.
+  async findByExternalUrl(
+    externalUrl: string,
+    startsAt: Date,
+  ): Promise<CommunityListingIdentity | null> {
+    // The importer's idempotency key is (external_url, starts_at), not the URL
+    // alone: a series can share one landing-page URL across stops on different
+    // dates, so we match the start instant too. `external_url` still isn't
+    // unique, so the earliest row wins and re-imports of the same event
+    // converge on it.
     const { data, error } = await this.table('community_listings')
       .select('id, slug, status')
       .eq('external_url', externalUrl)
+      .eq('starts_at', startsAt.toISOString())
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
