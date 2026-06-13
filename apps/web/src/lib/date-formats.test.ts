@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { relativeEventDay } from './date-formats';
+import { eventBucket, relativeEventDay } from './date-formats';
 
 /**
  * relativeEventDay anchors "today" to the event's own timezone, not the
@@ -35,4 +35,30 @@ describe('relativeEventDay', () => {
     // 2026-06-15T01:00Z is still 06-14 (9pm) in ET → "Today", not "Tomorrow".
     expect(relativeEventDay(new Date('2026-06-15T01:00:00Z'), tz, now)).toBe('Today');
   });
+});
+
+/**
+ * eventBucket coarsens the day-diff into the /community grouping headers. Pins
+ * the boundaries (0 / 1 / ≤6 / ≤13 / beyond) and that past events collapse into
+ * "Today" (order 0) — the upcoming list never shows past dates, but the bucket
+ * must not crash or mislabel one if it slips through.
+ */
+describe('eventBucket', () => {
+  const tz = 'America/New_York';
+  const now = new Date('2026-06-14T12:00:00-04:00'); // noon ET, 06-14
+
+  const cases: [string, number, string][] = [
+    ['2026-06-14T22:00:00-04:00', 0, 'Today'],
+    ['2026-06-15T18:00:00-04:00', 1, 'Tomorrow'],
+    ['2026-06-20T18:00:00-04:00', 2, 'This week'], // 6 days out
+    ['2026-06-21T18:00:00-04:00', 3, 'Next week'], // 7 days out
+    ['2026-06-27T18:00:00-04:00', 3, 'Next week'], // 13 days out
+    ['2026-06-28T18:00:00-04:00', 4, 'Later'], // 14 days out
+    ['2026-06-10T18:00:00-04:00', 0, 'Today'], // past collapses to soonest
+  ];
+  for (const [iso, order, label] of cases) {
+    it(`${iso} → ${label}`, () => {
+      expect(eventBucket(new Date(iso), tz, now)).toEqual({ order, label });
+    });
+  }
 });

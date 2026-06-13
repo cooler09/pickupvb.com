@@ -122,3 +122,26 @@ export function relativeEventDay(d: Date | string, timeZone: TZ, now: Date): str
   }
   return null;
 }
+
+/**
+ * Coarse "when" bucket for grouping an upcoming event list — Today / Tomorrow /
+ * This week / Next week / Later. The day-diff is measured in the **event's own
+ * timezone** (so "Today" means today where the event is held), against `now`
+ * (passed in so the render stays pure — AGENTS pattern #4). `order` is for
+ * sorting the buckets; `label` is the section heading. Anything already in the
+ * past collapses into the soonest bucket (`order` 0) — callers only group the
+ * upcoming view.
+ */
+export function eventBucket(
+  d: Date | string,
+  timeZone: TZ,
+  now: Date,
+): { order: number; label: string } {
+  const date = d instanceof Date ? d : new Date(d);
+  const diff = dayOrdinal(date, timeZone) - dayOrdinal(now, timeZone);
+  if (diff <= 0) return { order: 0, label: 'Today' };
+  if (diff === 1) return { order: 1, label: 'Tomorrow' };
+  if (diff <= 6) return { order: 2, label: 'This week' };
+  if (diff <= 13) return { order: 3, label: 'Next week' };
+  return { order: 4, label: 'Later' };
+}
