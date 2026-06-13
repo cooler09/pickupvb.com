@@ -86,6 +86,7 @@ Updated 2026-06-12. **✅ = WebFetch works server-side; ⚠️ = JS SPA / login 
 | Named marquee sites     | ✅ usually             | Seaside (OR), Waupaca Boatride (WI), DDD (MN), The Luau (HI), Pottstown Rumble.                                                                                                                                                                                              | their own domains                |
 | Eventbrite              | ✅ (individual events) | Search → fetch individual `/e/` pages for full date/time/venue. Collections are hit-or-miss.                                                                                                                                                                                 | `eventbrite.com`                 |
 | **The Volleyball Life** | ✅ via API             | SPA in the browser, but its backend is a public JSON API (`api-v8.volleyballlife.com/tournament/summaries?filter=upcoming`) — the whole nationwide calendar (~2,485 events) with coords + divisions. **The biggest source.** See the dedicated section below for the recipe. | `api-v8.volleyballlife.com`      |
+| **Volo Sports**         | ✅ via API             | SPA, but its **Hasura** API is public+unauthenticated — every upcoming public volleyball **league + pickup + tournament** across ~13 metros (~614), with real local times + venue addresses. **The leagues/pickup source.** Dedicated section below.                         | `volosports.com/hapi/v1/graphql` |
 | GCVA (Gulf Coast)       | ⚠️ 403                 | Blocks WebFetch.                                                                                                                                                                                                                                                             | `gcva.net`                       |
 | Facebook events         | ⚠️ scrape only         | Can't auto-fetch FB **pages** (login wall) — to extract event **data** the user runs the `facebook-events-import` scraper. But a FB **link is a fine `externalUrl`** when another public source gives it to you (e.g. a USAV event whose details live on a FB group).        | `facebook.com`                   |
 
@@ -198,6 +199,80 @@ Volleyball Tour, p1440, GVT, First Coast, St Pete Ballers, BVNE, …) are in the
 merged set. The `Adult`-tag filter correctly drops SSOVA's _Juniors_ dates. No
 bracketpal scrape needed — when an org has both a bracketpal signup and a VBL
 listing, VBL is the source of truth.
+
+## The Volo API — leagues + pickup + drop-in (SOLVED + EXECUTED)
+
+Volo Sports (`volosports.com`) runs social-sports **leagues, pickup, and
+drop-in** in ~13 major metros (Denver, Boston, Baltimore, San Diego, DC, NYC, SF,
+LA, San Jose, Morristown, Philly, Charleston, Miami). Its site is a SPA, but the
+backend is a **public, unauthenticated Hasura GraphQL API**:
+
+```
+POST https://volosports.com/hapi/v1/graphql      (header: origin: https://www.volosports.com)
+```
+
+Because it's Hasura, you write your own query — no need to lift the app's exact
+operation. The pull that worked (2026-06-12, **614 volleyball programs**):
+
+```graphql
+query V($w: leagues_bool_exp!) {
+  leagues(where: $w, order_by: { start_date: asc }) {
+    _id
+    display_name
+    name
+    program_type
+    start_date
+    start_time_estimate
+    end_time_estimate
+    num_weeks_estimate
+    sportBySport {
+      name
+    }
+    organizationByOrganization {
+      name
+      timezone
+      latitude
+      longitude
+      slug
+    }
+    venueByVenue {
+      shorthand_name
+      formatted_address
+    }
+    neighborhoodByNeighborhood {
+      name
+    }
+  }
+}
+# variables.w = { sportBySport:{name:{_eq:"Volleyball"}}, status:{_eq:"registration_open"},
+#                 private:{_eq:false}, archived:{_eq:false}, start_date:{_gte:"<today>"} }
+```
+
+Mapping → `ListingDraft` (see `/tmp/build_volo.py` shape):
+
+- **`program_type`** ∈ LEAGUE (419) / PICKUP (158) / TOURNAMENT (29) / CLINIC / EVENT — keep all.
+- **Real local times!** `start_time_estimate`/`end_time_estimate` are `"HH:mm"` in
+  the org's tz → `allDay:false`. Get the local **date** by converting `start_date`
+  (a UTC instant) into `organizationByOrganization.timezone` (Python `zoneinfo`).
+- **Recurring = ONE listing.** A league/pickup is one program row; the date/time
+  shown is the season start / next session, with recurrence noted in the
+  description. Do **not** explode into one row per week.
+- **Location:** parse `venueByVenue.formatted_address` ("St, City, ST ZIP, USA")
+  → addressLine/city/region/postal, no coords (importer geocodes the precise
+  venue). If it doesn't parse (~4%), fall back to `org.name` + `org.latitude/longitude`.
+- **`externalUrl`:** Volo program pages aren't individually indexed, so link the
+  city page **uniquely per program**: `https://www.volosports.com/{org.slug}/volleyball?program={_id}`
+  (the `?program=` keeps the (URL,date) key unique so they don't collapse).
+- **format** from the name (`6v6`→sixes, `4v4`→quads, `2v2`→doubles); **surface**
+  from name/venue keywords (Beach→sand, …); **skill** only on explicit words
+  (Recreational/Intermediate/Competitive) — **Volo "Open" means open-to-all, NOT
+  a skill division**, so leave it null.
+- **Dedup:** Volo doesn't overlap the other sources (own platform); the merge is
+  a plain append, made idempotent by dropping any prior `volosports.com` rows
+  from the base first.
+
+Re-run with `/tmp/build_volo.py` (fetches the API, maps, merges into
+`community-events-public.json`, re-chunks). Etiquette: one query per run.
 
 ## New avenues to try (next time)
 
