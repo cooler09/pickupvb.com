@@ -1,69 +1,64 @@
 # Community events — public-source scrape (running tally)
 
-> **Scraped:** 2026-06-12 (+ 2026-06-12 deeper sweep) · **Scope:** nationwide US, upcoming events only · **Sources:** public/no-login pages — AVP schedules, USA Volleyball events, CBVA, and regional organizers (Players Sport & Social / Chicago, Angry Dragon / Atlanta, Spikefest / Dallas, MotherLode / Aspen, …). Facebook **pages can't be scraped** (login wall), but a Facebook URL is fine as an event's link when a public source surfaces it.
+> **Scraped:** 2026-06-12 · **Scope:** nationwide US, upcoming only · **869 import-ready events across 41 states.** Sources: the **Volleyball Life API** (the bulk — see §1) plus curated hand-scraped organizers (AVP, USA Volleyball, CBVA, Chicago/Atlanta/Dallas/Houston/SLC series). Facebook **pages can't be scraped** (login wall), but a FB URL is fine as a link when a public source surfaces it.
 
 ## How to use this file
 
-- **121 import-ready events** live in [`community-events-public.json`](community-events-public.json) (the community-listing draft contract). Upload that file at `https://pickupvb.com/admin/community-import` (platform-admin only). The importer geocodes each address, resolves the timezone, and lets you review/fix every row before saving — now with a progress bar and chunked uploads so a large file won't time out. It's **idempotent on `(externalUrl, date)`**, so re-uploading after edits won't create duplicates.
+- **869 events** live in [`community-events-public.json`](community-events-public.json). Upload at `https://pickupvb.com/admin/community-import` (platform-admin only). The importer reviews each row, resolves timezone, and is **idempotent on `(externalUrl, date)`** so re-uploads don't duplicate.
 
-- This is **separate** from the existing [`community-listings.json`](community-listings.json) (49 Facebook-sourced PA/OH/KY listings, mostly past). These are kept apart on purpose so importing one doesn't touch the other.
+- **That's a lot for the row-by-row review UI.** Pre-split copies (≤150 each) are in [`community-events-import/`](community-events-import/) — upload `part-01.json` … `part-06.json` one at a time if the full file is sluggish.
+
+- Separate from [`community-listings.json`](community-listings.json) (49 Facebook listings, mostly past) — kept apart so importing one doesn't touch the other.
 
 ### ⚠️ Data caveats (review before import)
 
-- **Every row is all-day (`allDay: true`) — no invented start times.** These sources publish a date, not a clock time (real start times live on the JS/login-walled registration pages). Rather than guess, each listing carries the accurate calendar date with the time deliberately omitted; the site renders just the date and labels it "time TBD." If you later learn an event's real start time, uncheck "All day" on that row during review and set it.
+- **Every row is all-day (`allDay: true`) — no invented start times.** Sources publish a date, not a clock time, so each listing carries the accurate date and the site renders it as "time TBD." Uncheck "All day" on a row during review if you learn the real time.
 
-- **Multi-day events** show only the first day; the full date span is in each listing's `description`. `endsAtLocal` is left null.
+- **VBL events carry EXACT venue coordinates** (lat/lng straight from the API → precise map pins, no geocoding). The hand-scraped rows are **city-level** (geocoded from the city). Both are fine; VBL pins are just sharper.
 
-- **Locations are city-level** (venue/beach name is in the description, not a street address) — the geocoder will place an approximate point; refine if you want exact pins.
+- **`format`/`skillLevel` are conservative** — blank when an event spans multiple formats/divisions rather than guessing.
 
-- **`format`/`skillLevel` are conservative** — left blank when an event spans multiple formats or divisions rather than guessing a single value.
+- **Shared series/landing-page links** (e.g. CT DIG + Susquehanna on the AVP Grass page; weekly Chicago series) are intentional — the importer keys on **(URL + date)** so they don't collapse.
 
-- **Some events share a series/landing-page link** (e.g. CT DIG + Susquehanna Smash both point at the AVP Grass schedule page; the AXV, Bluegrass, and Chesapeake series each share one URL across two dates). That's intentional — not every event has its own registration page, and players still get a real page for more info. The importer keys on **(URL + date)** so these don't collapse into one listing.
+## 1. Volleyball Life — national API feed (765)
 
-## 1. Marquee national grass & sand tournaments (8)
+_Pulled from the public Volleyball Life API (`api-v8.volleyballlife.com/tournament/summaries?filter=upcoming`) — single-venue, adult, upcoming tournaments. Each has exact coords + host + divisions, and links to `volleyballlife.com/event/<id>`. Too many to table here — the full rows are in the JSON; summary below._
 
-| Event                                      | Date       | Location          | Surface | Format  | Skill | Link                                                                            |
-| ------------------------------------------ | ---------- | ----------------- | ------- | ------- | ----- | ------------------------------------------------------------------------------- |
-| Pottstown Rumble (AVP Grass Tour)          | 2026-06-26 | Pottstown, PA     | grass   | doubles | —     | [link](https://www.pottstownrumble.com/registration)                            |
-| AVP America Grass Nationals                | 2026-10-23 | Gainesville, FL   | grass   | —       | —     | [link](https://avp.com/avp-america/special-events/avp-america-grass-nationals/) |
-| The CT DIG (AVP Grass Tour)                | 2026-07-25 | South Windsor, CT | grass   | —       | —     | [link](https://avp.com/avp-grass/schedule/)                                     |
-| Susquehanna Smash (AVP Grass Tour)         | 2026-08-01 | Manheim, PA       | grass   | —       | —     | [link](https://avp.com/avp-grass/schedule/)                                     |
-| Waupaca Boatride Volleyball Tournament     | 2026-07-09 | Oshkosh, WI       | grass   | —       | —     | [link](https://waupacaboatride.com/)                                            |
-| DDD Triples #3 (USA Volleyball Grass Tour) | 2026-06-27 | —                 | grass   | triples | —     | [link](https://ddd.volleyballlife.com/event/34821)                              |
-| The Luau Grass Volleyball Tournament       | 2026-07-19 | Kailua, HI        | grass   | quads   | —     | [link](https://volleyballlife.com/event/38801)                                  |
-| Seaside Beach Volleyball Tournament        | 2026-08-05 | Seaside, OR       | sand    | —       | —     | [link](https://seasidebeachvolleyball.com/)                                     |
+- **Surfaces:** sand 523, grass 232, indoor 9, None 1
 
-## 2. USA Volleyball Beach Tour — Nationals & Qualifiers (21)
+- **Top states:** TX 74, CA 64, CO 63, FL 62, NJ 45, NC 36, CT 34, NY 31, UT 28, TN 28, GA 26, MA 26, MO 25, WA 22, PA 19
 
-_Sanctioned USAV beach (sand) events nationwide — National Championship plus Beach National Qualifiers (BNQ) and Beach Regional Qualifiers (BRQ)._
+- **By month:** 2026-06 254, 2026-07 219, 2026-08 151, 2026-09 80, 2026-10 43, 2026-11 10, 2026-12 6, 2027-02 1, 2027-09 1
 
-| Event                                                | Date       | Location              | Surface | Format | Skill | Link                                                                                                         |
-| ---------------------------------------------------- | ---------- | --------------------- | ------- | ------ | ----- | ------------------------------------------------------------------------------------------------------------ |
-| USA Volleyball Beach National Championship           | 2026-07-13 | Virginia Beach, VA    | sand    | —      | —     | [link](https://usavolleyball.org/event/2026-usa-volleyball-beach-national-championship/)                     |
-| The Island BNQ Denver (Rocky Mountain BNQ)           | 2026-06-13 | Denver, CO            | sand    | —      | —     | [link](https://usav.volleyballlife.com/event/37009)                                                          |
-| 501 Volley Beach National Qualifier (Delta Region)   | 2026-06-13 | North Little Rock, AR | sand    | —      | —     | [link](https://usav.volleyballlife.com/event/37106)                                                          |
-| Red, White & Sand Rumble BNQ (Heart of America)      | 2026-06-13 | Shawnee, KS           | sand    | —      | —     | [link](https://usav.volleyballlife.com/event/33742)                                                          |
-| Midwest Open BNQ (Iowa Region)                       | 2026-06-13 | Des Moines, IA        | sand    | —      | —     | [link](https://usav.volleyballlife.com/event/37272)                                                          |
-| Absolute Beach BNQ (Lone Star Region)                | 2026-06-14 | Webster, TX           | sand    | —      | —     | [link](https://usavolleyball.org/event/2026-usa-volleyball-beach-tour-absolute-beach-lone-star-region-bnq/)  |
-| SSOVA Beach National Qualifier                       | 2026-06-28 | Treasure Island, FL   | sand    | —      | —     | [link](https://www.ssova.com)                                                                                |
-| Chesapeake Region Summer Beach National Qualifier    | 2026-08-01 | Clear Brook, VA       | sand    | —      | —     | [link](https://usav.volleyballlife.com/event/33325)                                                          |
-| AXV Beach #3 Regional Qualifier                      | 2026-06-13 | Amarillo, TX          | sand    | —      | —     | [link](https://www.amarilloxtremevolleyball.com/beach.html)                                                  |
-| AXV Beach #4 Regional Qualifier                      | 2026-06-27 | Amarillo, TX          | sand    | —      | —     | [link](https://www.amarilloxtremevolleyball.com/beach.html)                                                  |
-| Charlotte Open Beach National Qualifier (Carolina)   | 2026-06-13 | Charlotte, NC         | sand    | —      | —     | [link](https://usav.volleyballlife.com/event/37087)                                                          |
-| Market City Tournament 4 (Carolina Region)           | 2026-07-18 | Asheboro, NC          | sand    | —      | —     | [link](https://www.facebook.com/groups/477816120593645)                                                      |
-| Bluegrass Beach Bash #2 (Pioneer Region BRQ)         | 2026-06-13 | Bowling Green, KY     | sand    | —      | —     | [link](https://bravobeach.volleyballlife.com/)                                                               |
-| Bluegrass Beach Bash #3 (Pioneer Region BRQ)         | 2026-07-11 | Bowling Green, KY     | sand    | —      | —     | [link](https://bravobeach.volleyballlife.com/)                                                               |
-| Boyd Lee Sand Series 1 (Carolina BRQ)                | 2026-06-13 | Greenville, NC        | sand    | —      | —     | [link](https://volleyballlife.com/event/37148)                                                               |
-| Boyd Lee Sand Series 2 (Carolina BRQ)                | 2026-07-11 | Greenville, NC        | sand    | —      | —     | [link](https://volleyballlife.com/event/37149)                                                               |
-| June First Wave Chesapeake Beach Regional Qualifier  | 2026-06-16 | Dewey Beach, DE       | sand    | —      | —     | [link](https://chesapeake.volleyballlife.com)                                                                |
-| June Second Wave Chesapeake Beach Regional Qualifier | 2026-06-23 | Dewey Beach, DE       | sand    | —      | —     | [link](https://chesapeake.volleyballlife.com)                                                                |
-| Carolina Beach Boogie Regional Qualifier             | 2026-06-20 | Indian Trail, NC      | sand    | —      | —     | [link](https://www.riseevents.us/rise-events/outdoor/)                                                       |
-| Gateway Beach Regional Championship                  | 2026-06-20 | Chesterfield, MO      | sand    | —      | —     | [link](https://www.gatewayvb.org/page/show/4709009-gateway-beach-regional-championships-regional-qualifier-) |
-| WEVA Beach Regional Qualifier                        | 2026-06-21 | Rochester, NY         | sand    | —      | —     | [link](https://www.novaeventmanagement.com/events/)                                                          |
+## 2. Marquee national grass & sand tournaments (2)
 
-## 3. CBVA — California adult beach tournaments (45)
+_Hand-scraped events **not** on Volleyball Life (or recovered before the API pull)._
 
-_California Beach Volleyball Association sand tournaments (adult divisions: Open/AA/A/B/Unrated, Men's/Women's/Coed). Canonical per-event URLs at cbva.com. Junior-only (12U–18U) and invitation-only events were excluded._
+| Event                              | Date       | Location        | Surface | Format | Skill | Link                                                                            |
+| ---------------------------------- | ---------- | --------------- | ------- | ------ | ----- | ------------------------------------------------------------------------------- |
+| AVP America Grass Nationals        | 2026-10-23 | Gainesville, FL | grass   | —      | —     | [link](https://avp.com/avp-america/special-events/avp-america-grass-nationals/) |
+| Susquehanna Smash (AVP Grass Tour) | 2026-08-01 | Manheim, PA     | grass   | —      | —     | [link](https://avp.com/avp-grass/schedule/)                                     |
+
+## 3. USA Volleyball Beach Tour — qualifiers not on VBL (10)
+
+_USAV BNQ/BRQ events whose registration lives on a regional site rather than VBL (Amarillo, RISE, WEVA, Bravo, Chesapeake, …)._
+
+| Event                                                | Date       | Location           | Surface | Format | Skill | Link                                                                                     |
+| ---------------------------------------------------- | ---------- | ------------------ | ------- | ------ | ----- | ---------------------------------------------------------------------------------------- |
+| USA Volleyball Beach National Championship           | 2026-07-13 | Virginia Beach, VA | sand    | —      | —     | [link](https://usavolleyball.org/event/2026-usa-volleyball-beach-national-championship/) |
+| AXV Beach #3 Regional Qualifier                      | 2026-06-13 | Amarillo, TX       | sand    | —      | —     | [link](https://www.amarilloxtremevolleyball.com/beach.html)                              |
+| AXV Beach #4 Regional Qualifier                      | 2026-06-27 | Amarillo, TX       | sand    | —      | —     | [link](https://www.amarilloxtremevolleyball.com/beach.html)                              |
+| Market City Tournament 4 (Carolina Region)           | 2026-07-18 | Asheboro, NC       | sand    | —      | —     | [link](https://www.facebook.com/groups/477816120593645)                                  |
+| Bluegrass Beach Bash #2 (Pioneer Region BRQ)         | 2026-06-13 | Bowling Green, KY  | sand    | —      | —     | [link](https://bravobeach.volleyballlife.com/)                                           |
+| Bluegrass Beach Bash #3 (Pioneer Region BRQ)         | 2026-07-11 | Bowling Green, KY  | sand    | —      | —     | [link](https://bravobeach.volleyballlife.com/)                                           |
+| June First Wave Chesapeake Beach Regional Qualifier  | 2026-06-16 | Dewey Beach, DE    | sand    | —      | —     | [link](https://chesapeake.volleyballlife.com)                                            |
+| June Second Wave Chesapeake Beach Regional Qualifier | 2026-06-23 | Dewey Beach, DE    | sand    | —      | —     | [link](https://chesapeake.volleyballlife.com)                                            |
+| Carolina Beach Boogie Regional Qualifier             | 2026-06-20 | Indian Trail, NC   | sand    | —      | —     | [link](https://www.riseevents.us/rise-events/outdoor/)                                   |
+| WEVA Beach Regional Qualifier                        | 2026-06-21 | Rochester, NY      | sand    | —      | —     | [link](https://www.novaeventmanagement.com/events/)                                      |
+
+## 4. CBVA — California adult beach tournaments (45)
+
+_California Beach Volleyball Association sand tournaments; canonical per-event URLs at cbva.com. Not on Volleyball Life._
 
 | Event                                                         | Date       | Location             | Surface | Format  | Skill       | Link                                      |
 | ------------------------------------------------------------- | ---------- | -------------------- | ------- | ------- | ----------- | ----------------------------------------- |
@@ -113,9 +108,9 @@ _California Beach Volleyball Association sand tournaments (adult divisions: Open
 | CBVA Beach Doubles — Belmont Shore, Long Beach (Sep 26)       | 2026-09-26 | Long Beach, CA       | sand    | doubles | —           | [link](https://cbva.com/tournaments/4740) |
 | CBVA Beach Doubles — Dockweiler, Los Angeles (Sep 26)         | 2026-09-26 | Los Angeles, CA      | sand    | doubles | competitive | [link](https://cbva.com/tournaments/4742) |
 
-## 4. Regional series & metro tournaments (47)
+## 5. Regional series & metro tournaments (47)
 
-_Adult outdoor series from regional organizers — **Chicago** (Players Sport & Social: full sand + grass season; Chicago Sport & Social), **Atlanta** (Angry Dragon grass), **Dallas** (Spikefest), **Aspen** (MotherLode), **Houston** (Sports & Social), and **Salt Lake City** (SandBar). The weekly series share one landing URL per series/venue across dates (handled by the URL+date key)._
+_Adult outdoor series from organizers not on VBL — **Chicago** (Players Sport & Social; Chicago Sport & Social), **Atlanta** (Angry Dragon), **Dallas** (Spikefest), **Aspen** (MotherLode), **Houston** (Sports & Social), **Salt Lake City** (SandBar)._
 
 | Event                                                          | Date       | Location            | Surface | Format  | Skill | Link                                                                               |
 | -------------------------------------------------------------- | ---------- | ------------------- | ------- | ------- | ----- | ---------------------------------------------------------------------------------- |
@@ -169,20 +164,16 @@ _Adult outdoor series from regional organizers — **Chicago** (Players Sport & 
 
 ## Appendix — found but NOT in the import JSON
 
-These came up in the sweep but were left out of `community-events-public.json` for the reason noted. Pull any into the JSON if you can supply the missing piece.
+| Event                                    | Date          | Location           | Why excluded                                                                      |
+| ---------------------------------------- | ------------- | ------------------ | --------------------------------------------------------------------------------- |
+| BVCA National Championships              | 2026-07-07–11 | Hermosa Beach, CA  | Junior club championship — not adult pickup                                       |
+| USAV Junior Beach National Championships | 2026-07-13–18 | Virginia Beach, VA | Junior event                                                                      |
+| AVP Pro Tour stops                       | Jun–Sep 2026  | Nationwide         | Spectator/ticketed pro events, not participatory — ask to add as a marked section |
 
-_Shared series/landing-page links are now **included** (CT DIG, Susquehanna, AXV #4, Bluegrass #3, 2nd Wave Chesapeake, Charlotte Open were all recovered). What's left out:_
+### Source notes
 
-| Event                                                                                                                             | Date          | Location           | Why excluded                                                                                            |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------ | ------------------------------------------------------------------------------------------------------- |
-| BVCA National Championships                                                                                                       | 2026-07-07–11 | Hermosa Beach, CA  | Junior club (Beach Volleyball Clubs of America) championship — not adult pickup                         |
-| USAV Junior Beach National Championships                                                                                          | 2026-07-13–18 | Virginia Beach, VA | Junior event                                                                                            |
-| AVP Pro Tour stops (Miami, Las Vegas, Long Beach, Central Park, East Hampton, Dallas, Manhattan Beach Open, Chicago championship) | Jun–Sep 2026  | Nationwide         | Spectator/ticketed pro events, not participatory — say the word and I'll add them as a separate section |
+- **Volleyball Life API is now the primary source** (was a SPA wall; the public JSON endpoint cracked it). Full recipe + the filter/mapping in [`docs/community-events-scrape.md`](docs/community-events-scrape.md).
 
-### Other promising sources I couldn't enumerate (JS-rendered / login-walled)
+- **Facebook** — FB _pages_ can't be auto-fetched; use the `facebook-events-import` skill's logged-in scraper to pull FB event _data_. A FB _link_ is fine as an `externalUrl`.
 
-- **The Volleyball Life** (`volleyballlife.com`) — the registration backend for AVP America, Seaside, Pottstown, DDD, the Luau and most USAV beach events. It's a single-page app, so I could only capture individual event URLs surfaced elsewhere, not browse its full nationwide calendar. A logged-in/API pull would unlock a lot more.
-
-- **CBVA detail pages** render client-side, so adult start times/fees aren't fetchable — only the list view (date/venue/divisions/URL) is.
-
-- **Facebook events** (the richest pickup/grass source) — FB _pages_ can't be auto-fetched (login wall), so to pull event **data** out of FB use the `facebook-events-import` skill's logged-in scraper. A FB _link_ is perfectly fine as an event's `externalUrl` when a public source gives it to us (e.g. the Market City listing in section 2 links to its FB group).
+- **SSOVA (Florida)** — schedule is an image; still needs its `bracketpal` JSON.

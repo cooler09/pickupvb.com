@@ -77,17 +77,17 @@ Generate with a throwaway Python script (validate: every URL unique + `https://`
 
 Updated 2026-06-12. **✅ = WebFetch works server-side; ⚠️ = JS SPA / login wall.**
 
-| Source                  | Fetchable?             | What you get                                                                                                                                                                                                                                                          | URL                              |
-| ----------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| AVP Pro schedule        | ✅                     | Pro **spectator** tour stops (date/city). Not participatory — keep out of import unless asked.                                                                                                                                                                        | `avp.com/the-2026-avp-schedule/` |
-| AVP Grass schedule      | ✅                     | AVP Grass Tour (Pottstown, CT DIG, Susquehanna, Grass Nationals).                                                                                                                                                                                                     | `avp.com/avp-grass/schedule/`    |
-| USA Volleyball events   | ✅                     | **Goldmine.** Beach Nationals + BNQ/BRQ qualifiers nationwide, each with a per-event URL.                                                                                                                                                                             | `usavolleyball.org/events/`      |
-| CBVA tournament list    | ✅ (list only)         | **Goldmine for CA.** Paginate `?page=N`; date/venue/divisions + canonical `cbva.com/tournaments/<id>`. Detail pages are SPA (no times).                                                                                                                               | `cbva.com/tournaments`           |
-| Named marquee sites     | ✅ usually             | Seaside (OR), Waupaca Boatride (WI), DDD (MN), The Luau (HI), Pottstown Rumble.                                                                                                                                                                                       | their own domains                |
-| Eventbrite              | ✅ (individual events) | Search → fetch individual `/e/` pages for full date/time/venue. Collections are hit-or-miss.                                                                                                                                                                          | `eventbrite.com`                 |
-| **The Volleyball Life** | ⚠️ SPA                 | The registration backend for AVP America, Seaside, Pottstown, DDD, Luau, most USAV beach events. Can only capture event URLs surfaced elsewhere, **not** browse its calendar. **Biggest untapped source** — an API/logged-in pull would multiply the count.           | `volleyballlife.com`             |
-| GCVA (Gulf Coast)       | ⚠️ 403                 | Blocks WebFetch.                                                                                                                                                                                                                                                      | `gcva.net`                       |
-| Facebook events         | ⚠️ scrape only         | Can't auto-fetch FB **pages** (login wall) — to extract event **data** the user runs the `facebook-events-import` scraper. But a FB **link is a fine `externalUrl`** when another public source gives it to you (e.g. a USAV event whose details live on a FB group). | `facebook.com`                   |
+| Source                  | Fetchable?             | What you get                                                                                                                                                                                                                                                                 | URL                              |
+| ----------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| AVP Pro schedule        | ✅                     | Pro **spectator** tour stops (date/city). Not participatory — keep out of import unless asked.                                                                                                                                                                               | `avp.com/the-2026-avp-schedule/` |
+| AVP Grass schedule      | ✅                     | AVP Grass Tour (Pottstown, CT DIG, Susquehanna, Grass Nationals).                                                                                                                                                                                                            | `avp.com/avp-grass/schedule/`    |
+| USA Volleyball events   | ✅                     | **Goldmine.** Beach Nationals + BNQ/BRQ qualifiers nationwide, each with a per-event URL.                                                                                                                                                                                    | `usavolleyball.org/events/`      |
+| CBVA tournament list    | ✅ (list only)         | **Goldmine for CA.** Paginate `?page=N`; date/venue/divisions + canonical `cbva.com/tournaments/<id>`. Detail pages are SPA (no times).                                                                                                                                      | `cbva.com/tournaments`           |
+| Named marquee sites     | ✅ usually             | Seaside (OR), Waupaca Boatride (WI), DDD (MN), The Luau (HI), Pottstown Rumble.                                                                                                                                                                                              | their own domains                |
+| Eventbrite              | ✅ (individual events) | Search → fetch individual `/e/` pages for full date/time/venue. Collections are hit-or-miss.                                                                                                                                                                                 | `eventbrite.com`                 |
+| **The Volleyball Life** | ✅ via API             | SPA in the browser, but its backend is a public JSON API (`api-v8.volleyballlife.com/tournament/summaries?filter=upcoming`) — the whole nationwide calendar (~2,485 events) with coords + divisions. **The biggest source.** See the dedicated section below for the recipe. | `api-v8.volleyballlife.com`      |
+| GCVA (Gulf Coast)       | ⚠️ 403                 | Blocks WebFetch.                                                                                                                                                                                                                                                             | `gcva.net`                       |
+| Facebook events         | ⚠️ scrape only         | Can't auto-fetch FB **pages** (login wall) — to extract event **data** the user runs the `facebook-events-import` scraper. But a FB **link is a fine `externalUrl`** when another public source gives it to you (e.g. a USAV event whose details live on a FB group).        | `facebook.com`                   |
 
 CBVA venue → city map (sand, CA): Manhattan Pier/Marine Ave/Rosecrans→Manhattan
 Beach; Belmont Shore→Long Beach; Mission Beach/Ocean Beach→San Diego; Main
@@ -122,52 +122,76 @@ SSOVA schedule (still image-only). **Skipped as cross-file dup:** Pittsburgh
 Grass Open (already in the FB `community-listings.json`) — always check the FB
 set before adding a marquee event from another source.
 
-## The Volleyball Life API — biggest untapped source (future task)
+## The Volleyball Life API — SOLVED + EXECUTED (the biggest source)
+
+> **Status (2026-06-12):** done. Pulled the feed, filtered to **765** single-venue
+> adult upcoming events, reverse-geocoded their coords offline (`reverse_geocoder`,
+> `mode=1`), mapped to `ListingDraft`, and merged into `community-events-public.json`
+> (now **869 across 41 states**, 765 with exact coords). The importer was extended
+> to accept `latitude`/`longitude` so these use the precise venue pin and skip
+> geocoding. 7 hand-scraped marquee/USAV rows were dropped as VBL dups (host-aware
+> (date,city) match); CBVA/Chicago/Atlanta/Houston/SLC kept (not on VBL). Recipe below.
 
 `volleyballlife.com` is the registration backend for a huge share of US outdoor
-volleyball, so unlocking it would dwarf every other source here in one pass.
-**What runs on it (seen during this sweep):** AVP America (200+ affiliates,
-45k+ members), the USA Volleyball Beach Tour (`usav.volleyballlife.com`), AVP
-Grass, Seaside, Pottstown Rumble, DDD (MN), The Luau (HI), Waupaca, Pittsburgh
-Grass, Bravo Beach/Bluegrass (KY), Chesapeake, BVNE (New England), and more.
-Affiliates each get a subdomain; events live at predictable URLs:
+volleyball (AVP America 200+ affiliates, USA Volleyball Beach Tour, AVP Grass,
+Seaside, Pottstown, DDD, the Luau, Waupaca, Pittsburgh Grass, Bravo Beach,
+Chesapeake, BVNE, p1440, and hundreds of independent organizers). The site is a
+client-rendered SPA (WebFetch gets an empty shell), but its backend is a **public,
+unauthenticated JSON API** — found 2026-06-12:
 
-- `https://<affiliate>.volleyballlife.com/tournaments/upcoming` — an affiliate's calendar
-- `https://volleyballlife.com/event/<numeric-id>` — a single event
-- Subdomains seen: `avp`, `usav`, `pottstown`, `seaside`, `ddd`, `bravobeach`,
-  `chesapeake`, `pittsburghgrass`, `bvne`, `waupaca`.
+```
+GET https://api-v8.volleyballlife.com/tournament/summaries?filter=upcoming&includeDivisionMeta=true
+```
 
-**Why WebFetch can't read it:** the site is a client-rendered single-page app —
-a server-side fetch gets an empty shell, so the calendar never appears (this is
-why every `…volleyballlife.com` row in the registry is ⚠️). We can only capture
-event URLs that _other_ (server-rendered) sources hand us.
+Returns a **bare JSON array of ~2,485 upcoming tournaments** nationwide — no auth,
+no API key (it sets a `device-id` cookie but doesn't require one). Fetch it
+straight from a script (`curl`/`fetch`); it's ~4 MB.
 
-**How a future task should crack it — in order of preference:**
+**Per-tournament fields that matter:**
 
-1. **Find the JSON API (best).** Open an affiliate `…/tournaments/upcoming` page
-   in a browser with DevTools → Network → Fetch/XHR and watch the calls the SPA
-   makes. It almost certainly hits a REST/GraphQL backend (look for
-   `api.volleyballlife.com` or similar) returning **structured JSON** — event
-   name, **date _and start time_**, venue, divisions, fees. If any endpoint is
-   unauthenticated, call it server-side (by affiliate or date range), page
-   through it, and map the response straight to the `ListingDraft` contract. This
-   is the dream: no HTML scraping, full coverage, and — crucially — **real start
-   times**, so these events import as timed (`allDay: false`) instead of date-only.
-2. **Logged-in Playwright pull (fallback).** If the API needs auth, mirror the
-   `facebook-events-import` skill's pattern: a headful browser the _user_ runs (a
-   real window won't surface from an agent process), navigate each affiliate
-   calendar, and either intercept the API responses or read the rendered cards,
-   dumping to JSON. Cache per (affiliate, date) like the FB scraper does.
-3. **SSOVA (Florida) is a sibling case** but on a _different_ platform
-   (`ssova.bracketpal.com`) — its schedule is an image on `ssova.com`, so the
-   same "find-the-JSON or render-it" playbook applies to bracketpal.
+| field                   | use                                                                                                 |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `id`                    | event URL → `https://volleyballlife.com/event/<id>` (unique per event)                              |
+| `name`                  | title (sometimes embeds a time, e.g. "…Check in 5pm" — freeform, don't rely on it)                  |
+| `startDate` / `endDate` | **date-only** (`YYYY-MM-DD`) — so these are **all-day** (anchor noon, `allDay:true`)                |
+| `coordinates[0]`        | `"<lat> <lng>"` string — **present on 100% of events**; reverse-geocode it for city/state + map pin |
+| `locations[0]`          | venue name (only ~11% include a `, City, ST`)                                                       |
+| `organization.name`     | host → `externalHostName` (`organization.username` is the affiliate subdomain)                      |
+| `tags`                  | surface: `"Beach"`→sand, `"Grass"`→grass, `"Indoor"`→indoor; also `"Adult"` vs junior age tags      |
+| `divisionMeta[].format` | `"Twos"`→doubles, `"Threes"`→triples, `"Fours"`→quads, `"Sixes"`→sixes (null if mixed)              |
+| `divisionNames`         | skill: Open→competitive, AA→advanced, A→intermediate, B/BB→beginner (null if mixed)                 |
+| `isPublic`, `statusId`  | filter: `isPublic:true`, `statusId:0` is the normal published state                                 |
 
-**Build it as its own task**, not inside a normal scrape run — it needs the
-network-inspect step (and maybe a login) up front. When it lands, add a
-`volleyballlife` row to the registry marked ✅ and fold its events in via the
-normal `(externalUrl, date)` upsert. Watch for **cross-file dups** against events
-already captured from server-rendered sources (e.g. Pittsburgh Grass appears both
-here and in the FB set).
+**Filter recipe → importable set.** The feed mixes single tournaments with
+season "tour containers" (year-long date range + many `locations`). Keep only:
+`endDate-startDate ≤ 3` days **and** `len(locations)==1` **and** `isPublic` **and**
+`startDate ≥ today` **and** `"Adult" in tags`. As of 2026-06-12 that's **768
+events** (sand 524 / grass 234 / indoor 9).
+
+**Two build tasks before this is import-ready:**
+
+1. **Reverse-geocode `coordinates`** → city/state/country for the draft (only 11%
+   carry a parseable state in the location string). Options: a Python offline
+   reverse geocoder (`reverse_geocoder`), Nominatim reverse (1 req/s — ~13 min for
+   768), or extend the importer/`ListingDraft` to accept lat/lng directly (cleanest
+   — we have exact coords, so skip geocoding entirely).
+2. **Dedup against what's already imported.** Many API events overlap the
+   hand-scraped sources (AVP Grass, USAV, Pottstown, DDD, …) but under a _different_
+   URL (`volleyballlife.com/event/<id>` vs `avp.com/…`), so the `(url,date)` key
+   won't catch them. Dedup on a `(normalized-name, date, ~coords)` heuristic, and
+   decide whether the API set **replaces** the hand-scraped one (it's more
+   authoritative + has coords) or augments it.
+
+**Volume is the real decision.** 768 is far more than the admin can review
+one-by-one. Curate (e.g. next 60 days = ~549; or by region; or by `teamCount`/
+popularity), or add a bulk-trust path. Don't dump all 768 through the row-by-row
+reviewer.
+
+**Etiquette:** it's a public calendar, but cache the 4 MB response and don't
+hammer it; one pull per run is plenty.
+
+**Sibling — SSOVA (Florida)** is on a _different_ platform (`ssova.bracketpal.com`;
+schedule is an image on `ssova.com`) — apply the same find-the-JSON playbook there.
 
 ## New avenues to try (next time)
 

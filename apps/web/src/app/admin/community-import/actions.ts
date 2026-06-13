@@ -182,18 +182,30 @@ async function draftToDto(
       throw new ValidationError('City and country are required when a location is provided.');
     }
     let coords: { latitude: number; longitude: number } | null = null;
-    try {
-      coords = await geocodeAddress({
-        addressLine: d.addressLine ?? '',
-        city: d.city,
-        region: d.region ?? '',
-        postalCode: d.postalCode ?? '',
-        country: d.country,
-      });
-    } catch {
-      // Address didn't resolve — keep it as text, store no point.
-      coords = null;
-      geocoded = false;
+    // Exact venue coordinates from the source (e.g. the Volleyball Life API) win
+    // — use them directly and skip the MapTiler call. Precise pin, no quota burn,
+    // and no risk of a forward-geocode landing on the wrong same-named place.
+    if (
+      d.latitude != null &&
+      d.longitude != null &&
+      Number.isFinite(d.latitude) &&
+      Number.isFinite(d.longitude)
+    ) {
+      coords = { latitude: d.latitude, longitude: d.longitude };
+    } else {
+      try {
+        coords = await geocodeAddress({
+          addressLine: d.addressLine ?? '',
+          city: d.city,
+          region: d.region ?? '',
+          postalCode: d.postalCode ?? '',
+          country: d.country,
+        });
+      } catch {
+        // Address didn't resolve — keep it as text, store no point.
+        coords = null;
+        geocoded = false;
+      }
     }
     location = {
       addressLine: d.addressLine,

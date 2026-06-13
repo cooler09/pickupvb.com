@@ -18,9 +18,28 @@ describe('coerceDraft', () => {
       region: null,
       postalCode: null,
       country: null,
+      latitude: null,
+      longitude: null,
       surface: 'grass',
       format: null,
       skillLevel: null,
+    });
+  });
+
+  it('parses lat/lng (incl. numeric strings) and nulls non-finite/missing', () => {
+    // Sources like the Volleyball Life API ship exact venue coords; the importer
+    // uses them directly (skips geocoding) only when both are finite numbers.
+    expect(coerceDraft({ title: 'Coords', latitude: 33.77, longitude: -118.19 })).toMatchObject({
+      latitude: 33.77,
+      longitude: -118.19,
+    });
+    expect(coerceDraft({ title: 'Strings', latitude: '40.5', longitude: '-74.1' })).toMatchObject({
+      latitude: 40.5,
+      longitude: -74.1,
+    });
+    expect(coerceDraft({ title: 'Missing/bad', latitude: 'NaN' })).toMatchObject({
+      latitude: null,
+      longitude: null,
     });
   });
 
