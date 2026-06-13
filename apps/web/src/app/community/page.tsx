@@ -4,6 +4,7 @@ import { fieldInputClass } from '@/components/field-styles';
 import type { Metadata } from 'next/types';
 import { SearchCommunityListingsQuery } from '@pickupvb/application';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
+import { eventBucket } from '@/lib/date-formats';
 import { handlers } from '@/lib/handlers';
 import { Pagination } from '@/components/pagination';
 import { NearMeButton } from '../events/near-me-button';
@@ -108,6 +109,13 @@ export default async function CommunityListingsPage(props: {
   const near = lat !== null && lng !== null ? { latitude: lat, longitude: lng, radiusKm } : null;
 
   const now = new Date();
+  // Boundary between "past" and "upcoming" is the **start of today** (UTC), not
+  // `now` — otherwise an all-day listing anchored at noon would flip to "past"
+  // (and drop out of the "Today" group) once the clock passes noon. Flooring to
+  // the UTC day keeps today's events in the upcoming view all day.
+  const startOfToday = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
   // Load a generous window and slice for display (pattern #12). This removes the
   // old silent 60-row cap; if community volume ever exceeds FETCH_CAP per view,
   // swap to keyset paging (offset/count) in the repo — tracked in
@@ -120,7 +128,9 @@ export default async function CommunityListingsPage(props: {
       limit: FETCH_CAP,
       // Upcoming: soonest-first. Past: most-recent-first (order desc) so the
       // freshest history leads instead of the oldest archived event.
-      ...(isPast ? { startsBefore: now, order: 'desc' as const } : { startsAfter: now }),
+      ...(isPast
+        ? { startsBefore: startOfToday, order: 'desc' as const }
+        : { startsAfter: startOfToday }),
       ...(near ? { near } : {}),
       ...(surface ? { surface } : {}),
       ...(format ? { format } : {}),
@@ -129,6 +139,23 @@ export default async function CommunityListingsPage(props: {
   );
   const total = allListings.length;
   const listings = allListings.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  // Upcoming list view groups the page's cards into "Today / Tomorrow / This
+  // week / Next week / Later" sections (computed in each event's own timezone
+  // vs. `now`). Listings are already sorted soonest-first, so buckets come out
+  // in order; a bucket may continue onto the next page, which just re-shows its
+  // header. Past/map views aren't grouped.
+  const groupedListings: { label: string; items: typeof listings }[] = [];
+  if (!isPast) {
+    const byOrder = new Map<number, { label: string; items: typeof listings }>();
+    for (const l of listings) {
+      const { order, label } = eventBucket(l.startsAt, l.timeZone ?? null, now);
+      const g = byOrder.get(order) ?? { label, items: [] };
+      g.items.push(l);
+      byOrder.set(order, g);
+    }
+    groupedListings.push(...[...byOrder.entries()].sort((a, b) => a[0] - b[0]).map(([, g]) => g));
+  }
 
   // `ItemList` JSON-LD for the index, so crawlers see an explicit, ordered list
   // of the listing URLs (a discovery hint on top of the in-page <a>s). Emit it
@@ -458,11 +485,29 @@ export default async function CommunityListingsPage(props: {
         </p>
       ) : (
         <>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.map((l) => (
-              <CommunityListingCard key={l.id} listing={l} />
-            ))}
-          </ul>
+          {isPast ? (
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {listings.map((l) => (
+                <CommunityListingCard key={l.id} listing={l} />
+              ))}
+            </ul>
+          ) : (
+            <div className="space-y-6">
+              {groupedListings.map((g) => (
+                <div key={g.label}>
+                  <h2 className="text-title-lg mb-3 font-semibold">
+                    {g.label}{' '}
+                    <span className="text-muted text-base font-normal">· {g.items.length}</span>
+                  </h2>
+                  <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {g.items.map((l) => (
+                      <CommunityListingCard key={l.id} listing={l} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
           <Pagination
             basePath="/community"
             page={page}
