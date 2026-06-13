@@ -176,4 +176,4 @@ _Adult outdoor series from organizers not on VBL — **Chicago** (Players Sport 
 
 - **Facebook** — FB _pages_ can't be auto-fetched; use the `facebook-events-import` skill's logged-in scraper to pull FB event _data_. A FB _link_ is fine as an `externalUrl`.
 
-- **SSOVA (Florida)** — schedule is an image; still needs its `bracketpal` JSON.
+- **SSOVA / Florida** — covered: SSOVA posts to Volleyball Life, so §1 already includes 25 SSOVA adult events + ~63 FL events (the `ssova.com` image schedule / bracketpal signup were a red herring).

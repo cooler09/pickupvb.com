@@ -190,15 +190,21 @@ reviewer.
 **Etiquette:** it's a public calendar, but cache the 4 MB response and don't
 hammer it; one pull per run is plenty.
 
-**Sibling — SSOVA (Florida)** is on a _different_ platform (`ssova.bracketpal.com`;
-schedule is an image on `ssova.com`) — apply the same find-the-JSON playbook there.
+**SSOVA (Florida) — already covered by this same API.** SSOVA's `ssova.com`
+schedule is an image and it links a `ssova.bracketpal.com` signup, but its
+_events_ are posted to Volleyball Life (org `"SSOVA"`), so the pull above already
+captured them — **25 SSOVA adult events + ~63 Florida events** (Florida Beach
+Volleyball Tour, p1440, GVT, First Coast, St Pete Ballers, BVNE, …) are in the
+merged set. The `Adult`-tag filter correctly drops SSOVA's _Juniors_ dates. No
+bracketpal scrape needed — when an org has both a bracketpal signup and a VBL
+listing, VBL is the source of truth.
 
 ## New avenues to try (next time)
 
 - **Sport & Social / metro rec leagues in every big city** — the Chicago Players
   pattern repeats nationwide (e.g. Houston SSC, Austin Sports Center, DC/Boston/
   Denver/Atlanta social clubs). Each posts a dated season; high yield, server-rendered.
-- **Regional grass/sand series** still unswept: SSOVA (FL, via bracketpal), Texas
+- **Regional grass/sand series** still unswept: Texas
   Volleyball Tour (403 — try a different fetch), EVP, p1440, NVL-amateur, Big
   Sky/Rocky Mountain, Utah, Pacific NW adult (vs. the junior qualifier).
 - **More marquee**: Hyannis (MA), Volleyball City Clash (Holyoke MA), Fresh Coast
