@@ -122,11 +122,55 @@ SSOVA schedule (still image-only). **Skipped as cross-file dup:** Pittsburgh
 Grass Open (already in the FB `community-listings.json`) — always check the FB
 set before adding a marquee event from another source.
 
+## The Volleyball Life API — biggest untapped source (future task)
+
+`volleyballlife.com` is the registration backend for a huge share of US outdoor
+volleyball, so unlocking it would dwarf every other source here in one pass.
+**What runs on it (seen during this sweep):** AVP America (200+ affiliates,
+45k+ members), the USA Volleyball Beach Tour (`usav.volleyballlife.com`), AVP
+Grass, Seaside, Pottstown Rumble, DDD (MN), The Luau (HI), Waupaca, Pittsburgh
+Grass, Bravo Beach/Bluegrass (KY), Chesapeake, BVNE (New England), and more.
+Affiliates each get a subdomain; events live at predictable URLs:
+
+- `https://<affiliate>.volleyballlife.com/tournaments/upcoming` — an affiliate's calendar
+- `https://volleyballlife.com/event/<numeric-id>` — a single event
+- Subdomains seen: `avp`, `usav`, `pottstown`, `seaside`, `ddd`, `bravobeach`,
+  `chesapeake`, `pittsburghgrass`, `bvne`, `waupaca`.
+
+**Why WebFetch can't read it:** the site is a client-rendered single-page app —
+a server-side fetch gets an empty shell, so the calendar never appears (this is
+why every `…volleyballlife.com` row in the registry is ⚠️). We can only capture
+event URLs that _other_ (server-rendered) sources hand us.
+
+**How a future task should crack it — in order of preference:**
+
+1. **Find the JSON API (best).** Open an affiliate `…/tournaments/upcoming` page
+   in a browser with DevTools → Network → Fetch/XHR and watch the calls the SPA
+   makes. It almost certainly hits a REST/GraphQL backend (look for
+   `api.volleyballlife.com` or similar) returning **structured JSON** — event
+   name, **date _and start time_**, venue, divisions, fees. If any endpoint is
+   unauthenticated, call it server-side (by affiliate or date range), page
+   through it, and map the response straight to the `ListingDraft` contract. This
+   is the dream: no HTML scraping, full coverage, and — crucially — **real start
+   times**, so these events import as timed (`allDay: false`) instead of date-only.
+2. **Logged-in Playwright pull (fallback).** If the API needs auth, mirror the
+   `facebook-events-import` skill's pattern: a headful browser the _user_ runs (a
+   real window won't surface from an agent process), navigate each affiliate
+   calendar, and either intercept the API responses or read the rendered cards,
+   dumping to JSON. Cache per (affiliate, date) like the FB scraper does.
+3. **SSOVA (Florida) is a sibling case** but on a _different_ platform
+   (`ssova.bracketpal.com`) — its schedule is an image on `ssova.com`, so the
+   same "find-the-JSON or render-it" playbook applies to bracketpal.
+
+**Build it as its own task**, not inside a normal scrape run — it needs the
+network-inspect step (and maybe a login) up front. When it lands, add a
+`volleyballlife` row to the registry marked ✅ and fold its events in via the
+normal `(externalUrl, date)` upsert. Watch for **cross-file dups** against events
+already captured from server-rendered sources (e.g. Pittsburgh Grass appears both
+here and in the FB set).
+
 ## New avenues to try (next time)
 
-- **The Volleyball Life API** — by far the highest-leverage unlock. Inspect its
-  network calls for a public JSON endpoint, or pull with a logged-in session
-  (mirror the FB scraper pattern). Backs BVNE, SSOVA, AVP America, Seaside, etc.
 - **Sport & Social / metro rec leagues in every big city** — the Chicago Players
   pattern repeats nationwide (e.g. Houston SSC, Austin Sports Center, DC/Boston/
   Denver/Atlanta social clubs). Each posts a dated season; high yield, server-rendered.
