@@ -228,15 +228,25 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     externalUrl: string,
     startsAt: Date,
   ): Promise<CommunityListingIdentity | null> {
-    // The importer's idempotency key is (external_url, starts_at), not the URL
-    // alone: a series can share one landing-page URL across stops on different
-    // dates, so we match the start instant too. `external_url` still isn't
-    // unique, so the earliest row wins and re-imports of the same event
-    // converge on it.
+    // Idempotency key is (external_url, **calendar day** of starts_at) — NOT the
+    // exact instant. A shared landing-page URL can host events on different DAYS
+    // (kept distinct), but the same event re-imported after a pipeline change
+    // that shifts its computed start by minutes/hours (timezone resolution,
+    // baked-vs-geocoded coords, the all-day noon-anchor) must still converge.
+    // Matching the exact `toISOString()` instant created ~1.3k duplicate rows in
+    // prod; the day key matches how the generators dedup `(url, date)`. The UTC
+    // day is the right grain because all-day rows anchor at noon-local (a stable
+    // UTC date) and timed rows keep a fixed wall-clock. `external_url` isn't
+    // unique, so the earliest row wins and re-imports converge on it.
+    const dayStart = new Date(
+      Date.UTC(startsAt.getUTCFullYear(), startsAt.getUTCMonth(), startsAt.getUTCDate()),
+    );
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     const { data, error } = await this.table('community_listings')
       .select('id, slug, status')
       .eq('external_url', externalUrl)
-      .eq('starts_at', startsAt.toISOString())
+      .gte('starts_at', dayStart.toISOString())
+      .lt('starts_at', dayEnd.toISOString())
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();

@@ -40,10 +40,18 @@ Related:
   doesn't have its own page, link the **series / landing page** that has its
   details (e.g. several AVP Grass stops share `avp.com/avp-grass/schedule/`; the
   AXV/Bluegrass/Chesapeake series each share one URL across dates). The importer
-  keys on **`(externalUrl, startsAt)`** (`findByExternalUrl`), so shared URLs are
-  fine as long as the **dates differ** — they won't collapse. Only avoid two rows
-  with the **same URL and the same date** (that's a true duplicate). Don't drop
-  an event just because it lacks its own sign-up link.
+  keys on **`(externalUrl, calendar day of startsAt)`** (`findByExternalUrl`), so
+  shared URLs are fine as long as the **dates differ** — they won't collapse.
+  Only avoid two rows with the **same URL and the same date** (that's a true
+  duplicate). Don't drop an event just because it lacks its own sign-up link.
+  - **Dedup is by DAY, not exact instant (fixed 2026-06-13).** The key used to
+    match the exact `starts_at` timestamp, so the same event re-imported after a
+    pipeline change that shifted its computed start by minutes/hours (timezone
+    resolution, baked-vs-geocoded coords, the all-day noon-anchor) created a NEW
+    row instead of converging — **~1,291 duplicate rows** accumulated in prod
+    across the many import iterations and were purged. The generators dedup on
+    `(url, date)` too, so the two layers now agree. Keep emitting at most one row
+    per `(externalUrl, date)`.
 - **Don't fabricate locations.** City + state is enough (the server geocodes to a
   city-level point). Put the venue/beach name in the `description`, leave
   `addressLine`/`postalCode` null. If you don't even know the city, leave **all**
@@ -358,11 +366,47 @@ Mapping → `ListingDraft` (see `/tmp/build_meetup.py`):
   the Meetup branch in `classify()` uses a strict `\btourn` check.
 - **Dedup** globally on `(url, date)` — the same event appears in several
   neighboring metros' find pages. Idempotent merge drops prior `meetup.com` rows.
+- **Cross-sport filter (important — Meetup's biggest gotcha).** The volleyball
+  keyword search drags in events from **multi-sport social clubs and dedicated
+  other-sport groups** — tennis, pickleball, soccer/futsal, kickball, dodgeball,
+  bowling, flag football, even ballroom/salsa/bachata **dance** classes,
+  petanque, hiking, yoga. That's **~40% of raw hits**. `is_other_sport()` drops
+  them on two signals: (1) the **title is the event's identity**, so a title that
+  names another sport is dropped _even if the group's description mentions
+  volleyball_ (multi-sport club blurbs cross-reference everything) — unless the
+  title itself also says "volley" ("Volleyball & Pickleball"); (2) the **group
+  slug** (`…-tennis-league`, `miamisoccer`, `denvermetropickleball`,
+  `ultimate-tango-school-of-dance`), which catches the generic titles those
+  groups post ("June Tourney", "River Road Courts", "Intermediate"). Keep
+  `OTHER_SPORT`/`SLUG_OTHER` broad — racket-sport NTRP/DUPR ratings ("3.5–4.5")
+  and dance styles surface as terse titles. Terse but plausibly-volleyball titles
+  ("Setter/Libero Training") are kept when a volley signal appears or the slug
+  isn't another sport — the importer review is the backstop. Yield after the
+  filter: **~315–340 of ~530 raw**.
+  - **The denylist is whack-a-mole — go WIDE.** Successive spot-checks kept
+    finding new leaks: tennis → pickleball → dance → **pinball** → kayak polo →
+    dragon boat → bocce → touch rugby → floorball → reiki/massage/photography/
+    mah-jongg/startup-networking. The gate now also keys on a **positive
+    allowlist** (title/desc/slug says volley|vball|setter|libero, or a `…vb…`
+    group slug like `digthisvb`/`rb-vb-amap`) so terse real-volleyball rows
+    ("Spiking Practice", "B Level and up", the `scchicago` sand games) survive
+    while everything that names another activity is dropped.
+  - **NB (2026-06-13):** the first import ran the UNFILTERED 530 into prod. Two
+    later cleanup passes removed **233 non-volleyball rows** directly from prod
+    via the PostgREST API (admin key in `.env.prod`, `DELETE …?id=in.(…)` in
+    batches) with full-row backups (`/tmp/prod-meetup-removal-*.json`); a final
+    sweep over all 3,352 prod rows confirmed **0 non-volleyball remain**. The JSON
+    - chunks were re-cleaned to match (297 prod / 293 JSON meetup — small live-
+      fetch drift, importer is idempotent). Lessons: **filter before the first
+      import**; when you widen the gate, reconcile already-imported rows too; and
+      "absent from keep-set" is NOT a safe delete signal (real volleyball ages out
+      of the live re-fetch) — classify each row by sport instead.
 
 `/tmp/build_meetup.py` walks ~30 metros (1.5s between fetches — be polite), and is
 the **final merge stage**: it re-runs the shared coord-backfill + `classify()` +
-chunking over the whole set, so the output is complete on its own. Yield: **530
-events / ~all metros**, every one timed + mapped.
+chunking over the whole set, so the output is complete on its own. Yield: **~340
+events** after the cross-sport filter (from ~530 raw hits), every one timed +
+mapped, across ~all metros.
 
 **Full regen pipeline order:** `build_community_events.py` (clean base) →
 `build_vbl.py` (merge VBL) → `build_volo.py` (merge Volo) → **`build_meetup.py`
