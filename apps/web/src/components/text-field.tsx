@@ -59,6 +59,12 @@ type SharedFieldProps = {
   leadingIcon?: ReactNode;
   /** Icon inside the chassis on the trailing edge. */
   trailingIcon?: ReactNode;
+  /**
+   * When the trailing slot holds an interactive control (e.g. a show/hide
+   * password button), set this so the slot is NOT `aria-hidden` — a focusable
+   * element inside an `aria-hidden` container is a WCAG violation.
+   */
+  trailingInteractive?: boolean;
   /** Static text adornment on the leading edge (`$`, `+1`, …). */
   prefix?: ReactNode;
   /** Static text adornment on the trailing edge (`.com`, `kg`, …). */
@@ -103,6 +109,7 @@ export const TextField = forwardRef(function TextField(
     supportingText,
     leadingIcon,
     trailingIcon,
+    trailingInteractive,
     prefix,
     suffix,
     multiline,
@@ -166,7 +173,10 @@ export const TextField = forwardRef(function TextField(
         )}
         {suffix && <span className="text-muted pr-3 text-sm">{suffix}</span>}
         {trailingIcon && (
-          <span className="text-fg/60 pr-3" aria-hidden="true">
+          <span
+            className="text-fg/60 pr-3"
+            {...(trailingInteractive ? {} : { 'aria-hidden': true })}
+          >
             {trailingIcon}
           </span>
         )}

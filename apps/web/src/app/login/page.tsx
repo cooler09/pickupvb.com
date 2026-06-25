@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
+import { PasswordField } from '@/components/password-field';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
@@ -97,10 +98,9 @@ function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
         />
         <div>
-          <TextField
+          <PasswordField
             name="password"
             label="Password"
-            type="password"
             autoComplete={signUp ? 'new-password' : 'current-password'}
             required
             minLength={8}
