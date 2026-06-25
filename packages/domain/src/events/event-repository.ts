@@ -245,6 +245,11 @@ export interface EventDetailReadModel {
   formats: ReadonlyArray<Format>;
   gender: Gender | null;
   skillLevel: SkillLevel;
+  /**
+   * Open-play "multiple skill levels" advisory tag — every tier the session
+   * welcomes (e.g. B + BB + A). Empty for single-tier events. Descriptive only.
+   */
+  skillTiers: ReadonlyArray<SkillTier>;
   type: EventType;
   visibility: Visibility;
   status: EventStatus;

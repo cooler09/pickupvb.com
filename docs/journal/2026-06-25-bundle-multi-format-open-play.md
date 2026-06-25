@@ -1,11 +1,13 @@
-# Multi-format open play — advisory `formats` tag (2026-06-25)
+# Open-play advisory tags — formats + skill tiers (2026-06-25)
 
 ## Context
 
 User feedback: hosts want to specify **multiple formats** (sixes / quads /
 triples / doubles) at one open-play session — e.g. some courts running 4s and
 some 6s, or 6s early then 2s late. Open play carried a **single** format (on its
-sole division) with no way to say "we run more than one."
+sole division) with no way to say "we run more than one." A follow-up request
+asked for the **same strategy** applied to **skill tiers** ("B / BB / A all
+welcome") — shipped in the same bundle as a sibling advisory `skill_tiers` tag.
 
 We evaluated three strategies (multi-agent workflow, 3 designs × 4 adversarial
 lenses) before building:
@@ -53,46 +55,68 @@ RSVP + an honest "we run 4s and 6s" label. So we shipped **B**.
   format for single-division open play today, so adding it would introduce a
   Following-feed inconsistency for no real gain. Kept the RPC a no-signature-change
   `create or replace`.
+- **Skill tiers — same advisory strategy, with two deliberate asymmetries.**
+  (1) **No surface constraint** — any tier is valid on any surface, so
+  `normalizeSkillTiers` only dedupes + caps (7), with no `assertFormatAllowedForSurface`
+  analogue and no CHECK. (2) **Kept the existing required `skillTier` select**
+  (formats had no selector to begin with) and added an "Also open to other
+  levels" multiselect; the advertised set = primary ∪ extras, stored when ≥2.
+  The primary still drives the division's skill via the existing
+  `skillLevel`-band path (precise tier collapses to b/bb/a/open as before — the
+  advisory array preserves the precise tiers for display/search). Search matches
+  an advertised tier through the **skill-band** branch (the events page filters
+  by band), gated to "no age/team-comp filter" since advisory tags carry neither.
 
 ## Changes
 
 Domain / application / infra:
 
-- `packages/domain/src/events/volleyball-event.ts` — `_formats` field + `formats`
-  getter + `normalizeFormats` (dedupe, surface-legal via `assertFormatAllowedForSurface`,
-  cap 4); threaded through `CreateEventProps`, `create()`, `fromPersistence()`.
-- `packages/domain/src/events/event-repository.ts` — `formats` on
+- `packages/domain/src/events/volleyball-event.ts` — `_formats`/`_skillTiers`
+  fields + getters + `normalizeFormats` (dedupe, surface-legal via
+  `assertFormatAllowedForSurface`, cap 4) / `normalizeSkillTiers` (dedupe, cap 7,
+  no surface rule); threaded through `CreateEventProps`, `create()`,
+  `fromPersistence()`.
+- `packages/domain/src/events/event-repository.ts` — `formats` + `skillTiers` on
   `EventDetailReadModel`.
-- `packages/types/src/events.ts` — `CreateEventSchema.formats` + an open-play
-  surface refine.
+- `packages/types/src/events.ts` — `CreateEventSchema.formats` (+ open-play
+  surface refine) and `CreateEventSchema.skillTiers` (max 7).
 - `packages/application/src/commands/create-event.handler.ts` — derive the
-  primary division format from `formats[0]`; store the advisory set only when 2+.
-- `packages/infrastructure/src/supabase-event-repository.ts` — `EventRow.formats`,
-  read in `findById` + `getDetail`, write in the `save_event` payload.
+  primary division format from `formats[0]`; store each advisory set only when 2+.
+- `packages/infrastructure/src/supabase-event-repository.ts` — `EventRow.formats`
+  - `skill_tiers`, read in `findById` + `getDetail`, write in the `save_event`
+    payload.
 - `packages/supabase/src/database.types.ts` — **hand-edited** `events`
-  Row/Insert/Update + `events_view` Row for `formats` (regenerate on next
-  `gen:types` against the deployed schema).
+  Row/Insert/Update + `events_view` Row for `formats` + `skill_tiers` (regenerate
+  on next `gen:types` against the deployed schema).
 
-Migration `supabase/migrations/20261016000000_open_play_advertised_formats.sql`:
+Migration `supabase/migrations/20261016000000_open_play_advertised_tags.sql`
+(both tags folded into one migration since the formats one hadn't shipped — avoids
+a redundant second `events_view`/`save_event` rebuild):
 
-- `events.formats format[] not null default '{}'` + `events_advertised_formats_indoor`
-  CHECK (mirrors `event_divisions_indoor_format`).
-- Rebuild `events_view` so `select e.*` surfaces the column (verbatim from
+- `events.formats format[]` + `events.skill_tiers skill_tier[]`, both
+  `not null default '{}'`; `events_advertised_formats_indoor` CHECK on formats
+  (mirrors `event_divisions_indoor_format`; skill tiers carry no surface rule).
+- Rebuild `events_view` so `select e.*` surfaces both columns (verbatim from
   `20261012000000`).
-- Redefine `save_event` (+ `formats`) and `create or replace search_events`
-  (+ `or p_format = any(e.formats::text[])`), both from their authoritative
-  latest versions.
+- Redefine `save_event` (+ both arrays) and `create or replace search_events`
+  (+ `or p_format = any(e.formats::text[])` and a skill-band branch matching any
+  advertised `skill_tiers` entry when no age/team-comp filter is set), both from
+  their authoritative latest versions.
 
 Web:
 
 - `apps/web/src/app/events/new/_components/open-play-body.tsx` — surface-aware
   format multiselect (controlled surface + format set; disabled/pruned when
-  surface-illegal). `new/actions.ts` reads `format_*` checkboxes → `dto.formats`.
+  surface-illegal); a controlled `skillTier` primary select (reusing
+  `SkillTierOptions`) + an "Also open to other levels" tier multiselect that
+  excludes the current primary. `new/actions.ts` reads `format_*` → `dto.formats`
+  and `skill_*` (∪ primary) → `dto.skillTiers`.
 - `apps/web/src/app/events/[id]/_components/event-meta-section.tsx` + `page.tsx`
-  — "Formats" row of chips on the detail page ("one sign-up; courts organized on
-  site"). `new/_components/format-section.tsx` comment updated.
-- `packages/domain/src/events/volleyball-event.test.ts` — 4 tests (default empty,
-  stores list, dedupe, indoor-rejects-triples).
+  — "Formats" + "Skill levels" rows of chips on the detail page ("one sign-up;
+  courts organized on site" / "all welcome"). `new/_components/format-section.tsx`
+  comment updated.
+- `packages/domain/src/events/volleyball-event.test.ts` — 7 tests (formats +
+  skill-tiers: default empty, stores list, dedupe, indoor-rejects-triples).
 
 Docs: `docs/features.md` open-play note.
 

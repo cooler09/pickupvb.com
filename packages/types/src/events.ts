@@ -120,6 +120,15 @@ export const CreateEventSchema = z
       .optional(),
     gender: z.enum(enumValues(Gender)).optional(),
     skillLevel: z.enum(enumValues(SkillLevel)),
+    /**
+     * Open-play "multiple skill levels" advisory tag — every tier welcome at
+     * the session (e.g. B + BB + A). Advisory only; does not create per-tier
+     * divisions or gate signups. Empty/absent = single-tier.
+     */
+    skillTiers: z
+      .array(z.enum(enumValues(SkillTier)))
+      .max(7)
+      .optional(),
     type: z.enum(enumValues(EventType)),
     visibility: z.enum(enumValues(Visibility)),
     location: LocationSchema,

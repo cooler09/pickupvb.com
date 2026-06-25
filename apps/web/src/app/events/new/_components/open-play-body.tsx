@@ -6,8 +6,14 @@
  * roster), and the "sign me up too" toggle.
  */
 import { useState, type Dispatch, type SetStateAction } from 'react';
-import { EventPosition, Format, isFormatAllowedForSurface, type Surface } from '@pickupvb/domain';
-import { FORMAT_LABEL } from '@/lib/enum-labels';
+import {
+  EventPosition,
+  Format,
+  SkillTier,
+  isFormatAllowedForSurface,
+  type Surface,
+} from '@pickupvb/domain';
+import { FORMAT_LABEL, SKILL_TIER_LABEL } from '@/lib/enum-labels';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import {
   chk,
@@ -15,7 +21,7 @@ import {
   labelClass,
   PositionRosterGrid,
   SegmentedControl,
-  SkillTierSelect,
+  SkillTierOptions,
   val,
   type CapacityKind,
 } from './form-primitives';
@@ -26,6 +32,17 @@ const FORMAT_OPTIONS: ReadonlyArray<Format> = [
   Format.Quads,
   Format.Triples,
   Format.Doubles,
+];
+
+/** Skill ladder in display order; the primary select drives the division tier. */
+const SKILL_TIER_OPTIONS: ReadonlyArray<SkillTier> = [
+  SkillTier.C,
+  SkillTier.B,
+  SkillTier.BB,
+  SkillTier.BB3,
+  SkillTier.A,
+  SkillTier.AA,
+  SkillTier.Open,
 ];
 
 export default function OpenPlayBody({
@@ -62,6 +79,16 @@ export default function OpenPlayBody({
     for (const f of FORMAT_OPTIONS) if (chk(values, submitted, `format_${f}`, false)) init.add(f);
     return init;
   });
+  // Primary skill tier (controlled so the "also open to" list can exclude it).
+  // The full advertised set = primary ∪ extras; picking 2+ tiers advertises a
+  // multi-level session (advisory only — no per-tier divisions or gating).
+  const [skillTier, setSkillTier] = useState<string>(() => val(values, 'skillTier', 'bb'));
+  const [extraTiers, setExtraTiers] = useState<Set<string>>(() => {
+    const init = new Set<string>();
+    for (const t of SKILL_TIER_OPTIONS)
+      if (chk(values, submitted, `skill_${t}`, false)) init.add(t);
+    return init;
+  });
 
   return (
     <>
@@ -90,7 +117,32 @@ export default function OpenPlayBody({
           </select>
           <FieldError name="surface" errors={fieldErrors} />
         </div>
-        <SkillTierSelect fieldErrors={fieldErrors} values={values} />
+        <div>
+          <label htmlFor="skillTier" className={labelClass}>
+            Skill level
+          </label>
+          <select
+            id="skillTier"
+            name="skillTier"
+            value={skillTier}
+            onChange={(e) => {
+              const next = e.target.value;
+              setSkillTier(next);
+              // Drop the new primary from the extras so it isn't double-counted.
+              setExtraTiers((prev) => {
+                if (!prev.has(next)) return prev;
+                const copy = new Set(prev);
+                copy.delete(next);
+                return copy;
+              });
+            }}
+            className={inputClass}
+            {...fieldA11y('skillTier', fieldErrors)}
+          >
+            <SkillTierOptions />
+          </select>
+          <FieldError name="skillTier" errors={fieldErrors} />
+        </div>
       </div>
 
       <div>
@@ -132,6 +184,43 @@ export default function OpenPlayBody({
           })}
         </div>
         <FieldError name="formats" errors={fieldErrors} />
+      </div>
+
+      <div>
+        <p className={labelClass}>Also open to other levels (optional)</p>
+        <p className="text-muted text-xs">
+          Check any additional skill levels welcome at this session.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {SKILL_TIER_OPTIONS.filter((t) => t !== skillTier).map((t) => {
+            const checked = extraTiers.has(t);
+            return (
+              <label
+                key={t}
+                className={`border-border-base hover:bg-fg/5 flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm ${
+                  checked ? 'border-primary bg-primary/10 text-primary' : ''
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  name={`skill_${t}`}
+                  checked={checked}
+                  onChange={(e) =>
+                    setExtraTiers((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.add(t);
+                      else next.delete(t);
+                      return next;
+                    })
+                  }
+                  className="sr-only"
+                />
+                {SKILL_TIER_LABEL[t] ?? t}
+              </label>
+            );
+          })}
+        </div>
+        <FieldError name="skillTiers" errors={fieldErrors} />
       </div>
 
       <div>

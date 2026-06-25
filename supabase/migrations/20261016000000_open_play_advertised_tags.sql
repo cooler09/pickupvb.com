@@ -1,44 +1,50 @@
 -- ============================================================================
--- Open-play "multiple formats" advisory tag (Strategy B).
+-- Open-play advisory tags: "multiple formats" + "multiple skill levels" (Strategy B).
 --
 -- Context: hosts running an open-play session that offers more than one format
--- (e.g. some courts 4s, some 6s) had no way to say so — open play carries a
--- single format (on its sole division). This adds an event-level `formats`
--- array that is purely DESCRIPTIVE: it lets cards / the detail page / search
--- show and match every advertised format, while RSVP, capacity and the waitlist
--- are untouched (every signup still lands in the one shared open-play pool).
--- Per-format capacity / pricing was explicitly deferred (would be Strategy A:
--- relax the single-division invariant) — see the multi-format-open-play journal
--- entry. `formats` does NOT create divisions and the single-division invariant
--- stays in force.
+-- (some courts 4s, some 6s) or welcomes more than one skill tier (B + BB + A)
+-- had no way to say so — open play carries a single format + single skill tier
+-- on its sole division. This adds two event-level arrays that are purely
+-- DESCRIPTIVE: `formats` and `skill_tiers`. They let cards / the detail page /
+-- search show and match every advertised value, while RSVP, capacity and the
+-- waitlist are untouched (every signup still lands in the one shared open-play
+-- pool). Per-format/per-tier capacity / pricing / gating was explicitly deferred
+-- (would be Strategy A: relax the single-division invariant) — see the
+-- multi-format-open-play journal entry. Neither tag creates divisions and the
+-- single-division invariant stays in force.
 --
--- Impact: additive. New `events.formats format[] not null default '{}'`. Empty
--- for every existing event, so reads/writes are unchanged for single-format
--- events. `events_view` is rebuilt so the column reaches the read model
--- (`select e.*` freezes the column list at create time), `save_event` is
--- redefined to persist it (faithful copy of 20261012000000 + `formats` threaded
--- through the upsert, exactly as that migration copied 20260919000000), and
--- `search_events` is replaced (faithful copy of 20260915000000) so the Format
--- filter ALSO matches an advertised format — no signature change, the grant
--- survives. A surface CHECK mirrors `event_divisions_indoor_format` (indoor →
--- sixes|quads only).
+-- Impact: additive. New `events.formats format[]` and
+-- `events.skill_tiers skill_tier[]`, both `not null default '{}'`. Empty for
+-- every existing event, so reads/writes are unchanged for single-value events.
+-- `events_view` is rebuilt so the columns reach the read model (`select e.*`
+-- freezes the column list at create time), `save_event` is redefined to persist
+-- them (faithful copy of 20261012000000 + the two arrays threaded through the
+-- upsert, exactly as that migration copied 20260919000000), and `search_events`
+-- is replaced (faithful copy of 20260915000000) so the Format filter ALSO
+-- matches an advertised format and the skill-band filter ALSO matches an
+-- advertised tier — no signature change, the grant survives. A surface CHECK on
+-- `formats` mirrors `event_divisions_indoor_format` (indoor → sixes|quads only);
+-- skill tiers carry no surface constraint.
 -- ============================================================================
 
--- ---- 1. Column + surface CHECK ---------------------------------------------
--- Mirrors event_divisions_indoor_format: on indoor, every advertised format
--- must be sixes or quads. `<@` is "subset of"; the empty default passes.
+-- ---- 1. Columns + surface CHECK --------------------------------------------
+-- The formats CHECK mirrors event_divisions_indoor_format: on indoor, every
+-- advertised format must be sixes or quads. `<@` is "subset of"; the empty
+-- default passes. skill_tiers has no surface constraint (any tier, any surface).
 alter table public.events
-  add column formats format[] not null default '{}';
+  add column formats     format[]     not null default '{}',
+  add column skill_tiers skill_tier[] not null default '{}';
 
 alter table public.events
   add constraint events_advertised_formats_indoor
     check (surface <> 'indoor' or formats <@ array['sixes', 'quads']::format[]);
 
--- ---- 2. Rebuild events_view so `formats` reaches the read model ------------
--- `select e.*` freezes the column list at view-creation time, so the new column
--- only surfaces after a rebuild. Body copied verbatim from the current
+-- ---- 2. Rebuild events_view so the new columns reach the read model --------
+-- `select e.*` freezes the column list at view-creation time, so the new
+-- columns only surface after a rebuild. Body copied verbatim from the current
 -- authoritative definition (20261012000000_registration_close_window.sql); the
--- only change is that `e.*` now also yields `formats`. search_events is a
+-- only change is that `e.*` now also yields `formats` + `skill_tiers`.
+-- search_events is a
 -- classic (`as $$ … $$`) SQL function and does not hard-depend on the view, so
 -- the drop needs no cascade and the RPC re-resolves the view at call time.
 drop view if exists public.events_view;
@@ -58,11 +64,11 @@ select
 from public.events e;
 grant select on public.events_view to anon, authenticated;
 
--- ---- 3. Redefine save_event to persist `formats` ---------------------------
+-- ---- 3. Redefine save_event to persist `formats` + `skill_tiers` -----------
 -- Faithful copy of 20261012000000_registration_close_window.sql with `formats`
--- threaded into the events upsert (column list, values, ON CONFLICT update).
--- Everything else is byte-for-byte identical — see that migration (and
--- 20260919000000) for the full delta-reconcile rationale.
+-- and `skill_tiers` threaded into the events upsert (column list, values, ON
+-- CONFLICT update). Everything else is byte-for-byte identical — see that
+-- migration (and 20260919000000) for the full delta-reconcile rationale.
 create or replace function public.save_event(
   p_event       jsonb,
   p_attendees   jsonb,
@@ -102,7 +108,7 @@ begin
     starts_at, ends_at, time_zone, venue_name, registration_closes_at,
     registration_close_offset_minutes, registration_override,
     series_name, series_position, series_size, is_fundraiser, fundraiser_beneficiary,
-    theme_tags, formats, sanctioning_body, registration_mode,
+    theme_tags, formats, skill_tiers, sanctioning_body, registration_mode,
     external_registration_url, external_registration_instructions,
     payment_instructions, payments_off_platform, updated_at
   )
@@ -136,6 +142,7 @@ begin
     p_event->>'fundraiser_beneficiary',
     coalesce((select array_agg(value) from jsonb_array_elements_text(p_event->'theme_tags')), '{}'),
     coalesce((select array_agg(value::format) from jsonb_array_elements_text(p_event->'formats')), '{}'),
+    coalesce((select array_agg(value::skill_tier) from jsonb_array_elements_text(p_event->'skill_tiers')), '{}'),
     p_event->>'sanctioning_body',
     (p_event->>'registration_mode')::registration_mode,
     p_event->>'external_registration_url',
@@ -173,6 +180,7 @@ begin
     fundraiser_beneficiary = excluded.fundraiser_beneficiary,
     theme_tags = excluded.theme_tags,
     formats = excluded.formats,
+    skill_tiers = excluded.skill_tiers,
     sanctioning_body = excluded.sanctioning_body,
     registration_mode = excluded.registration_mode,
     external_registration_url = excluded.external_registration_url,
@@ -363,14 +371,18 @@ $$;
 grant execute on function public.save_event(jsonb, jsonb, jsonb, jsonb, jsonb, jsonb)
   to authenticated, service_role;
 
--- ---- 4. Replace search_events so the Format filter matches advertised formats
+-- ---- 4. Replace search_events so the filters match advertised tags ---------
 -- Faithful copy of 20260915000000_search_events_league_ends_at_classification.sql
--- (the authoritative latest version — never copy from an older one). The ONLY
--- change: the `p_format` filter now also matches when the advertised
--- `events.formats` array contains the requested format, so a multi-format open
--- play surfaces under each of its formats. No signature/return change — the
--- existing grant survives. The result projection is unchanged (cards already
--- don't render format chips for single-division open play).
+-- (the authoritative latest version — never copy from an older one). Two changes,
+-- both purely additive to existing filters: (a) the `p_format` filter also
+-- matches when the advertised `events.formats` array contains the requested
+-- format; (b) the skill-band branch also matches when any advertised
+-- `events.skill_tiers` entry falls in the requested band (only when no
+-- age/team-composition filter is set — those don't apply to advisory tags). So a
+-- multi-format / multi-tier open play surfaces under each of its values. No
+-- signature/return change — the existing grant survives. The result projection
+-- is unchanged (cards already don't render format/tier chips for single-division
+-- open play).
 create or replace function public.search_events(
   p_lat               double precision default null,
   p_lng               double precision default null,
@@ -553,6 +565,17 @@ as $$
           and (p_skill_band       is null or d.skill_tier::text in (select unnest(tiers) from band_tiers))
           and (p_age_group        is null or d.age_group::text = p_age_group)
           and (p_team_composition is null or d.team_composition::text = p_team_composition)
+      )
+      -- Advisory skill-tier tag: match when filtering by band alone (advisory
+      -- tags carry no age/team-composition) and any advertised tier is in band.
+      or (
+        p_skill_band is not null
+        and p_age_group is null
+        and p_team_composition is null
+        and exists (
+          select 1 from unnest(e.skill_tiers) as st
+          where st::text in (select unnest(tiers) from band_tiers)
+        )
       )
     )
   order by

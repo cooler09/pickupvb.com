@@ -15,6 +15,7 @@ import {
   Format,
   PriceUnit,
   RegistrationMode,
+  SkillTier,
   Surface,
   TeamComposition,
   TeamRegistrationMode,
@@ -112,6 +113,32 @@ function normalizeFormats(raw: ReadonlyArray<Format>, surface: Surface): Format[
   return out;
 }
 
+/** The skill ladder has 7 rungs; an event can't advertise more than all of them. */
+const MAX_ADVERTISED_SKILL_TIERS = 7;
+
+/**
+ * Validate and copy the advertised-skill-tiers list — the open-play "multiple
+ * skill levels welcome" advisory tag (mirrors {@link normalizeFormats}). Dedupes
+ * and caps the count. Purely advisory: it does NOT create divisions or gate
+ * signups by tier — every RSVP still lands in the single shared pool. Unlike
+ * formats there is no surface constraint (any tier is valid on any surface).
+ */
+function normalizeSkillTiers(raw: ReadonlyArray<SkillTier>): SkillTier[] {
+  const out: SkillTier[] = [];
+  const seen = new Set<SkillTier>();
+  for (const t of raw) {
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  if (out.length > MAX_ADVERTISED_SKILL_TIERS) {
+    throw new InvariantViolation(
+      `An event may advertise at most ${MAX_ADVERTISED_SKILL_TIERS} skill tiers (got ${out.length}).`,
+    );
+  }
+  return out;
+}
+
 export interface CreateEventProps {
   id: EventId;
   hostId: UserId;
@@ -146,6 +173,12 @@ export interface CreateEventProps {
    * lands in the one shared pool). Empty = the single-format event of today.
    */
   formats?: ReadonlyArray<Format>;
+  /**
+   * Open-play "multiple skill levels" advisory tag — every skill tier the
+   * session welcomes (e.g. B + BB + A). Same shape as {@link formats}: purely
+   * descriptive, no per-tier divisions or signup gating. Empty = single-tier.
+   */
+  skillTiers?: ReadonlyArray<SkillTier>;
 }
 
 /**
@@ -448,6 +481,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
      * events that make up everything created before this field existed.
      */
     private _formats: ReadonlyArray<Format>,
+    /** Advisory open-play skill tiers (multi-level tag). Empty = single-tier. */
+    private _skillTiers: ReadonlyArray<SkillTier>,
   ) {
     super(id);
   }
@@ -488,6 +523,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     const extensions = resolveExtensions(props.extensions, props.endsAt);
     const divisions = (props.divisions ?? []).slice();
     const formats = normalizeFormats(props.formats ?? [], props.surface);
+    const skillTiers = normalizeSkillTiers(props.skillTiers ?? []);
 
     const evt = new VolleyballEvent(
       props.id,
@@ -514,6 +550,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       divisions,
       [],
       formats,
+      skillTiers,
     );
     evt.assertRegistrationConfigValid();
     evt.raise(new EventCreated(evt.id));
@@ -560,6 +597,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     waitlist?: ReadonlyArray<UserId>;
     /** Advisory open-play formats (multi-format tag). Empty/absent = single-format. */
     formats?: ReadonlyArray<Format>;
+    /** Advisory open-play skill tiers (multi-level tag). Empty/absent = single-tier. */
+    skillTiers?: ReadonlyArray<SkillTier>;
   }): VolleyballEvent {
     const attendeeEntries: Array<readonly [UserId, EventPosition | null]> = props.attendees.map(
       (a): readonly [UserId, EventPosition | null] =>
@@ -604,6 +643,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       (props.divisions ?? []).slice(),
       (props.waitlist ?? []).slice(),
       (props.formats ?? []).slice(),
+      (props.skillTiers ?? []).slice(),
     );
   }
 
@@ -691,6 +731,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    */
   get formats(): ReadonlyArray<Format> {
     return this._formats;
+  }
+  /**
+   * Advisory open-play skill tiers (multi-level tag). Empty for single-tier
+   * events. Descriptive only — signups are not gated by tier.
+   */
+  get skillTiers(): ReadonlyArray<SkillTier> {
+    return this._skillTiers;
   }
   get venueName(): string | null {
     return this._extensions.venueName;

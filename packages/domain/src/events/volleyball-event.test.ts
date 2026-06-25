@@ -199,6 +199,41 @@ describe('advertised formats (multi-format open play)', () => {
   });
 });
 
+describe('advertised skill tiers (multi-level open play)', () => {
+  const multiTierOpenPlay = (skillTiers: SkillTier[]) =>
+    VolleyballEvent.create({
+      id: 'mt-1' as EventId,
+      hostId: HOST,
+      title: 'Multi-level open play',
+      description: '',
+      rules: '',
+      surface: Surface.Indoor,
+      type: EventType.OpenPlay,
+      visibility: Visibility.Public,
+      location: LOCATION,
+      startsAt: tomorrow(),
+      endsAt: tomorrow(2),
+      capacity: Capacity.unlimited(),
+      skillTiers,
+    });
+
+  it('defaults to an empty skill-tiers list', () => {
+    expect(makeOpenPlay().skillTiers).toEqual([]);
+  });
+
+  it('stores a multi-tier advisory list without gating signups', () => {
+    const evt = multiTierOpenPlay([SkillTier.B, SkillTier.BB, SkillTier.A]);
+    expect(evt.skillTiers).toEqual([SkillTier.B, SkillTier.BB, SkillTier.A]);
+    // Advisory only — no per-tier divisions; the single-division rule holds.
+    expect(evt.divisions.length).toBeLessThanOrEqual(1);
+  });
+
+  it('dedupes repeated tiers, preserving first-seen order', () => {
+    const evt = multiTierOpenPlay([SkillTier.BB, SkillTier.BB, SkillTier.A]);
+    expect(evt.skillTiers).toEqual([SkillTier.BB, SkillTier.A]);
+  });
+});
+
 describe('publish / cancel state machine', () => {
   it('publish moves Draft → Published', () => {
     const evt = makeOpenPlay();

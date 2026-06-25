@@ -173,6 +173,11 @@ export class CreateEventHandler {
     // the event-level tag stays open-play-only.
     const advertisedFormats =
       dto.type === EventType.OpenPlay && (dto.formats?.length ?? 0) >= 2 ? dto.formats! : [];
+    // Open-play "multiple skill levels" advisory tag — same gating as formats:
+    // only stored when 2+ tiers are advertised (a single tier is already the
+    // division's skill level). Tournaments/leagues express skill per-division.
+    const advertisedSkillTiers =
+      dto.type === EventType.OpenPlay && (dto.skillTiers?.length ?? 0) >= 2 ? dto.skillTiers! : [];
 
     const event = VolleyballEvent.create({
       id,
@@ -192,6 +197,7 @@ export class CreateEventHandler {
       extensions: buildExtensions(dto.extensions),
       ...(divisions.length > 0 ? { divisions } : {}),
       ...(advertisedFormats.length > 0 ? { formats: advertisedFormats } : {}),
+      ...(advertisedSkillTiers.length > 0 ? { skillTiers: advertisedSkillTiers } : {}),
     });
     event.publish();
 

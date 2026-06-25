@@ -1738,6 +1738,7 @@ export type Database = {
           external_registration_instructions: string | null;
           external_registration_url: string | null;
           formats: Database['public']['Enums']['format'][];
+          skill_tiers: Database['public']['Enums']['skill_tier'][];
           fundraiser_beneficiary: string | null;
           geo: unknown;
           hero_image_url: string | null;
@@ -1784,6 +1785,7 @@ export type Database = {
           external_registration_instructions?: string | null;
           external_registration_url?: string | null;
           formats?: Database['public']['Enums']['format'][];
+          skill_tiers?: Database['public']['Enums']['skill_tier'][];
           fundraiser_beneficiary?: string | null;
           accepts_pass_credits?: boolean;
           geo: unknown;
@@ -1831,6 +1833,7 @@ export type Database = {
           external_registration_instructions?: string | null;
           external_registration_url?: string | null;
           formats?: Database['public']['Enums']['format'][];
+          skill_tiers?: Database['public']['Enums']['skill_tier'][];
           fundraiser_beneficiary?: string | null;
           accepts_pass_credits?: boolean;
           geo?: unknown;
@@ -3701,6 +3704,7 @@ export type Database = {
           external_registration_instructions: string | null;
           external_registration_url: string | null;
           formats: Database['public']['Enums']['format'][] | null;
+          skill_tiers: Database['public']['Enums']['skill_tier'][] | null;
           fundraiser_beneficiary: string | null;
           geo: unknown;
           hero_image_url: string | null;

@@ -284,6 +284,20 @@ export async function createEventAction(
   const selectedFormats =
     type === EventType.OpenPlay ? FORMAT_KEYS.filter((f) => bool(formData, `format_${f}`)) : [];
 
+  // Open-play "multiple skill levels" advisory tag — the primary tier (drives
+  // the division) plus any extra checked tiers, deduped, primary first. Stored
+  // by the handler only when 2+ (advisory only — no per-tier gating).
+  const TIER_KEYS = ['c', 'b', 'bb', 'bb3', 'a', 'aa', 'open'] as const;
+  const selectedSkillTiers =
+    type === EventType.OpenPlay
+      ? Array.from(
+          new Set([
+            topSkillTier as string,
+            ...TIER_KEYS.filter((t) => bool(formData, `skill_${t}`)),
+          ]),
+        )
+      : [];
+
   const raw = {
     title: field(formData, 'title'),
     description: field(formData, 'description'),
@@ -321,6 +335,7 @@ export async function createEventAction(
         : undefined,
     ...(byPosition && Object.keys(positionRoster).length > 0 ? { positionRoster } : {}),
     ...(selectedFormats.length > 0 ? { formats: selectedFormats } : {}),
+    ...(selectedSkillTiers.length >= 2 ? { skillTiers: selectedSkillTiers } : {}),
     ...(Object.keys(extensions).length > 0 ? { extensions } : {}),
     ...(divisions.length > 0 ? { divisions } : {}),
   };

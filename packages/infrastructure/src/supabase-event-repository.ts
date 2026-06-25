@@ -73,6 +73,8 @@ type EventRow = {
   skill_level: SkillLevel | null;
   /** Open-play advertised formats (multi-format tag). Empty = single-format. */
   formats: Format[] | null;
+  /** Open-play advertised skill tiers (multi-level tag). Empty = single-tier. */
+  skill_tiers: SkillTier[] | null;
   type: EventType;
   visibility: Visibility;
   status: EventStatus;
@@ -423,6 +425,7 @@ export class SupabaseEventRepository implements EventRepository {
       divisions: divisionRows.map(divisionRowToDomain),
       waitlist: ((waitlist ?? []) as Array<{ user_id: string }>).map((w) => UserId(w.user_id)),
       formats: row.formats ?? [],
+      skillTiers: row.skill_tiers ?? [],
     });
   }
 
@@ -478,6 +481,8 @@ export class SupabaseEventRepository implements EventRepository {
       // Open-play advertised formats (multi-format tag). Persisted by save_event
       // into events.formats; empty for single-format events.
       formats: event.formats,
+      // Open-play advertised skill tiers (multi-level tag) → events.skill_tiers.
+      skill_tiers: event.skillTiers,
       updated_at: new Date().toISOString(),
     };
 
@@ -1026,6 +1031,7 @@ export class SupabaseEventRepository implements EventRepository {
       formats: row.formats ?? [],
       gender: legacyDetail.gender,
       skillLevel: legacyDetail.skillLevel,
+      skillTiers: row.skill_tiers ?? [],
       type: row.type,
       visibility: row.visibility,
       status: row.status,
