@@ -139,10 +139,11 @@ export default function FormatSection({
         )}
       </section>
 
-      {/* Hidden fields the server action expects. Top-level format/gender
-          aren't part of the open-play UI but the schema accepts them as
-          optional — for tournaments we surface them inside the Division 1
-          card via TournamentBody. */}
+      {/* Hidden fields the server action expects. Open play picks its
+          format(s) via the multiselect in OpenPlayBody (submitted as
+          `format_*` checkboxes; the first drives the division, 2+ advertise a
+          multi-format session); gender stays implicit (coed). Tournaments
+          surface format/gender inside the Division 1 card via TournamentBody. */}
       {showCapacity && byPosition && <input type="hidden" name="byPosition" value="on" />}
       {/* `capacityKind` is consumed by the server action; default to unlimited
           when by-position is selected (server ignores capacity in that mode). */}

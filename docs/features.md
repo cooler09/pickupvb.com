@@ -61,7 +61,14 @@ Cross-cutting rules:
 **Open play vs tournament vs league.**
 
 - _Open play_ — capacity is by player count (or unlimited). RSVPs and
-  the waitlist live in `event_attendees`.
+  the waitlist live in `event_attendees`. A host running more than one
+  format at one session (e.g. 4s + 6s courts) lists them in
+  `events.formats` — an advisory **multi-format tag** shown on the card /
+  detail and matched by the Format filter. It does **not** create divisions
+  or split capacity (every RSVP stays in the one shared pool, so the event
+  is still "1 division always"); single-format events leave `formats` empty.
+  Per-format capacity / pricing was deliberately deferred — see the
+  multi-format-open-play journal entry.
 - _Tournament_ — capacity is by team count. Teams sign up via
   `event_teams` and players who don't have a team can register as
   **free agents** so captains can pick them up.

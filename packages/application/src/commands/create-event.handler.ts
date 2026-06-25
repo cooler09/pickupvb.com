@@ -141,7 +141,10 @@ export class CreateEventHandler {
           sortOrder: 0,
           label: 'All',
           surface: dto.surface,
-          format: dto.format ?? Format.Sixes,
+          // Multi-format open play: the first advertised format drives the
+          // single division (capacity / primary chip); the full set is the
+          // advisory `formats` tag passed to the aggregate below.
+          format: dto.formats?.[0] ?? dto.format ?? Format.Sixes,
           gender: dto.gender ?? Gender.Coed,
           skillTier: skillTierFromLegacy(dto.skillLevel),
           ageGroup: AgeGroup.Adult,
@@ -164,6 +167,13 @@ export class CreateEventHandler {
       );
     }
 
+    // Open-play "multiple formats" advisory tag (Strategy B). Only meaningful
+    // when the host advertises 2+ formats — a single format is already covered
+    // by the division. Tournaments express formats through their divisions, so
+    // the event-level tag stays open-play-only.
+    const advertisedFormats =
+      dto.type === EventType.OpenPlay && (dto.formats?.length ?? 0) >= 2 ? dto.formats! : [];
+
     const event = VolleyballEvent.create({
       id,
       hostId: UserId(hostId),
@@ -181,6 +191,7 @@ export class CreateEventHandler {
       ...(positionRoster ? { positionRoster } : {}),
       extensions: buildExtensions(dto.extensions),
       ...(divisions.length > 0 ? { divisions } : {}),
+      ...(advertisedFormats.length > 0 ? { formats: advertisedFormats } : {}),
     });
     event.publish();
 

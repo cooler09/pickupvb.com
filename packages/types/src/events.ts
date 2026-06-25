@@ -14,6 +14,7 @@ import {
   TeamComposition,
   TeamRegistrationMode,
   Visibility,
+  isFormatAllowedForSurface,
 } from '@pickupvb/domain';
 
 const enumValues = <T extends Record<string, string>>(e: T) =>
@@ -107,6 +108,16 @@ export const CreateEventSchema = z
     rules: z.string().max(4000).default(''),
     surface: z.enum(enumValues(Surface)),
     format: z.enum(enumValues(Format)).optional(),
+    /**
+     * Open-play "multiple formats" advisory tag (Strategy B): every format the
+     * session runs (e.g. 4s + 6s) so cards/detail/search show and match them
+     * all. Advisory only — does not create divisions or per-format capacity.
+     * Empty/absent = the single-format event of today.
+     */
+    formats: z
+      .array(z.enum(enumValues(Format)))
+      .max(4)
+      .optional(),
     gender: z.enum(enumValues(Gender)).optional(),
     skillLevel: z.enum(enumValues(SkillLevel)),
     type: z.enum(enumValues(EventType)),
@@ -154,7 +165,11 @@ export const CreateEventSchema = z
   .refine(
     (d) => d.type !== EventType.Tournament || (d.format !== undefined && d.gender !== undefined),
     { message: 'Tournaments require format and gender', path: ['format'] },
-  );
+  )
+  .refine((d) => !d.formats || d.formats.every((f) => isFormatAllowedForSurface(d.surface, f)), {
+    message: 'Every advertised format must be valid for the chosen surface.',
+    path: ['formats'],
+  });
 
 export type CreateEventDto = z.infer<typeof CreateEventSchema>;
 

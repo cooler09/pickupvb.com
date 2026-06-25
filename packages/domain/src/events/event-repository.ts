@@ -237,6 +237,12 @@ export interface EventDetailReadModel {
   rules: string;
   surface: Surface;
   format: Format | null;
+  /**
+   * Open-play "multiple formats" advisory tag — every format the session runs
+   * (e.g. 4s + 6s). Empty for single-format events. Descriptive only: RSVP and
+   * capacity are unaffected.
+   */
+  formats: ReadonlyArray<Format>;
   gender: Gender | null;
   skillLevel: SkillLevel;
   type: EventType;

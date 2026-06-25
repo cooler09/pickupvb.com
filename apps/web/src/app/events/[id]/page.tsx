@@ -307,6 +307,7 @@ export default async function EventDetailPage(props: {
 
       <EventMetaSection
         venueName={event.venueName}
+        formats={event.formats}
         seriesName={event.seriesName}
         seriesPosition={event.seriesPosition}
         seriesSize={event.seriesSize}

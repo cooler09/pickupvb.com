@@ -12,6 +12,7 @@ import {
   EventPosition,
   EventStatus,
   EventType,
+  Format,
   PriceUnit,
   RegistrationMode,
   Surface,
@@ -20,6 +21,7 @@ import {
   Visibility,
   isEventPosition,
 } from './enums.js';
+import { assertFormatAllowedForSurface } from './rules.js';
 import {
   EventCancelled,
   EventCreated,
@@ -82,6 +84,34 @@ function normalizePositionRoster(
   return out;
 }
 
+/** An open-play event may advertise at most this many formats (advisory tag). */
+const MAX_ADVERTISED_FORMATS = 4;
+
+/**
+ * Validate and copy the advertised-formats list — the open-play "multiple
+ * formats" advisory tag (Strategy B). Dedupes, rejects any format illegal for
+ * the event surface (reusing {@link assertFormatAllowedForSurface} so the rule
+ * has one home across client/server/DB), and caps the count. Purely advisory:
+ * it does NOT create divisions or per-format capacity — every RSVP still lands
+ * in the single shared open-play pool.
+ */
+function normalizeFormats(raw: ReadonlyArray<Format>, surface: Surface): Format[] {
+  const out: Format[] = [];
+  const seen = new Set<Format>();
+  for (const f of raw) {
+    if (seen.has(f)) continue;
+    assertFormatAllowedForSurface(surface, f);
+    seen.add(f);
+    out.push(f);
+  }
+  if (out.length > MAX_ADVERTISED_FORMATS) {
+    throw new InvariantViolation(
+      `An event may advertise at most ${MAX_ADVERTISED_FORMATS} formats (got ${out.length}).`,
+    );
+  }
+  return out;
+}
+
 export interface CreateEventProps {
   id: EventId;
   hostId: UserId;
@@ -108,6 +138,14 @@ export interface CreateEventProps {
   extensions?: Partial<EventExtensionsInput>;
   /** Initial divisions. May be empty; later mutations are TBD. */
   divisions?: ReadonlyArray<Division>;
+  /**
+   * Open-play "multiple formats" advisory tag. When a host runs more than one
+   * format at one open-play session (e.g. 4s and 6s courts), the full set is
+   * listed here so cards/detail/search can show and match every format. Purely
+   * descriptive — does NOT create divisions or split capacity (every RSVP still
+   * lands in the one shared pool). Empty = the single-format event of today.
+   */
+  formats?: ReadonlyArray<Format>;
 }
 
 /**
@@ -405,6 +443,11 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     private _divisions: Division[],
     /** FIFO capacity waitlist — fixed-capacity open play only (ADR 0036). */
     private _waitlist: UserId[],
+    /**
+     * Advisory open-play formats (multi-format tag). Empty for the single-format
+     * events that make up everything created before this field existed.
+     */
+    private _formats: ReadonlyArray<Format>,
   ) {
     super(id);
   }
@@ -444,6 +487,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
 
     const extensions = resolveExtensions(props.extensions, props.endsAt);
     const divisions = (props.divisions ?? []).slice();
+    const formats = normalizeFormats(props.formats ?? [], props.surface);
 
     const evt = new VolleyballEvent(
       props.id,
@@ -469,6 +513,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       extensions,
       divisions,
       [],
+      formats,
     );
     evt.assertRegistrationConfigValid();
     evt.raise(new EventCreated(evt.id));
@@ -513,6 +558,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     divisions?: ReadonlyArray<Division>;
     /** FIFO capacity waitlist, ordered head-first (ADR 0036). */
     waitlist?: ReadonlyArray<UserId>;
+    /** Advisory open-play formats (multi-format tag). Empty/absent = single-format. */
+    formats?: ReadonlyArray<Format>;
   }): VolleyballEvent {
     const attendeeEntries: Array<readonly [UserId, EventPosition | null]> = props.attendees.map(
       (a): readonly [UserId, EventPosition | null] =>
@@ -556,6 +603,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       resolveExtensions(props.extensions, props.endsAt),
       (props.divisions ?? []).slice(),
       (props.waitlist ?? []).slice(),
+      (props.formats ?? []).slice(),
     );
   }
 
@@ -636,6 +684,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   /** Divisions on this event. Empty when the event has not been split yet. */
   get divisions(): ReadonlyArray<Division> {
     return this._divisions;
+  }
+  /**
+   * Advisory open-play formats (multi-format tag). Empty for single-format
+   * events. Descriptive only — RSVP, capacity, and the waitlist are unaffected.
+   */
+  get formats(): ReadonlyArray<Format> {
+    return this._formats;
   }
   get venueName(): string | null {
     return this._extensions.venueName;

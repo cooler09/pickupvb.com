@@ -277,6 +277,13 @@ export async function createEventAction(
     (fieldOrUndefined(formData, 'skillTier') as SkillTier | undefined) ??
     SkillTier.BB;
 
+  // Open-play "multiple formats" advisory tag — the checked format chips in
+  // display order. The handler uses the first as the primary division's format
+  // and stores the full set as `formats` when 2+ are picked (advisory only).
+  const FORMAT_KEYS = ['sixes', 'quads', 'triples', 'doubles'] as const;
+  const selectedFormats =
+    type === EventType.OpenPlay ? FORMAT_KEYS.filter((f) => bool(formData, `format_${f}`)) : [];
+
   const raw = {
     title: field(formData, 'title'),
     description: field(formData, 'description'),
@@ -313,6 +320,7 @@ export async function createEventAction(
             : { kind: 'unlimited' as const }
         : undefined,
     ...(byPosition && Object.keys(positionRoster).length > 0 ? { positionRoster } : {}),
+    ...(selectedFormats.length > 0 ? { formats: selectedFormats } : {}),
     ...(Object.keys(extensions).length > 0 ? { extensions } : {}),
     ...(divisions.length > 0 ? { divisions } : {}),
   };
