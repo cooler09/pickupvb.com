@@ -40,10 +40,18 @@ Related:
   doesn't have its own page, link the **series / landing page** that has its
   details (e.g. several AVP Grass stops share `avp.com/avp-grass/schedule/`; the
   AXV/Bluegrass/Chesapeake series each share one URL across dates). The importer
-  keys on **`(externalUrl, startsAt)`** (`findByExternalUrl`), so shared URLs are
-  fine as long as the **dates differ** — they won't collapse. Only avoid two rows
-  with the **same URL and the same date** (that's a true duplicate). Don't drop
-  an event just because it lacks its own sign-up link.
+  keys on **`(externalUrl, calendar day of startsAt)`** (`findByExternalUrl`), so
+  shared URLs are fine as long as the **dates differ** — they won't collapse.
+  Only avoid two rows with the **same URL and the same date** (that's a true
+  duplicate). Don't drop an event just because it lacks its own sign-up link.
+  - **Dedup is by DAY, not exact instant (fixed 2026-06-13).** The key used to
+    match the exact `starts_at` timestamp, so the same event re-imported after a
+    pipeline change that shifted its computed start by minutes/hours (timezone
+    resolution, baked-vs-geocoded coords, the all-day noon-anchor) created a NEW
+    row instead of converging — **~1,291 duplicate rows** accumulated in prod
+    across the many import iterations and were purged. The generators dedup on
+    `(url, date)` too, so the two layers now agree. Keep emitting at most one row
+    per `(externalUrl, date)`.
 - **Don't fabricate locations.** City + state is enough (the server geocodes to a
   city-level point). Put the venue/beach name in the `description`, leave
   `addressLine`/`postalCode` null. If you don't even know the city, leave **all**
@@ -317,6 +325,93 @@ Mapping → `ListingDraft` (see `/tmp/build_volo.py` shape):
 Re-run with `/tmp/build_volo.py` (fetches the API, maps, merges into
 `community-events-public.json`, re-chunks). Etiquette: one query per run.
 
+## Meetup find pages — SOLVED + EXECUTED (pickup + leagues, REAL times)
+
+Meetup's **official API is not worth it** (GraphQL-only, OAuth, and creating a
+consumer needs a paid **Meetup Pro** subscription). But the **public city
+"find" pages are server-rendered with schema.org Event JSON-LD** — no login, no
+key:
+
+```
+https://www.meetup.com/find/?keywords=volleyball&location=us--<st>--<city>
+```
+
+> Prefer the **keyword-search form** above over the `/find/us--<st>--<city>/volleyball/`
+> topic path — the topic path 404s for metros where Meetup never minted a
+> volleyball topic page (Atlanta, Detroit, Nashville, San Antonio, St. Louis);
+> the keyword form resolves everywhere and embeds the **same** JSON-LD.
+
+Each page carries ~12–31 `"@type":"Event"` JSON-LD blocks (also a full
+`__APOLLO_STATE__` if you want more fields). Per event: `name`, canonical `url`
+(`meetup.com/<group>/events/<id>/`), `description`, **`startDate` as a real UTC
+ISO timestamp** (⇒ `allDay:false` — a step up from VBL/CBVA date-only), and a
+`location` Place with `addressLocality`/`addressRegion` (street is often a
+placeholder for tournaments).
+
+Mapping → `ListingDraft` (see `/tmp/build_meetup.py`):
+
+- **Real times.** Convert the UTC `startDate` to the metro's tz (Python
+  `zoneinfo`) for `startsAtLocal`; no `endDate` in the JSON-LD ⇒ `endsAtLocal:null`.
+- **Region casing is dirty** — Meetup ships `"nv"`, `"Ca"`, `"Wa"`, even wrong
+  (`"Pe"` for a Pittsburgh row). **Uppercase + validate against the 50-state set**,
+  fall back to the metro's state when invalid. Strip a trailing `", ST"` baked
+  into the locality (`"Maitland, FL"`), and title-case all-lowercase localities.
+- **Coords:** resolve the city via the offline `rg_cities1000` forward table
+  first; **fall back to the metro center** (always resolvable) so every row maps.
+  100% coverage — Meetup gives no `geo`.
+- **eventType:** Meetup's model is drop-in _meetups_, so default **`open_play`**
+  unless the title literally says _tournament_ (→tournament) or _league_
+  (→league). NB: the generic keyword heuristic treats "open"/"doubles" as
+  tournament signals — **don't** use it for Meetup ("Open" = open-skill here);
+  the Meetup branch in `classify()` uses a strict `\btourn` check.
+- **Dedup** globally on `(url, date)` — the same event appears in several
+  neighboring metros' find pages. Idempotent merge drops prior `meetup.com` rows.
+- **Cross-sport filter (important — Meetup's biggest gotcha).** The volleyball
+  keyword search drags in events from **multi-sport social clubs and dedicated
+  other-sport groups** — tennis, pickleball, soccer/futsal, kickball, dodgeball,
+  bowling, flag football, even ballroom/salsa/bachata **dance** classes,
+  petanque, hiking, yoga. That's **~40% of raw hits**. `is_other_sport()` drops
+  them on two signals: (1) the **title is the event's identity**, so a title that
+  names another sport is dropped _even if the group's description mentions
+  volleyball_ (multi-sport club blurbs cross-reference everything) — unless the
+  title itself also says "volley" ("Volleyball & Pickleball"); (2) the **group
+  slug** (`…-tennis-league`, `miamisoccer`, `denvermetropickleball`,
+  `ultimate-tango-school-of-dance`), which catches the generic titles those
+  groups post ("June Tourney", "River Road Courts", "Intermediate"). Keep
+  `OTHER_SPORT`/`SLUG_OTHER` broad — racket-sport NTRP/DUPR ratings ("3.5–4.5")
+  and dance styles surface as terse titles. Terse but plausibly-volleyball titles
+  ("Setter/Libero Training") are kept when a volley signal appears or the slug
+  isn't another sport — the importer review is the backstop. Yield after the
+  filter: **~315–340 of ~530 raw**.
+  - **The denylist is whack-a-mole — go WIDE.** Successive spot-checks kept
+    finding new leaks: tennis → pickleball → dance → **pinball** → kayak polo →
+    dragon boat → bocce → touch rugby → floorball → reiki/massage/photography/
+    mah-jongg/startup-networking. The gate now also keys on a **positive
+    allowlist** (title/desc/slug says volley|vball|setter|libero, or a `…vb…`
+    group slug like `digthisvb`/`rb-vb-amap`) so terse real-volleyball rows
+    ("Spiking Practice", "B Level and up", the `scchicago` sand games) survive
+    while everything that names another activity is dropped.
+  - **NB (2026-06-13):** the first import ran the UNFILTERED 530 into prod. Two
+    later cleanup passes removed **233 non-volleyball rows** directly from prod
+    via the PostgREST API (admin key in `.env.prod`, `DELETE …?id=in.(…)` in
+    batches) with full-row backups (`/tmp/prod-meetup-removal-*.json`); a final
+    sweep over all 3,352 prod rows confirmed **0 non-volleyball remain**. The JSON
+    - chunks were re-cleaned to match (297 prod / 293 JSON meetup — small live-
+      fetch drift, importer is idempotent). Lessons: **filter before the first
+      import**; when you widen the gate, reconcile already-imported rows too; and
+      "absent from keep-set" is NOT a safe delete signal (real volleyball ages out
+      of the live re-fetch) — classify each row by sport instead.
+
+`/tmp/build_meetup.py` walks ~30 metros (1.5s between fetches — be polite), and is
+the **final merge stage**: it re-runs the shared coord-backfill + `classify()` +
+chunking over the whole set, so the output is complete on its own. Yield: **~340
+events** after the cross-sport filter (from ~530 raw hits), every one timed +
+mapped, across ~all metros.
+
+**Full regen pipeline order:** `build_community_events.py` (clean base) →
+`build_vbl.py` (merge VBL) → `build_volo.py` (merge Volo) → **`build_meetup.py`
+(merge Meetup; final writer — chunks + classify + coords)**.
+
 ## New avenues to try (next time)
 
 - **Sport & Social / metro rec leagues in every big city** — the Chicago Players
@@ -327,8 +422,10 @@ Re-run with `/tmp/build_volo.py` (fetches the API, maps, merges into
   Sky/Rocky Mountain, Utah, Pacific NW adult (vs. the junior qualifier).
 - **More marquee**: Hyannis (MA), Volleyball City Clash (Holyoke MA), Fresh Coast
   (Milwaukee), AVP Contender stops (Denver Open, etc.).
-- **Meetup / Eventbrite** pickup + beach-social operators (recurring drop-ins —
-  decide whether recurring listings fit before importing).
+- **Eventbrite** pickup + beach-social operators (recurring drop-ins). Eventbrite
+  public event pages also carry schema.org Event JSON-LD — same approach as the
+  Meetup find-page scrape (now SOLVED, see above). Meetup descriptions sometimes
+  point at an Eventbrite registration page worth following.
 
 ## Import — what the importer does now
 

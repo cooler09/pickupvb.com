@@ -11,6 +11,7 @@ describe('isTrustedExternalUrl / externalLinkHref', () => {
       'https://cbva.com/tournaments/4642',
       'https://avp.com/avp-grass/schedule/',
       'https://www.sandbarslc.com/tournaments/',
+      'https://www.meetup.com/lic-volleyball-group/events/315004454/', // community find-page scrape
     ]) {
       expect(isTrustedExternalUrl(u)).toBe(true);
       // Trusted → linked directly, no /leaving interstitial.

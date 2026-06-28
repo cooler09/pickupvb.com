@@ -1,7 +1,18 @@
+import { FORMAT_LABEL, SKILL_TIER_LABEL } from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
 
 type Props = {
   venueName: string | null;
+  /**
+   * Open-play advertised formats (multi-format tag). Empty for single-format
+   * events. Rendered as a "Formats" row; RSVP stays one shared pool.
+   */
+  formats: ReadonlyArray<string>;
+  /**
+   * Open-play advertised skill tiers (multi-level tag). Empty for single-tier
+   * events. Rendered as a "Skill levels" row; signups are not gated by tier.
+   */
+  skillTiers: ReadonlyArray<string>;
   seriesName: string | null;
   seriesPosition: number | null;
   seriesSize: number | null;
@@ -26,6 +37,8 @@ type Props = {
  * definition list. Renders nothing when no fields are set.
  */
 export function EventMetaSection({
+  formats,
+  skillTiers,
   seriesName,
   seriesPosition,
   seriesSize,
@@ -47,6 +60,8 @@ export function EventMetaSection({
   const showRegistrationCloses = registrationClosesAt && !hideRegistrationCloses;
   const showPaymentNotes = paymentInstructions && !isExternal;
   const hasAnything =
+    formats.length > 0 ||
+    skillTiers.length > 0 ||
     seriesLabel ||
     isFundraiser ||
     themeTags.length > 0 ||
@@ -60,6 +75,36 @@ export function EventMetaSection({
       className="border-border-base bg-fg/[0.02] rounded-shape-sm border p-4"
     >
       <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">
+        {formats.length > 0 && (
+          <Row term="Formats">
+            <span className="flex flex-wrap items-center gap-1.5">
+              {formats.map((f) => (
+                <span
+                  key={f}
+                  className="bg-primary/15 text-primary rounded-full px-2 py-0.5 text-xs font-medium"
+                >
+                  {FORMAT_LABEL[f] ?? f}
+                </span>
+              ))}
+              <span className="text-muted text-xs">· one sign-up; courts organized on site</span>
+            </span>
+          </Row>
+        )}
+        {skillTiers.length > 0 && (
+          <Row term="Skill levels">
+            <span className="flex flex-wrap items-center gap-1.5">
+              {skillTiers.map((t) => (
+                <span
+                  key={t}
+                  className="bg-primary/15 text-primary rounded-full px-2 py-0.5 text-xs font-medium"
+                >
+                  {SKILL_TIER_LABEL[t] ?? t}
+                </span>
+              ))}
+              <span className="text-muted text-xs">· all welcome</span>
+            </span>
+          </Row>
+        )}
         {seriesLabel && (
           <Row term="Series">
             <span className="font-medium">{seriesLabel}</span>

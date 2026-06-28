@@ -237,8 +237,19 @@ export interface EventDetailReadModel {
   rules: string;
   surface: Surface;
   format: Format | null;
+  /**
+   * Open-play "multiple formats" advisory tag — every format the session runs
+   * (e.g. 4s + 6s). Empty for single-format events. Descriptive only: RSVP and
+   * capacity are unaffected.
+   */
+  formats: ReadonlyArray<Format>;
   gender: Gender | null;
   skillLevel: SkillLevel;
+  /**
+   * Open-play "multiple skill levels" advisory tag — every tier the session
+   * welcomes (e.g. B + BB + A). Empty for single-tier events. Descriptive only.
+   */
+  skillTiers: ReadonlyArray<SkillTier>;
   type: EventType;
   visibility: Visibility;
   status: EventStatus;

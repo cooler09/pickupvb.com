@@ -34,6 +34,10 @@ const TRUSTED_HOSTS: ReadonlySet<string> = new Set([
   'tiktok.com',
   'youtube.com',
   'youtu.be',
+  // Meetup — well-known events platform; our community directory links to
+  // meetup.com event pages (the volleyball find-page scrape), and it's a
+  // common host for user-supplied group/event links.
+  'meetup.com',
   // Volleyball registration platforms + organizers we link to from the
   // **community directory** (admin-curated listings, not arbitrary user input).
   // These are the off-platform sources our scraped listings point at; warning
