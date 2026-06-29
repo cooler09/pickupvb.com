@@ -5,9 +5,42 @@ import { GuidePage } from '../_components/guide-page';
 
 export const metadata = guideMetadata('getting-paid');
 
+// HowTo steps for the structured data — concise summaries of the <h2> sections
+// below. Keep in sync with the headings when the guide changes.
+const HOW_TO_STEPS = [
+  {
+    name: 'Connect Stripe first',
+    text: 'Connect a Stripe account from your billing settings before you can charge for an event.',
+  },
+  {
+    name: 'Decide who pays the platform fee',
+    text: 'Buyers pay the ticket price plus the platform fee (5% on Free, 2.5% on Pro) unless you choose to absorb it in your event settings.',
+  },
+  {
+    name: 'Take tips fee-free',
+    text: 'PickupVB never takes a fee on tips, so 100% of a tip reaches the host.',
+  },
+  {
+    name: 'Handle refunds',
+    text: 'Refunds are issued through Stripe; the processing fee on the original charge is not returned.',
+  },
+  {
+    name: 'Get your payout',
+    text: 'Stripe pays your balance out on its normal schedule, minus its processing fee on each charge.',
+  },
+  {
+    name: 'Optionally pay out to a club',
+    text: "With PickupVB Club, route an event's payout to a group's shared Stripe account instead of your own.",
+  },
+  {
+    name: 'Sell passes and memberships (Pro)',
+    text: 'Pro hosts can sell prepaid session passes and recurring memberships so attendees sign up to open plays without paying each time.',
+  },
+];
+
 export default function GettingPaidGuide() {
   return (
-    <GuidePage slug="getting-paid">
+    <GuidePage slug="getting-paid" howToSteps={HOW_TO_STEPS}>
       <p>
         PickupVB uses Stripe to move money straight from the buyer to you — the platform never holds
         your funds. Free events need none of this; set it up when you want to charge.

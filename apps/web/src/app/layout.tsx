@@ -103,6 +103,7 @@ const siteJsonLd = {
       '@id': 'https://pickupvb.com/#org',
       name: 'PickupVB',
       url: 'https://pickupvb.com',
+      logo: 'https://pickupvb.com/icon-512.png',
       description:
         'PickupVB helps players find, host, and manage pickup volleyball events — indoor, grass, and beach — including open play and tournaments.',
       sameAs: [],

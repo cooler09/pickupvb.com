@@ -5,9 +5,34 @@ import { GuidePage } from '../_components/guide-page';
 
 export const metadata = guideMetadata('tournaments-and-brackets');
 
+// HowTo steps for the structured data — concise summaries of the <h2> sections
+// below. Keep in sync with the headings when the guide changes.
+const HOW_TO_STEPS = [
+  {
+    name: 'Set up divisions',
+    text: 'Split the tournament into divisions by skill or format, each with its own capacity and bracket.',
+  },
+  {
+    name: 'Choose how teams register',
+    text: 'Pick a team-registration format so teams sign themselves up or you add them.',
+  },
+  {
+    name: 'Open a free-agent pool',
+    text: 'Let players without a team join a free-agent pool so a captain can pick them up.',
+  },
+  {
+    name: 'Build the brackets',
+    text: 'Create a bracket per division and seed the teams.',
+  },
+  {
+    name: 'Score it live',
+    text: 'Score matches live so the bracket advances winners automatically and spectators can follow along.',
+  },
+];
+
 export default function TournamentsGuide() {
   return (
-    <GuidePage slug="tournaments-and-brackets">
+    <GuidePage slug="tournaments-and-brackets" howToSteps={HOW_TO_STEPS}>
       <p>
         A tournament is a team event organized into divisions, with a bracket per division. You keep
         full control over teams, rosters, and the schedule the whole way through. Here&rsquo;s how

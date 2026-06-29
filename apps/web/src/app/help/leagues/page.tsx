@@ -5,9 +5,34 @@ import { GuidePage } from '../_components/guide-page';
 
 export const metadata = guideMetadata('leagues');
 
+// HowTo steps for the structured data — concise summaries of the <h2> sections
+// below. Keep in sync with the headings when the guide changes.
+const HOW_TO_STEPS = [
+  {
+    name: 'Add rostered teams',
+    text: 'Set up the pre-rostered teams that will play the season.',
+  },
+  {
+    name: 'Group teams into divisions',
+    text: 'For a larger league, split teams into divisions.',
+  },
+  {
+    name: 'Generate the weekly schedule',
+    text: 'Build a weekly match schedule across the season.',
+  },
+  {
+    name: 'Track standings and playoffs',
+    text: 'Standings update automatically; add an optional end-of-season playoff bracket.',
+  },
+  {
+    name: 'Collect league fees',
+    text: 'Charge a league fee per team or per player through the same payment flow as events.',
+  },
+];
+
 export default function LeaguesGuide() {
   return (
-    <GuidePage slug="leagues">
+    <GuidePage slug="leagues" howToSteps={HOW_TO_STEPS}>
       <p>
         A league is a season: pre-rostered teams play a weekly schedule, you track standings, and
         the season can finish with a playoff bracket. It reuses the tournament building blocks, with

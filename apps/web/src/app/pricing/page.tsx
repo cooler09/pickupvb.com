@@ -14,6 +14,7 @@ import {
 import { startProCheckout, getBillingPortalUrl } from '@/app/profile/billing/pro/actions';
 import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
 import { SubmitButton } from '@/components/submit-button';
+import { JsonLd } from '@/components/json-ld';
 
 export const metadata = {
   title: 'Pricing',
@@ -33,6 +34,75 @@ export const metadata = {
 // copy can never drift from the actual charge amount (monetization audit M-3).
 const SPONSOR_SLOT_PRICE_USD = SPONSOR_SLOT_UNLOCK_CENTS / 100;
 const BADGE_SLOT_PRICE_USD = BADGE_SLOT_UNLOCK_CENTS / 100;
+
+// Single source of truth for the FAQ — rendered both as the visible <details>
+// list and as schema.org FAQPage JSON-LD, so AI assistants (and Google's FAQ
+// rich result) can answer pricing / fee questions with our exact copy and the
+// structured data can't drift from what's on screen.
+const FAQS: ReadonlyArray<{ q: string; a: string }> = [
+  {
+    q: 'Do I need to pay to host free events?',
+    a: 'No. Free events have no platform fee and no subscription required. You also get co-hosts, group pages, waitlists, broadcasts, and check-in tools at no cost.',
+  },
+  {
+    q: `What does "${FREE_PAID_EVENT_CAP_30D} paid event per 30 days" actually mean?`,
+    a: `Free hosts can have ${FREE_PAID_EVENT_CAP_30D} paid event active in any rolling 30-day window. If you create a paid event today, you can create another one 30 days from today — not at the start of the next calendar month. Cancelling a paid event before it runs doesn't free up the slot. Upgrade to Pro for unlimited paid events.`,
+  },
+  {
+    q: 'How does the platform fee work?',
+    a: "Buyers pay the ticket price plus the platform fee (5% on Free, 2.5% on Pro) unless you choose to absorb it in your event settings. Tips are different — PickupVB never takes a fee on tips, so 100% reaches the host. Stripe's processing fee (~2.9% + 30¢) always comes out of your payout on any charge — it goes to Stripe, not PickupVB.",
+  },
+  {
+    q: 'What are season passes?',
+    a: "Pro hosts can sell a prepaid pack of session credits — for example a 10-session open-play pass. Attendees buy it once, then redeem one credit to sign up for any of your open-play events you've marked pass-eligible, with no per-session charge. You get committed revenue up front; they skip paying every week. You set the price, the number of sessions, and an optional expiry.",
+  },
+  {
+    q: 'Can a club pool its payouts?',
+    a: "Yes — PickupVB Club ($25/mo per group) lets a group connect one shared Stripe account, so events hosted by the club pay out to the club instead of an individual organizer. Manage it from your group's page (Club & payouts). Per-event opt-in, and the routing is locked once a ticket sells.",
+  },
+  {
+    q: 'What are memberships?',
+    a: "Pro hosts can sell a recurring monthly membership to their open plays. While a member's subscription is active they sign up free to any of your pass-eligible open-play events — unlimited, no per-session charge. It's billed monthly to the member and pays out to you like a ticket (less the platform fee); members can cancel anytime and keep access through the period they've paid for.",
+  },
+  {
+    q: 'What are event templates?',
+    a: 'Pro hosts can save any event as a template and apply it when creating a new one — the title, venue, format, pricing, and description all prefill. Change the date and publish. Useful for recurring open play sessions, weekly leagues, or annual tournaments.',
+  },
+  {
+    q: 'What does the sponsor slot do?',
+    a: `You can add one sponsor block per event — your local sporting-goods store, gym, or brewery. It shows a logo, a one-line message, and an optional discount code below the event details. Pro hosts get it included; free hosts can unlock it for $${SPONSOR_SLOT_PRICE_USD} per event.`,
+  },
+  {
+    q: 'What are collectible event badges?',
+    a: `Give attendees a badge to collect for your event — auto-awarded when they play, or hand-picked for a standout like an MVP. Earned badges show on a player's profile and public player page alongside their achievement badges. Pro hosts get it included; free hosts can unlock it for $${BADGE_SLOT_PRICE_USD} per event.`,
+  },
+  {
+    q: 'How many tournament brackets can I run?',
+    a: "Standalone brackets (run a tournament without hosting a full event) are capped at 1 active bracket at a time on Free — once you finish or delete it, you can start another, and completed brackets you keep for history don't count. Pro hosts run unlimited brackets at once. The bracket tool built into a paid or free event is always unlimited and unaffected.",
+  },
+  {
+    q: 'What happens after the 14-day trial?',
+    a: "We auto-charge the plan you picked ($10/mo or $100/yr). Cancel anytime from the billing portal — you'll keep Pro access until the end of the period you've already paid for.",
+  },
+  {
+    q: 'Can I switch between monthly and yearly?',
+    a: 'Yes — open Manage subscription on the Pro page and pick the other plan. Stripe prorates the change.',
+  },
+  {
+    q: 'What if I cancel?',
+    a: 'You drop back to Free. Existing paid events stay published; new paid events you create after canceling count against the free-tier cap.',
+  },
+];
+
+const faqJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQS.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+};
 
 const FREE_TIER_FEATURES = [
   'Unlimited free events',
@@ -260,59 +330,11 @@ export default async function PricingPage() {
 
       {/* ---- FAQ ---- */}
       <section className="space-y-4">
+        <JsonLd data={faqJsonLd} />
         <h2 className="text-headline-sm font-semibold">FAQ</h2>
-        <Faq
-          q="Do I need to pay to host free events?"
-          a="No. Free events have no platform fee and no subscription required. You also get co-hosts, group pages, waitlists, broadcasts, and check-in tools at no cost."
-        />
-        <Faq
-          q={`What does "${FREE_PAID_EVENT_CAP_30D} paid event per 30 days" actually mean?`}
-          a={`Free hosts can have ${FREE_PAID_EVENT_CAP_30D} paid event active in any rolling 30-day window. If you create a paid event today, you can create another one 30 days from today — not at the start of the next calendar month. Cancelling a paid event before it runs doesn't free up the slot. Upgrade to Pro for unlimited paid events.`}
-        />
-        <Faq
-          q="How does the platform fee work?"
-          a="Buyers pay the ticket price plus the platform fee (5% on Free, 2.5% on Pro) unless you choose to absorb it in your event settings. Tips are different — PickupVB never takes a fee on tips, so 100% reaches the host. Stripe's processing fee (~2.9% + 30¢) always comes out of your payout on any charge — it goes to Stripe, not PickupVB."
-        />
-        <Faq
-          q="What are season passes?"
-          a="Pro hosts can sell a prepaid pack of session credits — for example a 10-session open-play pass. Attendees buy it once, then redeem one credit to sign up for any of your open-play events you've marked pass-eligible, with no per-session charge. You get committed revenue up front; they skip paying every week. You set the price, the number of sessions, and an optional expiry."
-        />
-        <Faq
-          q="Can a club pool its payouts?"
-          a="Yes — PickupVB Club ($25/mo per group) lets a group connect one shared Stripe account, so events hosted by the club pay out to the club instead of an individual organizer. Manage it from your group's page (Club & payouts). Per-event opt-in, and the routing is locked once a ticket sells."
-        />
-        <Faq
-          q="What are memberships?"
-          a="Pro hosts can sell a recurring monthly membership to their open plays. While a member's subscription is active they sign up free to any of your pass-eligible open-play events — unlimited, no per-session charge. It's billed monthly to the member and pays out to you like a ticket (less the platform fee); members can cancel anytime and keep access through the period they've paid for."
-        />
-        <Faq
-          q="What are event templates?"
-          a="Pro hosts can save any event as a template and apply it when creating a new one — the title, venue, format, pricing, and description all prefill. Change the date and publish. Useful for recurring open play sessions, weekly leagues, or annual tournaments."
-        />
-        <Faq
-          q="What does the sponsor slot do?"
-          a={`You can add one sponsor block per event — your local sporting-goods store, gym, or brewery. It shows a logo, a one-line message, and an optional discount code below the event details. Pro hosts get it included; free hosts can unlock it for $${SPONSOR_SLOT_PRICE_USD} per event.`}
-        />
-        <Faq
-          q="What are collectible event badges?"
-          a={`Give attendees a badge to collect for your event — auto-awarded when they play, or hand-picked for a standout like an MVP. Earned badges show on a player's profile and public player page alongside their achievement badges. Pro hosts get it included; free hosts can unlock it for $${BADGE_SLOT_PRICE_USD} per event.`}
-        />
-        <Faq
-          q="How many tournament brackets can I run?"
-          a="Standalone brackets (run a tournament without hosting a full event) are capped at 1 active bracket at a time on Free — once you finish or delete it, you can start another, and completed brackets you keep for history don't count. Pro hosts run unlimited brackets at once. The bracket tool built into a paid or free event is always unlimited and unaffected."
-        />
-        <Faq
-          q="What happens after the 14-day trial?"
-          a="We auto-charge the plan you picked ($10/mo or $100/yr). Cancel anytime from the billing portal — you'll keep Pro access until the end of the period you've already paid for."
-        />
-        <Faq
-          q="Can I switch between monthly and yearly?"
-          a="Yes — open Manage subscription on the Pro page and pick the other plan. Stripe prorates the change."
-        />
-        <Faq
-          q="What if I cancel?"
-          a="You drop back to Free. Existing paid events stay published; new paid events you create after canceling count against the free-tier cap."
-        />
+        {FAQS.map((f) => (
+          <Faq key={f.q} q={f.q} a={f.a} />
+        ))}
       </section>
     </section>
   );
