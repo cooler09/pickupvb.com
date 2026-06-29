@@ -5,9 +5,38 @@ import { GuidePage } from '../_components/guide-page';
 
 export const metadata = guideMetadata('getting-started');
 
+// HowTo steps for the structured data — concise summaries of the <h2> sections
+// below. Keep in sync with the headings when the guide changes.
+const HOW_TO_STEPS = [
+  {
+    name: 'Pick an event type',
+    text: 'Choose open play (individuals sign up), a tournament (teams compete in divisions with a bracket), or a league (rostered teams play a weekly schedule).',
+  },
+  {
+    name: 'Create your event',
+    text: 'Go to Host an event and set the surface, format, gender, skill level, venue, date, capacity, and price.',
+  },
+  {
+    name: 'Publish it',
+    text: 'Your event starts as a private draft; publish it when the details are right so players can see it and sign up.',
+  },
+  {
+    name: 'Let capacity and the waitlist work',
+    text: 'Spot counts update live; once you hit capacity new signups join a waitlist and are promoted automatically when someone drops out.',
+  },
+  {
+    name: 'Share it and fill it',
+    text: 'Public events show up in search and the home feed; share the link directly, or set the event to invite-only or friends to keep it private.',
+  },
+  {
+    name: 'Manage signups',
+    text: 'From the event page, view the roster, add co-hosts, and send broadcasts that reach every attendee by email, push, and in-app notification.',
+  },
+];
+
 export default function GettingStartedGuide() {
   return (
-    <GuidePage slug="getting-started">
+    <GuidePage slug="getting-started" howToSteps={HOW_TO_STEPS}>
       <p>
         Hosting on PickupVB takes a few minutes: pick what kind of event you&rsquo;re running, fill
         in the details, and publish. Players find it, sign up, and you run it on game day. This

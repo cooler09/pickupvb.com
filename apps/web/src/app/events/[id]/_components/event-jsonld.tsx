@@ -93,6 +93,19 @@ export function EventJsonLd({
       priceCurrency: 'USD',
       category: ticketCents && ticketCents > 0 ? 'paid' : 'free',
     },
+    // A RegisterAction makes the event *actionable* for AI agents and rich
+    // results: it names "sign up" as the available action and points at the
+    // canonical event URL where registration (or waitlist join) happens.
+    // Omitted for cancelled events — there's nothing to register for.
+    ...(status !== 'cancelled'
+      ? {
+          potentialAction: {
+            '@type': 'RegisterAction',
+            name: 'Sign up',
+            target: { '@type': 'EntryPoint', urlTemplate: url },
+          },
+        }
+      : {}),
     ...(visibility === 'public' ? { isAccessibleForFree: !ticketCents || ticketCents === 0 } : {}),
     maximumAttendeeCapacity: spotsRemaining === null ? undefined : attendeeCount + spotsRemaining,
     remainingAttendeeCapacity: spotsRemaining ?? undefined,

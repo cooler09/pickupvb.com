@@ -5,9 +5,34 @@ import { GuidePage } from '../_components/guide-page';
 
 export const metadata = guideMetadata('running-event-day');
 
+// HowTo steps for the structured data — concise summaries of the <h2> sections
+// below. Keep in sync with the headings when the guide changes.
+const HOW_TO_STEPS = [
+  {
+    name: 'Use the free host tools',
+    text: 'Run games with the free scoreboard, timer, court-rotation queue, and standings tools.',
+  },
+  {
+    name: 'Put it on the big screen',
+    text: 'Turn on gym display mode to show brackets, schedules, and live scores on a TV or tablet.',
+  },
+  {
+    name: 'Keep attendees informed',
+    text: 'Send broadcasts so every attendee gets updates by email, push, and in-app notification.',
+  },
+  {
+    name: 'Collect waivers',
+    text: 'Require a liability waiver at signup or check-in if your event needs one.',
+  },
+  {
+    name: 'Check players in',
+    text: 'Check attendees in on game day to confirm who showed up.',
+  },
+];
+
 export default function EventDayGuide() {
   return (
-    <GuidePage slug="running-event-day">
+    <GuidePage slug="running-event-day" howToSteps={HOW_TO_STEPS}>
       <p>
         The event is published and players are signed up — now you run it. PickupVB gives you tools
         for the gym floor and a few ways to keep everyone in the loop on the day.
