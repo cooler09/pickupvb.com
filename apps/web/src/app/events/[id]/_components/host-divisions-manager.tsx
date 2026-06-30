@@ -16,11 +16,14 @@
  * already used on the create-event repeater for consistency.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useFormState } from 'react-dom';
 import type { DivisionLite } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
-import { CloseOnSettled, FormModal, ModalActions } from '@/components/form-modal';
+import { FormModal, ModalActions } from '@/components/form-modal';
+import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import {
   errorTextButtonClass,
   primaryButtonClass,
@@ -30,7 +33,14 @@ import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
 } from '@/components/field-styles';
-import { addDivisionFromForm, updateDivisionFromForm, removeDivision } from '../division-actions';
+import {
+  addDivisionFromForm,
+  updateDivisionFromForm,
+  removeDivision,
+  type DivisionFormState,
+} from '../division-actions';
+
+const INITIAL_DIVISION_STATE: DivisionFormState = {};
 
 type Props = {
   eventId: string;
@@ -45,7 +55,7 @@ function DivisionForm({
   submitLabel,
 }: {
   initial?: Partial<DivisionLite>;
-  action: (formData: FormData) => void | Promise<void>;
+  action: (state: DivisionFormState, formData: FormData) => Promise<DivisionFormState>;
   close: () => void;
   submitLabel: string;
 }) {
@@ -58,9 +68,21 @@ function DivisionForm({
   const [priceUsd, setPriceUsd] = useState<string>(
     initial?.priceCents != null ? (initial.priceCents / 100).toFixed(2) : '',
   );
+  // Inline error/success state — a domain-invalid config (ADR 0012/0016) now
+  // returns `{ error }` instead of 500ing. Close the modal only on success so
+  // the host stays put with their inputs (and the alert) when it fails.
+  const [state, formAction] = useFormState(action, INITIAL_DIVISION_STATE);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
+  useEffect(() => {
+    if (state.success) close();
+  }, [state.success, close]);
   return (
-    <form action={action} className="space-y-3">
-      <CloseOnSettled onSettled={close} />
+    <form action={formAction} className="space-y-3">
+      {state.error && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{state.error}</Alert>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className={labelClass}>Label</label>
