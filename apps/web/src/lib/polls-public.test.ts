@@ -28,6 +28,18 @@ vi.mock('@pickupvb/supabase', () => ({
   createSupabaseAnonClient: () => ({ rpc: vi.fn() }),
 }));
 
+// The first-response ping reads the creator on the admin client and calls
+// `notify` — mock both so the unit stays about the submit orchestration.
+const adminMaybeSingle = vi.fn<() => Promise<{ data: unknown }>>();
+vi.mock('./supabase-admin', () => ({
+  getAdminSupabase: () => ({
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: adminMaybeSingle }) }) }),
+  }),
+}));
+
+const notifyMock = vi.fn<(...args: unknown[]) => Promise<void>>();
+vi.mock('./notify', () => ({ notify: (...args: unknown[]) => notifyMock(...args) }));
+
 const { submitPollResponse } = await import('./polls-public');
 
 const validInput = {
@@ -43,6 +55,8 @@ beforeEach(() => {
   verifyTurnstileMock.mockResolvedValue({ ok: true });
   consumeMock.mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
   rpcMock.mockResolvedValue({ data: { response_id: 'r-1' }, error: null });
+  adminMaybeSingle.mockResolvedValue({ data: { creator_id: 'host-1', title: 'My poll' } });
+  notifyMock.mockResolvedValue(undefined);
 });
 
 describe('submitPollResponse', () => {
@@ -83,5 +97,29 @@ describe('submitPollResponse', () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: 'poll is closed' } });
     const result = await submitPollResponse(validInput);
     expect(result).toEqual({ ok: false, error: 'This poll has closed.' });
+  });
+
+  it('notifies the creator once when the RPC reports the first response', async () => {
+    rpcMock.mockResolvedValue({
+      data: { response_id: 'r-1', poll_id: 'poll-9', is_first_response: true },
+      error: null,
+    });
+    const result = await submitPollResponse(validInput);
+    expect(result).toEqual({ ok: true, responseId: 'r-1' });
+    expect(notifyMock).toHaveBeenCalledWith(
+      'poll.first_response',
+      'host-1',
+      { pollId: 'poll-9', pollTitle: 'My poll', firstResponderName: 'Zed' },
+      { idempotencyKey: 'poll-first:poll-9' },
+    );
+  });
+
+  it('does not notify when the response is not the first', async () => {
+    rpcMock.mockResolvedValue({
+      data: { response_id: 'r-2', poll_id: 'poll-9', is_first_response: false },
+      error: null,
+    });
+    await submitPollResponse(validInput);
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 });

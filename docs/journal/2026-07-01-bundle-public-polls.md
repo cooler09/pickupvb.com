@@ -102,16 +102,28 @@ Shipped in the same bundle after Phase 1:
   handlers already dispatched, so this is now a real capture. Response-level
   analytics intentionally skipped (sessionless responder, no consent). Mapper
   tests cover scope derivation.
+- **Phase 3 — host notification on first response.** New `poll.first_response`
+  notification kind ([packages/notifications](../../packages/notifications/src/kinds.ts),
+  push + in-app, `group_activity` category) fired once per poll. Chose
+  **first-response only** (not per-response, which would flood a popular poll;
+  not a digest, which needs a cron) — deduped by `idempotencyKey
+poll-first:<id>` so it fires exactly once even if two first responses race.
+  The `submit_poll_response` RPC now returns `is_first_response` + `poll_id`; the
+  `polls-public` facade reads the creator on the **admin** client (so the anon
+  RPC never returns `creator_id` to the responder) and calls `notify()`.
+  Best-effort — a notification hiccup never fails the response. Delivery is
+  prod-only (Vercel-cron worker), so verify on prod.
+- **Phase 3 — cross-visit answer prefill.** The responder's own submission is
+  persisted per-poll in `localStorage`; a return visit shows their answer (`·
+your pick`) + the tally instead of a blank form, with "Change my answer".
+  Uses `useSyncExternalStore` (not `useEffect`+setState — AGENTS pattern 5) so
+  SSR + first client render agree, then reconcile after hydration.
 
 ## Follow-ups (still open)
 
-- **Notify host on new responses — DEFERRED.** Needs the notification-delivery
-  path (outbox/worker, which has known dev gaps: cron is prod-only, VAPID unset)
-  **and** a batching decision (per-response would spam a popular poll — likely
-  first-response or a digest).
 - Convert event-poll respondents → RSVPs (only meaningful for the signed-in
   subset — most responders are anon).
 - Co-manager-visible poll lists on event/group pages (needs a broader RLS policy
   than creator-only).
-- Convert the dashboard delete's `window.confirm` to `ConfirmDialog` (MU-5);
-  cross-visit "your answer" prefill; the `closes_at` UTC-wall-clock edit caveat.
+- Convert the dashboard delete's `window.confirm` to `ConfirmDialog` (MU-5); the
+  `closes_at` UTC-wall-clock edit caveat.

@@ -2,6 +2,8 @@ import 'server-only';
 
 import { createSupabaseAnonClient } from '@pickupvb/supabase';
 import { getServerSupabase } from './supabase';
+import { getAdminSupabase } from './supabase-admin';
+import { notify } from './notify';
 import { verifyTurnstileToken } from './turnstile';
 import { consumeRateLimit, getClientIp, rateLimitKey } from './rate-limit';
 
@@ -132,6 +134,41 @@ export async function submitPollResponse(input: {
     return { ok: false, error: 'Could not submit your response. Please try again.' };
   }
 
-  const responseId = (data as { response_id?: string } | null)?.response_id ?? '';
-  return { ok: true, responseId };
+  const raw = data as {
+    response_id?: string;
+    poll_id?: string;
+    is_first_response?: boolean;
+  } | null;
+  if (raw?.is_first_response && raw.poll_id) {
+    await notifyPollFirstResponse(raw.poll_id, name);
+  }
+  return { ok: true, responseId: raw?.response_id ?? '' };
+}
+
+/**
+ * One-time "your poll got its first response" ping to the creator. Reads the
+ * creator + title on the ADMIN client (server-side) so the anon RPC never has to
+ * return the creator's id to the responder. Best-effort — a notification hiccup
+ * must never fail the response. The `idempotencyKey` guarantees a single ping
+ * per poll even if two first responses race the `is_first_response` check.
+ */
+async function notifyPollFirstResponse(pollId: string, responderName: string): Promise<void> {
+  try {
+    const admin = getAdminSupabase();
+    const { data } = await admin
+      .from('polls')
+      .select('creator_id, title')
+      .eq('id', pollId)
+      .maybeSingle();
+    const poll = data as { creator_id: string; title: string } | null;
+    if (!poll) return;
+    await notify(
+      'poll.first_response',
+      poll.creator_id,
+      { pollId, pollTitle: poll.title, firstResponderName: responderName },
+      { idempotencyKey: `poll-first:${pollId}` },
+    );
+  } catch {
+    /* best-effort */
+  }
 }

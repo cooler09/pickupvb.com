@@ -353,6 +353,7 @@ declare
     v_name text;
     v_token text := nullif(btrim(coalesce(p_anon_token, '')), '');
     v_response_id uuid;
+    v_is_first boolean := false;
 begin
     select * into v_poll from public.polls where short_code = upper(btrim(p_code));
     if not found then
@@ -435,6 +436,10 @@ begin
         insert into public.poll_responses (poll_id, respondent_name, user_id, anon_token)
         values (v_poll.id, v_name, v_uid, v_token)
         returning id into v_response_id;
+        -- First-ever response? Drives the host's one-time "first response" ping
+        -- (the app enqueues it; the RPC just reports the fact, never the creator).
+        select count(*) = 1 into v_is_first
+        from public.poll_responses where poll_id = v_poll.id;
     else
         update public.poll_responses
             set respondent_name = v_name,
@@ -450,7 +455,11 @@ begin
     from jsonb_array_elements(coalesce(p_answers, '[]'::jsonb)) a
     cross join lateral jsonb_array_elements_text(coalesce(a->'option_ids', '[]'::jsonb)) opt(oid);
 
-    return jsonb_build_object('response_id', v_response_id);
+    return jsonb_build_object(
+        'response_id', v_response_id,
+        'poll_id', v_poll.id,
+        'is_first_response', v_is_first
+    );
 end;
 $$;
 
