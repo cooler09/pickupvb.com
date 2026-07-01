@@ -85,6 +85,10 @@ export function PollResponder({ config, initialResults, isClosed }: PollResponde
   const [results, setResults] = useState<PublicPollResults | null>(initialResults);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Bumped after every submit so the Turnstile widget remounts with a FRESH
+  // token — its token is single-use, so a retry / "change my answer" that reused
+  // it would be rejected by Cloudflare as `timeout-or-duplicate`.
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Show the form when the poll is open AND (they haven't answered yet OR they
@@ -127,6 +131,9 @@ export function PollResponder({ config, initialResults, isClosed }: PollResponde
         answers,
         turnstileToken: typeof turnstileToken === 'string' ? turnstileToken : null,
       });
+      // The token just got redeemed (pass or fail) — swap in a fresh widget so a
+      // retry / "change my answer" doesn't reuse it (Cloudflare timeout-or-duplicate).
+      setTurnstileKey((k) => k + 1);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -193,7 +200,7 @@ export function PollResponder({ config, initialResults, isClosed }: PollResponde
             />
           </div>
 
-          <TurnstileWidget />
+          <TurnstileWidget key={turnstileKey} />
 
           <div className="flex items-center gap-3">
             <button type="submit" className={primaryButtonClass('md')} disabled={pending}>

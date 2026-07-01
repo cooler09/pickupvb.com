@@ -93,7 +93,15 @@ export async function submitPollResponse(input: {
 
   const turnstile = await verifyTurnstileToken(input.turnstileToken);
   if (!turnstile.ok) {
-    return { ok: false, error: turnstile.error ?? 'Verification failed. Please try again.' };
+    // A stale/reused token (`timeout-or-duplicate`) is expected on a retry — the
+    // widget auto-refreshes, so "try again" is the actionable fix, not the raw code.
+    const stale = /timeout-or-duplicate|expired/i.test(turnstile.error ?? '');
+    return {
+      ok: false,
+      error: stale
+        ? 'That took a moment too long — please tap Submit again.'
+        : (turnstile.error ?? 'Verification failed. Please try again.'),
+    };
   }
 
   const ip = await getClientIp();
