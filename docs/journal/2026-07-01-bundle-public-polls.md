@@ -118,6 +118,13 @@ poll-first:<id>` so it fires exactly once even if two first responses race.
 your pick`) + the tally instead of a blank form, with "Change my answer".
   Uses `useSyncExternalStore` (not `useEffect`+setState — AGENTS pattern 5) so
   SSR + first client render agree, then reconcile after hydration.
+- **Fix — Turnstile single-use token on re-submit.** A dev report surfaced
+  `Verification failed (timeout-or-duplicate)`: a Turnstile token is single-use,
+  but the responder allows re-submits (retry / "change my answer"), so the second
+  submit replayed a spent token. Fix: remount `<TurnstileWidget key={n} />` after
+  every submit (fresh token per attempt) + a friendlier "tap Submit again"
+  message for the stale-token code. (The `401` on Cloudflare's `/pat/` endpoint
+  is a normal Privacy-Pass fallback, not the cause.)
 
 ## Follow-ups (still open)
 
