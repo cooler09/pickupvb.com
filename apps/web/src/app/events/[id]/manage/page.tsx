@@ -4,11 +4,13 @@ import type { Metadata } from 'next/types';
 import { notFound } from 'next/navigation';
 import { NotFoundError } from '@pickupvb/domain';
 import { getViewer } from '@/lib/server-auth';
+import { getPollHandlers } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
 import { LocalDateTime } from '@/components/local-datetime';
 import { loadEventDetail, loadEventReadModelPublic } from '../_loaders/load-event-detail';
 import { ManageDashboard } from './_components/manage-dashboard';
 import { HostAwardBadgesPanel } from '../_components/host-award-badges-panel';
+import { EventPollsPanel } from './_components/event-polls-panel';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 
 // Host-only dashboard — depends on the viewer's session (`canManage`), so it
@@ -54,6 +56,11 @@ export default async function ManageEventPage(props: { params: Promise<{ id: str
   if (!event.canManage) notFound();
 
   const returnPath = `/events/${event.id}/manage`;
+
+  // Polls this host has attached to the event (ADR 0041). Creator-only RLS, so
+  // a manager sees their own polls; a co-host's are a documented follow-up.
+  const { listEventPolls } = await getPollHandlers();
+  const eventPolls = await listEventPolls.execute(event.id);
 
   // Kiosk display mode is gated on the *host's* Pro status (not the viewer's —
   // a Free co-host managing a Pro host's event still gets the Displays hub).
@@ -131,6 +138,8 @@ export default async function ManageEventPage(props: { params: Promise<{ id: str
         attendees={awardAttendees}
         grants={badgeGrants}
       />
+
+      <EventPollsPanel eventId={event.id} polls={eventPolls} />
     </article>
   );
 }

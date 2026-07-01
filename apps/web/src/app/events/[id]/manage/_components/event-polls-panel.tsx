@@ -1,0 +1,57 @@
+import Link from 'next/link';
+import type { Route } from 'next';
+import type { PollSummary } from '@pickupvb/domain';
+import { primaryButtonClass } from '@/components/primary-button';
+
+/**
+ * "Polls" section on the event-manage page (ADR 0041, Phase 2). Lists the polls
+ * this host has attached to the event and offers a prefilled "New poll" link.
+ * Server component — just links, no client state. Only the host's own polls
+ * appear (creator-only RLS); a co-host's polls are a documented follow-up.
+ */
+export function EventPollsPanel({ eventId, polls }: { eventId: string; polls: PollSummary[] }) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-fg text-title-lg font-semibold">Polls</h2>
+          <p className="text-muted text-sm">
+            Gather quick answers with a share link — no account needed to respond.
+          </p>
+        </div>
+        <Link href={`/polls/new?eventId=${eventId}` as Route} className={primaryButtonClass('sm')}>
+          New poll
+        </Link>
+      </div>
+
+      {polls.length > 0 && (
+        <ul className="divide-border-base border-border-base divide-y rounded-md border">
+          {polls.map((p) => (
+            <li key={p.id}>
+              <Link
+                href={`/polls/${p.id}`}
+                className="hover:bg-md-surface-container-high flex items-center justify-between gap-3 p-3"
+              >
+                <span className="min-w-0">
+                  <span className="text-fg block truncate text-sm font-medium">{p.title}</span>
+                  <span className="text-muted text-xs">
+                    {p.responseCount} {p.responseCount === 1 ? 'response' : 'responses'}
+                  </span>
+                </span>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                    p.status === 'open'
+                      ? 'bg-md-success/15 text-md-success'
+                      : 'bg-md-error/15 text-md-error'
+                  }`}
+                >
+                  {p.status === 'open' ? 'Open' : 'Closed'}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
