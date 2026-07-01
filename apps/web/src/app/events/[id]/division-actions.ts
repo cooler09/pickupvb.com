@@ -7,6 +7,7 @@ import {
   RemoveEventDivisionCommand,
   UpdateEventDivisionCommand,
 } from '@pickupvb/application';
+import { DomainError } from '@pickupvb/domain';
 import {
   DivisionInputSchema,
   DivisionUpdateSchema,
@@ -99,32 +100,65 @@ function divisionInputFromForm(formData: FormData): DivisionInputDto {
   return DivisionInputSchema.parse(dto);
 }
 
+/**
+ * Inline form state for the add/edit-division modals. Mirrors the
+ * `TeamFormState` convention (apps/web/src/app/teams/actions.ts): an optional
+ * `error` string rendered via `<Alert>`, plus a `success` flag the modal
+ * watches to close itself.
+ *
+ * Why this exists: the registration-config matrix
+ * (`VolleyballEvent.assertRegistrationConfigValid`, ADR 0012/0016 — e.g. a
+ * per-player *paid* division can't be team-registered) throws a typed
+ * `InvariantViolation` from inside `add/updateDivision`. The plain
+ * `<form action>` had no catch, so the throw bubbled out as an unhandled
+ * server error → a Next 500 with a `digest` instead of a host-facing message.
+ * Catching `DomainError` here turns it into actionable inline feedback; the
+ * message itself already tells the host how to fix the config.
+ */
+export type DivisionFormState = { error?: string; success?: boolean };
+
 export async function addDivisionFromForm(
   eventId: string,
   returnPath: string,
+  _prev: DivisionFormState,
   formData: FormData,
-): Promise<void> {
-  if (!eventId) return;
+): Promise<DivisionFormState> {
+  if (!eventId) return { error: 'Missing event.' };
   const userId = await assertCanManage(eventId);
   const input = divisionInputFromForm(formData);
-  await handlers.addEventDivision.execute(new AddEventDivisionCommand(eventId, userId, input));
+  try {
+    await handlers.addEventDivision.execute(new AddEventDivisionCommand(eventId, userId, input));
+  } catch (err) {
+    // Typed domain failures carry a host-facing message — surface it inline.
+    // Anything else is genuinely unexpected: rethrow so it reaches Sentry.
+    if (err instanceof DomainError) return { error: err.message };
+    throw err;
+  }
   revalidatePath(returnPath);
+  return { success: true };
 }
 
 export async function updateDivisionFromForm(
   eventId: string,
   divisionId: string,
   returnPath: string,
+  _prev: DivisionFormState,
   formData: FormData,
-): Promise<void> {
-  if (!eventId || !divisionId) return;
+): Promise<DivisionFormState> {
+  if (!eventId || !divisionId) return { error: 'Missing event or division.' };
   const userId = await assertCanManage(eventId);
   const input = divisionInputFromForm(formData);
   const updates: DivisionUpdateDto = DivisionUpdateSchema.parse(input);
-  await handlers.updateEventDivision.execute(
-    new UpdateEventDivisionCommand(eventId, divisionId, userId, updates),
-  );
+  try {
+    await handlers.updateEventDivision.execute(
+      new UpdateEventDivisionCommand(eventId, divisionId, userId, updates),
+    );
+  } catch (err) {
+    if (err instanceof DomainError) return { error: err.message };
+    throw err;
+  }
   revalidatePath(returnPath);
+  return { success: true };
 }
 
 export async function removeDivision(
