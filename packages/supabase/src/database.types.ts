@@ -3277,6 +3277,225 @@ export type Database = {
           },
         ];
       };
+      poll_answers: {
+        Row: {
+          id: string;
+          option_id: string;
+          poll_response_id: string;
+          question_id: string;
+        };
+        Insert: {
+          id?: string;
+          option_id: string;
+          poll_response_id: string;
+          question_id: string;
+        };
+        Update: {
+          id?: string;
+          option_id?: string;
+          poll_response_id?: string;
+          question_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'poll_answers_option_id_fkey';
+            columns: ['option_id'];
+            isOneToOne: false;
+            referencedRelation: 'poll_options';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'poll_answers_poll_response_id_fkey';
+            columns: ['poll_response_id'];
+            isOneToOne: false;
+            referencedRelation: 'poll_responses';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'poll_answers_question_id_fkey';
+            columns: ['question_id'];
+            isOneToOne: false;
+            referencedRelation: 'poll_questions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      poll_options: {
+        Row: {
+          id: string;
+          label: string;
+          position: number;
+          question_id: string;
+        };
+        Insert: {
+          id?: string;
+          label: string;
+          position: number;
+          question_id: string;
+        };
+        Update: {
+          id?: string;
+          label?: string;
+          position?: number;
+          question_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'poll_options_question_id_fkey';
+            columns: ['question_id'];
+            isOneToOne: false;
+            referencedRelation: 'poll_questions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      poll_questions: {
+        Row: {
+          id: string;
+          kind: string;
+          poll_id: string;
+          position: number;
+          prompt: string;
+          required: boolean;
+        };
+        Insert: {
+          id?: string;
+          kind: string;
+          poll_id: string;
+          position: number;
+          prompt: string;
+          required?: boolean;
+        };
+        Update: {
+          id?: string;
+          kind?: string;
+          poll_id?: string;
+          position?: number;
+          prompt?: string;
+          required?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'poll_questions_poll_id_fkey';
+            columns: ['poll_id'];
+            isOneToOne: false;
+            referencedRelation: 'polls';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      poll_responses: {
+        Row: {
+          anon_token: string | null;
+          created_at: string;
+          id: string;
+          poll_id: string;
+          respondent_name: string;
+          updated_at: string;
+          user_id: string | null;
+        };
+        Insert: {
+          anon_token?: string | null;
+          created_at?: string;
+          id?: string;
+          poll_id: string;
+          respondent_name: string;
+          updated_at?: string;
+          user_id?: string | null;
+        };
+        Update: {
+          anon_token?: string | null;
+          created_at?: string;
+          id?: string;
+          poll_id?: string;
+          respondent_name?: string;
+          updated_at?: string;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'poll_responses_poll_id_fkey';
+            columns: ['poll_id'];
+            isOneToOne: false;
+            referencedRelation: 'polls';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'poll_responses_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      polls: {
+        Row: {
+          closes_at: string | null;
+          created_at: string;
+          creator_id: string;
+          description: string;
+          event_id: string | null;
+          group_id: string | null;
+          id: string;
+          short_code: string | null;
+          show_respondent_names: boolean;
+          status: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          closes_at?: string | null;
+          created_at?: string;
+          creator_id: string;
+          description?: string;
+          event_id?: string | null;
+          group_id?: string | null;
+          id?: string;
+          short_code?: string | null;
+          show_respondent_names?: boolean;
+          status?: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          closes_at?: string | null;
+          created_at?: string;
+          creator_id?: string;
+          description?: string;
+          event_id?: string | null;
+          group_id?: string | null;
+          id?: string;
+          short_code?: string | null;
+          show_respondent_names?: boolean;
+          status?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'polls_creator_id_fkey';
+            columns: ['creator_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'polls_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'polls_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'groups';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       profiles: {
         Row: {
           auto_accept_team_invites: boolean;
@@ -4234,6 +4453,13 @@ export type Database = {
         }[];
       };
       count_unread_conversations: { Args: never; Returns: number };
+      get_poll_config: { Args: { p_code: string }; Returns: Json };
+      get_poll_results: { Args: { p_code: string }; Returns: Json };
+      is_poll_creator: { Args: { p_poll_id: string }; Returns: boolean };
+      submit_poll_response: {
+        Args: { p_answers: Json; p_anon_token: string; p_code: string; p_name: string };
+        Returns: Json;
+      };
       disablelongtransactions: { Args: never; Returns: string };
       dropgeometrycolumn:
         | {

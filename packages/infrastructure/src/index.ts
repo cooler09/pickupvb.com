@@ -16,6 +16,7 @@ export * from './supabase-profile-repository';
 export * from './supabase-user-repository';
 export * from './supabase-group-repository';
 export * from './supabase-group-query-repository';
+export * from './supabase-poll-repository';
 export * from './supabase-notification-outbox-repository';
 export * from './supabase-push-subscription-repository';
 export * from './supabase-broadcast-repository';
