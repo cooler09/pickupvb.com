@@ -111,6 +111,11 @@ export function MobileMenu({ theme, user, isAnon, pendingTeamInvites }: Props) {
                 </Link>
               </li>
               <li>
+                <Link href="/polls" className="hover:bg-fg/5 block rounded-md px-3 py-2">
+                  Polls
+                </Link>
+              </li>
+              <li>
                 <Link href="/tools" className="hover:bg-fg/5 block rounded-md px-3 py-2">
                   Host tools
                 </Link>
