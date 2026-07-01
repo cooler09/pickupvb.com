@@ -13,6 +13,9 @@ import {
   FreeAgentJoined,
   Gender,
   Location,
+  Poll,
+  PollClosed,
+  PollCreated,
   PriceUnit,
   SkillLevel,
   SkillTier,
@@ -178,5 +181,59 @@ describe('mapDomainEventToAnalytics', () => {
     const stub = new StubAggregate();
     expect(mapDomainEventToAnalytics(new SpotFilled('event-1', 'alice', 0), stub)).toBeNull();
     expect(mapDomainEventToAnalytics(new SpotReleased('event-1', 'alice'), stub)).toBeNull();
+  });
+
+  // ---- Poll lifecycle (ADR 0041) --------------------------------------------
+
+  function makePoll(overrides: Partial<Parameters<typeof Poll.create>[0]> = {}) {
+    return Poll.create({
+      id: 'poll-1',
+      creatorId: 'host-9',
+      title: 'Who’s coming?',
+      questions: [
+        {
+          id: 'q1',
+          prompt: 'Are you coming?',
+          kind: 'single',
+          required: true,
+          options: [
+            { id: 'o1', label: 'Yes' },
+            { id: 'o2', label: 'No' },
+          ],
+        },
+      ],
+      ...overrides,
+    });
+  }
+
+  it('maps PollCreated to poll_created with derived scope + question count', () => {
+    const eventPoll = makePoll({ eventId: 'event-1' });
+    const result = mapDomainEventToAnalytics(new PollCreated('poll-1'), eventPoll);
+    expect(result!.event.name).toBe('poll_created');
+    expect(result!.actorId).toBe('host-9');
+    expect(result!.event.props).toEqual({
+      pollId: 'poll-1',
+      creatorId: 'host-9',
+      questionCount: 1,
+      scope: 'event',
+    });
+
+    expect(
+      mapDomainEventToAnalytics(new PollCreated('poll-1'), makePoll({ groupId: 'group-1' }))!.event
+        .props,
+    ).toMatchObject({ scope: 'group' });
+    expect(
+      mapDomainEventToAnalytics(new PollCreated('poll-1'), makePoll())!.event.props,
+    ).toMatchObject({ scope: 'standalone' });
+  });
+
+  it('maps PollClosed to poll_closed', () => {
+    const result = mapDomainEventToAnalytics(new PollClosed('poll-1'), makePoll());
+    expect(result!.event.name).toBe('poll_closed');
+    expect(result!.event.props).toEqual({ pollId: 'poll-1', creatorId: 'host-9' });
+  });
+
+  it('returns null for a Poll event carrying the wrong aggregate (instanceof guard)', () => {
+    expect(mapDomainEventToAnalytics(new PollCreated('poll-1'), new StubAggregate())).toBeNull();
   });
 });

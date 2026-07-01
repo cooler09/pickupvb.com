@@ -80,12 +80,38 @@ Phase 1 ships the standalone loop, Phase 2 embeds into event/group pages.
 Quad-green (typecheck / lint / test / build). Migration is deploy-gated (CI
 applies it); the responder e2e is authored-but-deferred until dev.
 
-## Follow-ups
+## Phase 2 + partial Phase 3 (same-day follow-on)
 
-- **Phase 2:** "Polls" sections on the event-manage + group pages (deep-link
-  `/polls/new?eventId=…` / `?groupId=…` — the ownership plumbing is already in).
-- **Phase 3:** analytics events, convert event-poll respondents → RSVPs, notify
-  host on new responses, CSV export, cross-visit "your answer" prefill.
-- Convert the dashboard delete's `window.confirm` to `ConfirmDialog` (MU-5).
-- The edit page shows `closes_at` in UTC wall-clock (v1 caveat — a tz offset can
-  appear on re-edit of the optional close time).
+Shipped in the same bundle after Phase 1:
+
+- **Discoverability:** a **Polls** entry in the Host nav (desktop dropdown +
+  mobile menu) — the standalone loop was URL-only before.
+- **Phase 2 — event + group embeds.** A shared
+  [`PollsListPanel`](../../apps/web/src/app/polls/_components/polls-list-panel.tsx)
+  (list + prefilled "New poll") renders on the event-manage page and a new
+  manager-gated `/groups/[id]/polls` page (behind `requireGroupManager`); a
+  "Polls" link sits in the group manager action block. Deep-links carry
+  `?eventId=` / `?groupId=`. Lists are **creator-only** (RLS) — a co-manager's
+  polls aren't shown yet (documented follow-up).
+- **Phase 3 — CSV export.** `GET /api/polls/[id]/responses.csv` (one row per
+  respondent, a column per question), authorized through the creator-only
+  `getHostPollResults` read, reusing `csvCell` (formula-injection safe). Linked
+  from the dashboard's Respondents header.
+- **Phase 3 — analytics.** `poll_created` / `poll_closed` added to the
+  `AnalyticsEvent` taxonomy + the outbox mapper (narrowed on `Poll`); the
+  handlers already dispatched, so this is now a real capture. Response-level
+  analytics intentionally skipped (sessionless responder, no consent). Mapper
+  tests cover scope derivation.
+
+## Follow-ups (still open)
+
+- **Notify host on new responses — DEFERRED.** Needs the notification-delivery
+  path (outbox/worker, which has known dev gaps: cron is prod-only, VAPID unset)
+  **and** a batching decision (per-response would spam a popular poll — likely
+  first-response or a digest).
+- Convert event-poll respondents → RSVPs (only meaningful for the signed-in
+  subset — most responders are anon).
+- Co-manager-visible poll lists on event/group pages (needs a broader RLS policy
+  than creator-only).
+- Convert the dashboard delete's `window.confirm` to `ConfirmDialog` (MU-5);
+  cross-visit "your answer" prefill; the `closes_at` UTC-wall-clock edit caveat.

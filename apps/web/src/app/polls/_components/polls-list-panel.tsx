@@ -4,22 +4,30 @@ import type { PollSummary } from '@pickupvb/domain';
 import { primaryButtonClass } from '@/components/primary-button';
 
 /**
- * "Polls" section on the event-manage page (ADR 0041, Phase 2). Lists the polls
- * this host has attached to the event and offers a prefilled "New poll" link.
- * Server component — just links, no client state. Only the host's own polls
- * appear (creator-only RLS); a co-host's polls are a documented follow-up.
+ * Shared "Polls" list + "New poll" affordance (ADR 0041, Phase 2). Rendered on
+ * the event-manage page and the group polls page — each passes the prefilled
+ * `newHref` (`/polls/new?eventId=…` or `?groupId=…`). Server component; just
+ * links. Only the viewer's own polls appear (creator-only RLS).
  */
-export function EventPollsPanel({ eventId, polls }: { eventId: string; polls: PollSummary[] }) {
+export function PollsListPanel({
+  polls,
+  newHref,
+  heading = 'Polls',
+  subtitle = 'Gather quick answers with a share link — no account needed to respond.',
+}: {
+  polls: PollSummary[];
+  newHref: Route;
+  heading?: string;
+  subtitle?: string;
+}) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-fg text-title-lg font-semibold">Polls</h2>
-          <p className="text-muted text-sm">
-            Gather quick answers with a share link — no account needed to respond.
-          </p>
+          <h2 className="text-fg text-title-lg font-semibold">{heading}</h2>
+          <p className="text-muted text-sm">{subtitle}</p>
         </div>
-        <Link href={`/polls/new?eventId=${eventId}` as Route} className={primaryButtonClass('sm')}>
+        <Link href={newHref} className={primaryButtonClass('sm')}>
           New poll
         </Link>
       </div>

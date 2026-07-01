@@ -148,6 +148,21 @@ export interface WebVitalsProps {
   navigationType: string | null;
 }
 
+/** Public poll lifecycle (ADR 0041). No PII — `creatorId` is hashed downstream
+ * by the adapter, same as `hostId`. Response-level events are intentionally not
+ * captured (the responder is sessionless and hasn't consented to analytics). */
+export interface PollCreatedProps {
+  pollId: string;
+  creatorId: string;
+  questionCount: number;
+  scope: 'event' | 'group' | 'standalone';
+}
+
+export interface PollClosedProps {
+  pollId: string;
+  creatorId: string;
+}
+
 /**
  * Discriminated union of every event the platform captures. Add new
  * variants here before instrumenting a call site.
@@ -163,6 +178,8 @@ export type AnalyticsEvent =
   | { name: 'pro_trial_started'; props: ProTrialStartedProps }
   | { name: 'pro_trial_converted'; props: ProTrialConvertedProps }
   | { name: 'onboarding_step_completed'; props: OnboardingStepCompletedProps }
+  | { name: 'poll_created'; props: PollCreatedProps }
+  | { name: 'poll_closed'; props: PollClosedProps }
   | { name: 'web_vitals'; props: WebVitalsProps };
 
 export type AnalyticsEventName = AnalyticsEvent['name'];

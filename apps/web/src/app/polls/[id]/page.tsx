@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getPollHandlers } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
+import { neutralButtonClass } from '@/components/primary-button';
 import { DisplayLinkRow } from '@/app/events/[id]/manage/_components/display-link-row';
 import { PollAdminControls } from './_components/poll-admin-controls';
 
@@ -81,7 +82,16 @@ export default async function PollDashboardPage({ params }: { params: Promise<{ 
 
       {poll.responseCount > 0 && (
         <div className="space-y-2">
-          <h2 className="text-title-lg font-semibold">Respondents</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-title-lg font-semibold">Respondents</h2>
+            <a
+              href={`/api/polls/${poll.id}/responses.csv`}
+              className={neutralButtonClass('sm')}
+              download
+            >
+              Export CSV
+            </a>
+          </div>
           <ul className="divide-border-base border-border-base divide-y rounded-md border">
             {poll.responses.map((r) => (
               <li

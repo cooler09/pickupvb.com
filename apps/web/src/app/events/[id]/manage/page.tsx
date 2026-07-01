@@ -10,7 +10,7 @@ import { LocalDateTime } from '@/components/local-datetime';
 import { loadEventDetail, loadEventReadModelPublic } from '../_loaders/load-event-detail';
 import { ManageDashboard } from './_components/manage-dashboard';
 import { HostAwardBadgesPanel } from '../_components/host-award-badges-panel';
-import { EventPollsPanel } from './_components/event-polls-panel';
+import { PollsListPanel } from '@/app/polls/_components/polls-list-panel';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 
 // Host-only dashboard — depends on the viewer's session (`canManage`), so it
@@ -139,7 +139,7 @@ export default async function ManageEventPage(props: { params: Promise<{ id: str
         grants={badgeGrants}
       />
 
-      <EventPollsPanel eventId={event.id} polls={eventPolls} />
+      <PollsListPanel polls={eventPolls} newHref={`/polls/new?eventId=${event.id}` as Route} />
     </article>
   );
 }
