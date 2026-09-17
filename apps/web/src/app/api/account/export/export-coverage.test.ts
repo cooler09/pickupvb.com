@@ -79,6 +79,14 @@ const BACKLOG = new Map<string, string>([
   // read returns []. Exporting it would need an admin read or a new RLS policy —
   // unlike host_memberships, which has a member SELECT policy and IS exported.
   ['host_subscriptions', 'no owner SELECT policy — would need admin read or new RLS'],
+  // poll_responses.user_id is set only when a signed-in user answers a public
+  // poll (usually null — responders are sessionless). RLS is creator-only SELECT
+  // (is_poll_creator), so a respondent-scoped export read returns [] without a
+  // new self-SELECT policy — same shape as host_subscriptions (ADR 0041).
+  [
+    'poll_responses',
+    'sessionless poll answers; user_id often null, creator-only RLS blocks self-read',
+  ],
 ]);
 
 describe('GDPR export coverage', () => {

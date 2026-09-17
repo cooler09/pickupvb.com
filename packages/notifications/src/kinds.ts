@@ -27,6 +27,7 @@ export type NotificationKind =
   | 'host.payment.disputed'
   | 'social.follow.new'
   | 'event.free_agent.picked_up'
+  | 'poll.first_response'
   | 'badge.earned'
   | 'team.invite'
   | 'broadcast.host_message'
@@ -66,6 +67,8 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
   'host.payment.disputed': 'transactional',
   'social.follow.new': 'social',
   'event.free_agent.picked_up': 'group_activity',
+  // The host's own poll got its first response — engagement on content they made.
+  'poll.first_response': 'group_activity',
   'badge.earned': 'social',
   'team.invite': 'group_activity',
   'broadcast.host_message': 'broadcasts',
@@ -100,6 +103,9 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   'host.payment.disputed': ['email', 'in_app'],
   'social.follow.new': ['in_app'],
   'event.free_agent.picked_up': ['email', 'push', 'in_app'],
+  // Push + bell only — a poll ping isn't email-worthy, and we notify once (first
+  // response) so it never floods; the host opens the dashboard for the tally.
+  'poll.first_response': ['push', 'in_app'],
   'badge.earned': ['in_app'],
   'team.invite': ['email', 'push', 'in_app'],
   'broadcast.host_message': ['email', 'push', 'in_app'],
@@ -210,6 +216,13 @@ export type NotificationPayloadMap = {
     teamSlug: string;
     /** Display name of the captain who picked them up. */
     captainName: string;
+  };
+  'poll.first_response': {
+    /** Poll that got its first response (drives the results href). */
+    pollId: string;
+    pollTitle: string;
+    /** Display name the responder entered. */
+    firstResponderName: string;
   };
   'badge.earned': {
     /** Display title of the badge earned (e.g. "Champion", "Summer Slam 2026"). */

@@ -31,7 +31,14 @@ import type {
 // `VolleyballEvent` imported as a value: used both as the `eventScopedProps`
 // param type and for the `instanceof` narrow now that the mapper accepts any
 // aggregate (P2-4).
-import { SpotFilled, SpotReleased, VolleyballEvent } from '@pickupvb/domain';
+import {
+  Poll,
+  PollClosed,
+  PollCreated,
+  SpotFilled,
+  SpotReleased,
+  VolleyballEvent,
+} from '@pickupvb/domain';
 
 export interface MappedAnalyticsCapture {
   event: AnalyticsEvent;
@@ -90,6 +97,29 @@ export function mapDomainEventToAnalytics(
         props: eventScopedProps(aggregate),
       },
       actorId: de.userId,
+    };
+  }
+  if (de instanceof PollCreated && aggregate instanceof Poll) {
+    return {
+      event: {
+        name: 'poll_created',
+        props: {
+          pollId: String(aggregate.id),
+          creatorId: String(aggregate.creatorId),
+          questionCount: aggregate.questions.length,
+          scope: aggregate.eventId ? 'event' : aggregate.groupId ? 'group' : 'standalone',
+        },
+      },
+      actorId: String(aggregate.creatorId),
+    };
+  }
+  if (de instanceof PollClosed && aggregate instanceof Poll) {
+    return {
+      event: {
+        name: 'poll_closed',
+        props: { pollId: String(aggregate.id), creatorId: String(aggregate.creatorId) },
+      },
+      actorId: String(aggregate.creatorId),
     };
   }
   // Everything else is raised-but-not-captured: EventCreated / EventPublished /

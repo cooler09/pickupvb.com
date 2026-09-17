@@ -49,3 +49,8 @@ packages/supabase/src/database.types.ts.tmp
 .vercel
 .env.prod
 fb-urls.txt
+
+# Agent planning artifacts (wayfinder maps + tickets). Local-only: they
+# accumulate incident detail — user ids, amounts, account identifiers — that
+# shouldn't land in a public repo.
+.scratch/

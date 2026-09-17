@@ -18,6 +18,12 @@ type Props = {
   /** Existing total of paid tips, in cents. */
   totalCents: number;
   /**
+   * Platform-wide tipping kill switch, resolved server-side via
+   * `isTippingEnabled()` and passed down — the env var carries no
+   * `NEXT_PUBLIC_` prefix, so it is not readable from this bundle.
+   */
+  tippingEnabled: boolean;
+  /**
    * True when the host has a Stripe Connect account with charges
    * enabled. When false, online tipping isn't wired up and the section
    * collapses to a short explanatory note.
@@ -35,12 +41,18 @@ export function TipJar({
   viewerHasSession,
   totalCents,
   hostCanCollectTips,
+  tippingEnabled,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<string>('5');
 
   const cents = Math.round(Number(amount) * 100);
   const validAmount = Number.isFinite(cents) && cents >= MIN_TIP_CENTS && cents <= MAX_TIP_CENTS;
+
+  // Kill switch: render nothing at all. Unlike the host-not-onboarded case
+  // below, there is no useful thing to tell the viewer — an explanatory note
+  // would only invite questions about a surface that is off platform-wide.
+  if (!tippingEnabled) return null;
 
   if (!hostCanCollectTips) {
     // Host hasn't finished Stripe onboarding (or has disabled charges),

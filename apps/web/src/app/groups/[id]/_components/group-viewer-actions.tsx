@@ -120,6 +120,9 @@ export function GroupViewerActions({
           >
             Host an event
           </Link>
+          <Link href={`/groups/${groupSlug}/polls` as Route} className={neutralButtonClass('sm')}>
+            Polls
+          </Link>
           <Link href={`/groups/${groupSlug}/edit` as Route} className={neutralButtonClass('sm')}>
             Edit
           </Link>

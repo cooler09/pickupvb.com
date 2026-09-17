@@ -9,5 +9,6 @@ export * from './community-listing.js';
 export * from './media-post.js';
 export * from './user-profile.js';
 export * from './group.js';
+export * from './poll.js';
 export * from './messaging.js';
 export * from './account-deletion.js';

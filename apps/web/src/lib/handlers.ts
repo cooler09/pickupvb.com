@@ -16,6 +16,7 @@ import {
   SupabaseLiveMatchScoreRepository,
   SupabaseMediaPostRepository,
   SupabaseGroupRepository,
+  SupabasePollRepository,
   SupabaseSocialGraphRepository,
   SupabaseTeamRepository,
   SupabaseUserRepository,
@@ -158,6 +159,14 @@ import {
   CountUnreadConversationsHandler,
   RequestAccountDeletionHandler,
   CancelAccountDeletionHandler,
+  CreatePollHandler,
+  UpdatePollHandler,
+  SetPollStatusHandler,
+  DeletePollHandler,
+  GetHostPollResultsHandler,
+  ListCreatorPollsHandler,
+  ListEventPollsHandler,
+  ListGroupPollsHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
 import { getAdminSupabase } from './supabase-admin';
@@ -588,6 +597,39 @@ export async function getGroupHandlers(): Promise<{
     followGroup: new FollowGroupHandler(groupRepo),
     unfollowGroup: new UnfollowGroupHandler(groupRepo),
     deleteGroup: new DeleteGroupHandler(groupRepo, hostsUpcomingEvents, softDeleteGroup),
+  };
+}
+
+/**
+ * Per-request handlers for polls (ADR 0041). Built around a *user-scoped* client
+ * so the creator-only RLS (`polls.creator_id = auth.uid()`, `is_poll_creator`)
+ * is the real authorization gate on every host read/write — never the
+ * module-singleton admin-client `handlers`. The sessionless public responder
+ * path (submit / config / tally) does NOT use these — it calls the
+ * `submit_poll_response` / `get_poll_config` / `get_poll_results` RPCs on the
+ * anon client (see lib/polls-public.ts).
+ */
+export async function getPollHandlers(): Promise<{
+  createPoll: CreatePollHandler;
+  updatePoll: UpdatePollHandler;
+  setPollStatus: SetPollStatusHandler;
+  deletePoll: DeletePollHandler;
+  getHostPollResults: GetHostPollResultsHandler;
+  listCreatorPolls: ListCreatorPollsHandler;
+  listEventPolls: ListEventPollsHandler;
+  listGroupPolls: ListGroupPollsHandler;
+}> {
+  const client = await getServerSupabase();
+  const pollRepo = new SupabasePollRepository(client);
+  return {
+    createPoll: new CreatePollHandler(pollRepo, analytics),
+    updatePoll: new UpdatePollHandler(pollRepo, analytics),
+    setPollStatus: new SetPollStatusHandler(pollRepo, analytics),
+    deletePoll: new DeletePollHandler(pollRepo),
+    getHostPollResults: new GetHostPollResultsHandler(pollRepo),
+    listCreatorPolls: new ListCreatorPollsHandler(pollRepo),
+    listEventPolls: new ListEventPollsHandler(pollRepo),
+    listGroupPolls: new ListGroupPollsHandler(pollRepo),
   };
 }
 

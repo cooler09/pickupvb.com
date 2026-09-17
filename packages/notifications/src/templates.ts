@@ -270,6 +270,18 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'View team',
     ),
   }),
+  // push + in_app only (see KIND_DEFAULT_CHANNELS); this email renderer exists to
+  // satisfy the exhaustive Record and never dispatches.
+  'poll.first_response': (p) => ({
+    subject: `First response to "${p.pollTitle}"`,
+    text: `${p.firstResponderName} answered your poll "${p.pollTitle}" on PickupVB. ${APP_URL}/polls/${p.pollId}`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">Your poll got a response!</h2>
+             <p><strong>${escapeHtml(p.firstResponderName)}</strong> answered your poll <strong>${escapeHtml(p.pollTitle)}</strong>.</p>`,
+      `${APP_URL}/polls/${p.pollId}`,
+      'View results',
+    ),
+  }),
   'broadcast.host_message': (p) => ({
     subject: p.subject,
     text: `${p.body}\n\n— ${p.senderName}`,
@@ -409,6 +421,9 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   'event.free_agent.picked_up': (p) => ({
     body: `PickupVB: ${p.captainName} picked you up for ${p.teamName} (${p.eventTitle}). ${APP_URL}/teams/${p.teamSlug}`,
   }),
+  'poll.first_response': (p) => ({
+    body: `PickupVB: ${p.firstResponderName} answered your poll "${p.pollTitle}". ${APP_URL}/polls/${p.pollId}`,
+  }),
   'broadcast.host_message': (p) => ({
     body: `PickupVB · ${p.senderName}: ${p.body.slice(0, 240)}`,
   }),
@@ -511,6 +526,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     title: `Picked up for ${p.teamName}`,
     body: `${p.captainName} · ${p.eventTitle}`,
     href: `/teams/${p.teamSlug}`,
+  }),
+  'poll.first_response': (p) => ({
+    title: `First response to "${p.pollTitle}"`,
+    body: `${p.firstResponderName} answered`,
+    href: `/polls/${p.pollId}`,
   }),
   'broadcast.host_message': (p) => ({
     title: p.subject,

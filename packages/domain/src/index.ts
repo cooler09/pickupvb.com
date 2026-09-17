@@ -9,6 +9,7 @@ export * from './onboarding/index.js';
 export * from './leagues/index.js';
 export * from './payments/index.js';
 export * from './community-listings/index.js';
+export * from './polls/index.js';
 export * from './media/index.js';
 export * from './messaging/index.js';
 export * from './moderation/index.js';

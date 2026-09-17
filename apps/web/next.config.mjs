@@ -33,8 +33,10 @@ const nextConfig = {
   //   - Sentry: tunneled through `/monitoring` (same-origin) — no
   //     ingest.sentry.io entry needed.
   //   - Cloudflare Turnstile: script + iframe at challenges.cloudflare.com.
-  //     Token verification (siteverify) is server-side, so no connect-src
-  //     entry needed.
+  //     Token verification (siteverify) is server-side. Turnstile's api.js also
+  //     pulls the Cloudflare Insights RUM beacon (static.cloudflareinsights.com
+  //     script → cloudflareinsights.com beacon POST); both are allowlisted
+  //     (script-src + connect-src) so the widget doesn't spew CSP console errors.
   //   - Map tiles: https://api.maptiler.com (MapTiler, keyed) in prod;
   //     https://{s}.tile.openstreetmap.org as the local-dev fallback.
   //   - Geocoding (MapTiler / Photon / Nominatim): server-side only (the
@@ -81,14 +83,14 @@ const nextConfig = {
     const scriptSrc =
       "script-src 'self' 'unsafe-inline'" +
       (isDev ? " 'unsafe-eval'" : '') +
-      ' https://challenges.cloudflare.com https://vercel.live https://*.i.posthog.com';
+      ' https://challenges.cloudflare.com https://static.cloudflareinsights.com https://vercel.live https://*.i.posthog.com';
     const csp = [
       "default-src 'self'",
       scriptSrc,
       "style-src 'self' 'unsafe-inline' https://vercel.live",
       "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://api.maptiler.com https://*.tile.openstreetmap.org https://vercel.live https://vercel.com",
       "font-src 'self' data: https://vercel.live https://assets.vercel.com",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://challenges.cloudflare.com https://vercel.live wss://ws-us3.pusher.com https://*.i.posthog.com",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://challenges.cloudflare.com https://cloudflareinsights.com https://vercel.live wss://ws-us3.pusher.com https://*.i.posthog.com",
       'frame-src https://challenges.cloudflare.com https://vercel.live https://www.youtube-nocookie.com https://www.youtube.com https://player.twitch.tv https://clips.twitch.tv',
       "worker-src 'self' blob:",
       "object-src 'none'",

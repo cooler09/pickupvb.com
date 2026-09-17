@@ -137,6 +137,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
               items={[
                 { href: '/host', label: 'Dashboard' },
                 { href: '/events/new', label: 'Host an event' },
+                { href: '/polls', label: 'Polls' },
                 { href: '/tools', label: 'Host tools' },
               ]}
             />
