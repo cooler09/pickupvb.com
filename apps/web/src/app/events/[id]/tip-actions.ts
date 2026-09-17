@@ -40,6 +40,8 @@ type EventLite = {
   id: string;
   host_id: string;
   title: string;
+  /** Only a `published` event may take money — see `EventPricing.status`. */
+  status: string;
 };
 
 async function loadEvent(
@@ -48,7 +50,7 @@ async function loadEvent(
 ): Promise<EventLite | null> {
   const { data } = await supabase
     .from('events')
-    .select('id, host_id, title')
+    .select('id, host_id, title, status')
     .eq('id', eventId)
     .maybeSingle();
   return (data as EventLite | null) ?? null;
@@ -86,6 +88,8 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
 
   const event = await loadEvent(supabase, eventId);
   if (!event) backWithError(eventId, 'error', 'Event not found.');
+  // Un-publishing must actually stop the money, not just hide the listing.
+  if (event.status !== 'published') backWithError(eventId, 'error', 'Event not found.');
   if (event.host_id === user.id) backWithError(eventId, 'error', "You can't tip your own event.");
 
   const hostAccountId = await getEventPayoutAccount(eventId, event.host_id);
