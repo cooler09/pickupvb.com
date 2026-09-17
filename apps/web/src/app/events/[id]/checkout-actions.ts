@@ -14,6 +14,7 @@ import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
 import { consumeNewHostChargeLimit } from '@/lib/new-host-limits';
+import { verifyTurnstileToken } from '@/lib/turnstile';
 import { analytics } from '@/lib/handlers';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
@@ -262,6 +263,15 @@ export async function startGuestTicketCheckout(eventId: string, formData: FormDa
   if (!displayName) backWithError(eventId, 'bad_name');
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     backWithError(eventId, 'bad_email');
+  }
+
+  // Bot challenge — verified server-side, because the widget alone is decoration
+  // against a scripted client. The guest *tip* path has always done this; this
+  // path never did, which is why the 2026-09 card-testing run routed 95.6% of
+  // its volume through ticket checkout rather than tips.
+  const turnstile = await verifyTurnstileToken(field(formData, 'cf-turnstile-response') || null);
+  if (!turnstile.ok) {
+    backWithError(eventId, 'error', turnstile.error ?? 'Verification failed. Please try again.');
   }
 
   // Rate-limit the email-bearing path so a bot can't replay the guest

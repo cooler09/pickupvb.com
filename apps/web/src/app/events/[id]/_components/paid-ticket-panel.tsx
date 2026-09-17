@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { StatusPill, type StatusPillTone } from '@/components/status-pill';
 import type { RefundBlockReason } from '@/lib/refund-eligibility';
+import { TurnstileWidget } from '@/components/turnstile-widget';
 import { startTicketCheckout, startGuestTicketCheckout } from '../checkout-actions';
 import GuestSignupForm from '../guest-signup-form';
 import { GuestSignupFields } from './guest-signup-fields';
@@ -200,6 +201,13 @@ export function PaidTicketPanel({
               </p>
               <form action={startGuestTicketCheckout.bind(null, eventId)} className="space-y-3">
                 <GuestSignupFields emailRequired />
+                {/*
+                  Bot challenge on the paid guest path. Its absence here — while
+                  the guest *tip* form has always had one — is why the 2026-09
+                  card-testing run put 95.6% of its volume through ticket
+                  checkout: it was the cheaper door.
+                */}
+                <TurnstileWidget />
                 <div className="flex justify-end">
                   <ConfirmSubmitButton
                     label={`Pay online — ${formatUsd(total)}`}
