@@ -13,6 +13,7 @@ import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
+import { consumeNewHostChargeLimit } from '@/lib/new-host-limits';
 import { analytics } from '@/lib/handlers';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
@@ -61,6 +62,20 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   const hostAccountId = await getEventPayoutAccount(eventId, pricing.hostId);
   if (!hostAccountId) {
     backWithError(eventId, 'host_not_ready');
+  }
+
+  // Per-event exposure cap while the host account is unproven (< 7 days old).
+  // Keyed on the event, because the attack used a fresh buyer identity per
+  // charge. Runs before the participant insert so a capped attempt leaves no
+  // pending row behind. See lib/new-host-policy.ts.
+  const hostGate = await consumeNewHostChargeLimit({ eventId, hostId: pricing.hostId });
+  if (!hostGate.allowed) {
+    const mins = Math.max(1, Math.ceil(hostGate.retryAfterSeconds / 60));
+    backWithError(
+      eventId,
+      'rate_limited',
+      `This event has reached its signup limit for now. Please try again in ${mins} minute${mins === 1 ? '' : 's'}.`,
+    );
   }
 
   const breakdown = await attendeeChargeBreakdownAsync(pricing);

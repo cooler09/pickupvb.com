@@ -5,6 +5,7 @@ import type Stripe from 'stripe';
 import type { Route } from 'next';
 import { isStripeConfigured } from '@/lib/stripe';
 import { isTippingEnabled } from '@/lib/payment-surfaces';
+import { consumeNewHostChargeLimit } from '@/lib/new-host-limits';
 import { tipPlatformFeeCents } from '@/lib/event-pricing';
 import { getServerSupabase } from '@/lib/supabase';
 import { getEventPayoutAccount } from '@/lib/event-payout';
@@ -89,6 +90,17 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
 
   const hostAccountId = await getEventPayoutAccount(eventId, event.host_id);
   if (!hostAccountId) backWithError(eventId, 'error', 'Host has not finished payment setup.');
+
+  // Per-event exposure cap while the host account is unproven. Tips were the
+  // minor vector in the 2026-09 incident (4.4% of volume) but the identical
+  // shape — anonymous sessions minted seconds before charging — so the same gate
+  // applies. Runs before the pending `event_tips` insert so a capped attempt
+  // leaves no orphan row.
+  const hostGate = await consumeNewHostChargeLimit({ eventId, hostId: event.host_id });
+  if (!hostGate.allowed) {
+    const mins = Math.max(1, Math.ceil(hostGate.retryAfterSeconds / 60));
+    backWithError(eventId, 'error', `Too many recent attempts. Try again in ${mins} min.`);
+  }
 
   // Look up tipper display name for the public list.
   const { data: profile } = await supabase
