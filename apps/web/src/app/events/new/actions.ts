@@ -19,6 +19,7 @@ import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { captureOnboardingStep } from '@/lib/onboarding';
 import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
 import { maybeQualifyReferral } from '@/lib/referrals';
+import { recordNewHostEventCreated } from '@/lib/fraud-signals';
 
 export type CreateEventState = {
   error?: string;
@@ -362,6 +363,13 @@ export async function createEventAction(
     const message = err instanceof Error ? err.message : 'Failed to create event.';
     return { ...snapshot(formData), error: message };
   }
+
+  // Fraud detection: event-creation velocity by an unproven host. This is the
+  // hole the per-event checkout caps leave open (spin up a fresh event each hour
+  // to reset them), and creation is the cheapest place to notice it — it fires
+  // before a single card is touched. Never throws; a telemetry failure must not
+  // fail a legitimate create.
+  await recordNewHostEventCreated({ hostId: user.id, eventId: result.id });
 
   // If the user chose to host on behalf of a group, attach it to the row.
   // RLS on events_update enforces they're owner/admin of that group.

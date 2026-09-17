@@ -1,10 +1,9 @@
 import 'server-only';
 
-import { getAdminSupabase } from '@/lib/supabase-admin';
 import { consumeRateLimit, rateLimitKey } from '@/lib/rate-limit';
-import { log } from '@/lib/log';
+import { isUnprovenHost } from '@/lib/host-account-age';
+import { recordNewHostCapHit } from '@/lib/fraud-signals';
 import {
-  isNewHostAccount,
   NEW_HOST_EVENT_CHECKOUTS_PER_HOUR,
   NEW_HOST_EVENT_CHECKOUTS_PER_DAY,
 } from '@/lib/new-host-policy';
@@ -23,41 +22,17 @@ export interface NewHostLimitResult {
  *
  * Keyed on the **event**, not the buyer: the attack drove 27–30 sessions
  * through a single event using a fresh anonymous buyer identity each time, so a
- * per-buyer key counts to one forever and catches nothing.
- *
- * Reads the host's account age on the **admin client**. That is correct here and
- * not the anti-pattern in AGENTS.md § "Don't enforce authorization on the admin
- * client": this is a platform risk control about a *third party* (the host), not
- * an authorization decision about the caller, and base `profiles` is
- * owner-only under RLS so a session-scoped read would return null for every
- * viewer and cap every event on earth.
+ * per-buyer key counts to one forever and catches nothing. And deliberately not
+ * keyed on IP — the existing 20/hr per-IP guest limit worked correctly and the
+ * operator simply rotated IPs.
  */
 export async function consumeNewHostChargeLimit(input: {
   eventId: string;
   hostId: string;
   now?: Date;
 }): Promise<NewHostLimitResult> {
-  const now = input.now ?? new Date();
-
-  let createdAt: string | null = null;
-  try {
-    const admin = getAdminSupabase();
-    const { data } = await admin
-      .from('profiles')
-      .select('created_at')
-      .eq('id', input.hostId)
-      .maybeSingle();
-    createdAt = (data as { created_at: string } | null)?.created_at ?? null;
-  } catch (err) {
-    // Unknown age → isNewHostAccount fails closed → the caps apply. Log so an
-    // outage that silently starts throttling every event is visible.
-    log.warn('[new-host-limits] host age lookup failed; applying caps', {
-      hostId: input.hostId,
-      err: String(err),
-    });
-  }
-
-  if (!isNewHostAccount(createdAt, now)) return { allowed: true, retryAfterSeconds: 0 };
+  const unproven = await isUnprovenHost(input.hostId, input.now ?? new Date());
+  if (!unproven) return { allowed: true, retryAfterSeconds: 0 };
 
   const [hourly, daily] = await Promise.all([
     consumeRateLimit({
@@ -75,10 +50,9 @@ export async function consumeNewHostChargeLimit(input: {
   const blocked = !hourly.allowed ? hourly : !daily.allowed ? daily : null;
   if (!blocked) return { allowed: true, retryAfterSeconds: 0 };
 
-  log.warn('[new-host-limits] capped a checkout on an unproven host', {
-    eventId: input.eventId,
-    hostId: input.hostId,
-    retryAfterSeconds: blocked.retryAfterSeconds,
-  });
+  // Tripping a cap that sits an order of magnitude above organic demand is a
+  // near-positive identification, not a hint — so it raises a real alert rather
+  // than a log line nobody reads.
+  await recordNewHostCapHit({ eventId: input.eventId, hostId: input.hostId });
   return { allowed: false, retryAfterSeconds: blocked.retryAfterSeconds };
 }

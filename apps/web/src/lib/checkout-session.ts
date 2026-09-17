@@ -25,7 +25,11 @@ export type DestinationCheckoutSessionInput = {
   /** Where Stripe sends the buyer on success / cancel. */
   successUrl: string;
   cancelUrl: string;
-  /** Searchable on the resulting `payment_intent` + `checkout.session`. */
+  /**
+   * Searchable on the resulting `payment_intent` + `checkout.session`. Propagated
+   * to the PaymentIntent explicitly via `payment_intent_data.metadata` below —
+   * Stripe does not copy it across on its own.
+   */
   metadata: Record<string, string>;
   /** Optional pre-fill for the email field on the Checkout page. */
   customerEmail?: string | null;
@@ -89,6 +93,18 @@ export async function createDestinationCheckoutSession(
           ? { application_fee_amount: input.applicationFeeAmount }
           : {}),
         transfer_data: { destination: input.destinationAccountId },
+        // Stripe does NOT copy session metadata onto the PaymentIntent — it has
+        // to be set here explicitly. Without this the `metadata` field's own doc
+        // comment was false: all 194 charges in the 2026-09 card-testing
+        // incident carried `metadata: {}` while their sessions were fully
+        // populated.
+        //
+        // The practical cost was that `payment_intent.payment_failed` arrived
+        // with no `event_id`, so **declines could not be attributed to an
+        // event** — and declines are the earliest available fraud signal (110 of
+        // them, arriving ahead of the successes). Fraud detection in
+        // `lib/fraud-signals.ts` depends on this.
+        metadata: input.metadata,
       },
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
