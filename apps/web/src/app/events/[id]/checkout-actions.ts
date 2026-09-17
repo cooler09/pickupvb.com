@@ -13,6 +13,8 @@ import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
+import { consumeNewHostChargeLimit } from '@/lib/new-host-limits';
+import { verifyTurnstileToken } from '@/lib/turnstile';
 import { analytics } from '@/lib/handlers';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
@@ -49,6 +51,11 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
 
   const pricing = await getEventPricing(eventId);
   if (!pricing) backWithError(eventId, 'event_not_found');
+  // Only a published event may take money. Un-publishing is the containment
+  // lever a host (or we) reach for when something is wrong, and until this guard
+  // existed it hid the listing while leaving this action happy to charge via a
+  // direct POST — see the note on `EventPricing.status`.
+  if (pricing.status !== 'published') backWithError(eventId, 'event_not_found');
   if (pricing.priceCents <= 0) {
     // Free event — caller should have used joinEvent. Just bounce them.
     backWithError(eventId, 'not_paid_event');
@@ -61,6 +68,20 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   const hostAccountId = await getEventPayoutAccount(eventId, pricing.hostId);
   if (!hostAccountId) {
     backWithError(eventId, 'host_not_ready');
+  }
+
+  // Per-event exposure cap while the host account is unproven (< 7 days old).
+  // Keyed on the event, because the attack used a fresh buyer identity per
+  // charge. Runs before the participant insert so a capped attempt leaves no
+  // pending row behind. See lib/new-host-policy.ts.
+  const hostGate = await consumeNewHostChargeLimit({ eventId, hostId: pricing.hostId });
+  if (!hostGate.allowed) {
+    const mins = Math.max(1, Math.ceil(hostGate.retryAfterSeconds / 60));
+    backWithError(
+      eventId,
+      'rate_limited',
+      `This event has reached its signup limit for now. Please try again in ${mins} minute${mins === 1 ? '' : 's'}.`,
+    );
   }
 
   const breakdown = await attendeeChargeBreakdownAsync(pricing);
@@ -247,6 +268,15 @@ export async function startGuestTicketCheckout(eventId: string, formData: FormDa
   if (!displayName) backWithError(eventId, 'bad_name');
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     backWithError(eventId, 'bad_email');
+  }
+
+  // Bot challenge — verified server-side, because the widget alone is decoration
+  // against a scripted client. The guest *tip* path has always done this; this
+  // path never did, which is why the 2026-09 card-testing run routed 95.6% of
+  // its volume through ticket checkout rather than tips.
+  const turnstile = await verifyTurnstileToken(field(formData, 'cf-turnstile-response') || null);
+  if (!turnstile.ok) {
+    backWithError(eventId, 'error', turnstile.error ?? 'Verification failed. Please try again.');
   }
 
   // Rate-limit the email-bearing path so a bot can't replay the guest

@@ -22,6 +22,17 @@ export type EventPricing = {
   paymentsOffPlatform: boolean;
   refundWindowHours: number;
   hostId: string;
+  /**
+   * `events.status`. Carried here so the checkout boundary can refuse a charge
+   * against an event that isn't `published`.
+   *
+   * This is not a UI concern: un-publishing an event used to hide the listing
+   * while leaving `startTicketCheckout` perfectly willing to take money via a
+   * direct POST. During the 2026-09 incident the fraudulent events were flipped
+   * to `draft` as containment, and that alone would **not** have stopped the
+   * charges — only rejecting the Connect accounts did.
+   */
+  status: string;
   // Step 5a: child rows (`event_attendees`) are keyed by division_id only.
   // The per-player checkout flow targets the primary (sort_order = 0)
   // division; this is its id.
@@ -44,7 +55,7 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
     supabase
       .from('events')
       .select(
-        'host_id, host_absorbs_fee, pass_processing_fee_to_buyer, refund_window_hours, payments_off_platform',
+        'host_id, host_absorbs_fee, pass_processing_fee_to_buyer, refund_window_hours, payments_off_platform, status',
       )
       .eq('id', eventId)
       .maybeSingle(),
@@ -63,6 +74,7 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
     pass_processing_fee_to_buyer: boolean;
     refund_window_hours: number;
     payments_off_platform: boolean | null;
+    status: string;
   };
   type DivRow = { id: string; price_cents: number | null };
   const e = eventRes.data as unknown as EventRow;
@@ -76,6 +88,7 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
     passProcessingFeeToBuyer: e.pass_processing_fee_to_buyer ?? false,
     paymentsOffPlatform: e.payments_off_platform ?? false,
     refundWindowHours: e.refund_window_hours ?? 24,
+    status: e.status,
   };
 }
 

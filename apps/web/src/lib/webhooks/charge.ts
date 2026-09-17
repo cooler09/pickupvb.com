@@ -10,6 +10,7 @@ import { notify } from '@/lib/notify';
 import { repositories } from '@/lib/handlers';
 import { log } from '@/lib/log';
 import { eventCacheTag } from '@/lib/cache-tags';
+import { recordCardDecline } from '@/lib/fraud-signals';
 import {
   refundRosterTeamPaymentIfAny,
   refundTeamRegistrationIfAny,
@@ -18,8 +19,8 @@ import {
 /**
  * `payment_intent.payment_failed` — a card declined mid-checkout.
  *
- * Deliberately a no-op. It is **not safe** to release the buyer's pending
- * reservation here: this event fires while the Checkout Session is still
+ * Deliberately a no-op **for payment state** (it does emit a fraud signal — see
+ * the body). It is **not safe** to release the buyer's pending reservation here: this event fires while the Checkout Session is still
  * `open`, so the buyer can retry with another card and complete on that same
  * session. Deleting the pending row now would lose the seat the subsequent
  * `checkout.session.completed` expects to flip to `paid` — the buyer would be
@@ -33,8 +34,14 @@ import {
  * rows. They were removed rather than "fixed" into the unsafe eager release
  * above. See docs/audits/stripe-integration.md SI-1.
  */
-export async function handlePaymentFailed(_pi: Stripe.PaymentIntent): Promise<void> {
-  // Intentionally empty — see the doc comment above.
+export async function handlePaymentFailed(pi: Stripe.PaymentIntent): Promise<void> {
+  // Still a no-op for *state* — the reservation logic above must not change.
+  // It is, however, the earliest fraud signal we get: card testers work through
+  // lists of mostly-dead cards, so declines arrive ahead of any successful
+  // charge. Attribution depends on `payment_intent_data.metadata` being set in
+  // `createCheckoutSession` (Stripe does not copy session metadata across).
+  const eventId = pi.metadata?.['event_id'];
+  if (eventId) await recordCardDecline(eventId);
 }
 
 /**

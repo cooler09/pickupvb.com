@@ -25,7 +25,11 @@ export type DestinationCheckoutSessionInput = {
   /** Where Stripe sends the buyer on success / cancel. */
   successUrl: string;
   cancelUrl: string;
-  /** Searchable on the resulting `payment_intent` + `checkout.session`. */
+  /**
+   * Searchable on the resulting `payment_intent` + `checkout.session`. Propagated
+   * to the PaymentIntent explicitly via `payment_intent_data.metadata` below —
+   * Stripe does not copy it across on its own.
+   */
   metadata: Record<string, string>;
   /** Optional pre-fill for the email field on the Checkout page. */
   customerEmail?: string | null;
@@ -48,8 +52,13 @@ export type DestinationCheckoutSessionInput = {
  * `application_fee_amount`.
  *
  * Centralized so the two destination-charge flows (event ticket + tip
- * jar) share the same defaults: card-only, 30-minute expiry, USD,
- * Connect destination, metadata propagated to the payment intent.
+ * jar) share the same defaults: card-only, billing address required (AVS),
+ * 30-minute expiry, USD, Connect destination, metadata propagated to the
+ * payment intent.
+ *
+ * Because both surfaces route through here, an anti-fraud default added in this
+ * function covers tickets and tips at once — which is the reason to keep new
+ * charge-level controls here rather than in either caller.
  */
 export async function createDestinationCheckoutSession(
   input: DestinationCheckoutSessionInput,
@@ -59,6 +68,20 @@ export async function createDestinationCheckoutSession(
     {
       mode: 'payment',
       payment_method_types: ['card'],
+      // Forces Checkout to collect a billing address, which turns on AVS —
+      // Stripe checks the postal code against the issuer and surfaces the result
+      // as `charge.payment_method_details.card.checks.address_postal_code_check`.
+      //
+      // This is not cosmetic. In the 2026-09-14→17 card-testing incident all 84
+      // successful charges came back with `address_postal_code_check: null`,
+      // because we never asked for an address, so the cheapest available fraud
+      // signal was never consulted. Bulk card dumps carry numbers and expiry but
+      // rarely the cardholder's real billing address, so requiring it raises the
+      // per-attempt cost for a tester far more than for a genuine buyer, who is
+      // typing their own postal code.
+      //
+      // See `.scratch/tip-fraud-response/map.md`.
+      billing_address_collection: 'required',
       ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
       line_items: input.lineItems,
       payment_intent_data: {
@@ -70,6 +93,18 @@ export async function createDestinationCheckoutSession(
           ? { application_fee_amount: input.applicationFeeAmount }
           : {}),
         transfer_data: { destination: input.destinationAccountId },
+        // Stripe does NOT copy session metadata onto the PaymentIntent — it has
+        // to be set here explicitly. Without this the `metadata` field's own doc
+        // comment was false: all 194 charges in the 2026-09 card-testing
+        // incident carried `metadata: {}` while their sessions were fully
+        // populated.
+        //
+        // The practical cost was that `payment_intent.payment_failed` arrived
+        // with no `event_id`, so **declines could not be attributed to an
+        // event** — and declines are the earliest available fraud signal (110 of
+        // them, arriving ahead of the successes). Fraud detection in
+        // `lib/fraud-signals.ts` depends on this.
+        metadata: input.metadata,
       },
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
