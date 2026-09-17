@@ -48,8 +48,13 @@ export type DestinationCheckoutSessionInput = {
  * `application_fee_amount`.
  *
  * Centralized so the two destination-charge flows (event ticket + tip
- * jar) share the same defaults: card-only, 30-minute expiry, USD,
- * Connect destination, metadata propagated to the payment intent.
+ * jar) share the same defaults: card-only, billing address required (AVS),
+ * 30-minute expiry, USD, Connect destination, metadata propagated to the
+ * payment intent.
+ *
+ * Because both surfaces route through here, an anti-fraud default added in this
+ * function covers tickets and tips at once — which is the reason to keep new
+ * charge-level controls here rather than in either caller.
  */
 export async function createDestinationCheckoutSession(
   input: DestinationCheckoutSessionInput,
@@ -59,6 +64,20 @@ export async function createDestinationCheckoutSession(
     {
       mode: 'payment',
       payment_method_types: ['card'],
+      // Forces Checkout to collect a billing address, which turns on AVS —
+      // Stripe checks the postal code against the issuer and surfaces the result
+      // as `charge.payment_method_details.card.checks.address_postal_code_check`.
+      //
+      // This is not cosmetic. In the 2026-09-14→17 card-testing incident all 84
+      // successful charges came back with `address_postal_code_check: null`,
+      // because we never asked for an address, so the cheapest available fraud
+      // signal was never consulted. Bulk card dumps carry numbers and expiry but
+      // rarely the cardholder's real billing address, so requiring it raises the
+      // per-attempt cost for a tester far more than for a genuine buyer, who is
+      // typing their own postal code.
+      //
+      // See `.scratch/tip-fraud-response/map.md`.
+      billing_address_collection: 'required',
       ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
       line_items: input.lineItems,
       payment_intent_data: {
