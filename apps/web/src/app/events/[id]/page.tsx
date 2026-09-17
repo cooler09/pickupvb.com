@@ -7,6 +7,7 @@ import { NotFoundError } from '@pickupvb/domain';
 import { getViewer } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { OFF_PLATFORM_UPSELL_COOKIE } from '@/lib/off-platform-upsell';
+import { isTippingEnabled } from '@/lib/payment-surfaces';
 import { EventHero } from './_components/event-hero';
 import { EventStickyCta } from './_components/event-sticky-cta';
 import { HostsSection } from './_components/hosts-section';
@@ -475,6 +476,7 @@ export default async function EventDetailPage(props: {
           viewerHasSession={!!user}
           totalCents={tipTotalCents}
           hostCanCollectTips={hostStripeReady}
+          tippingEnabled={isTippingEnabled()}
         />
       )}
 

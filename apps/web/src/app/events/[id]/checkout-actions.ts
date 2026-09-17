@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import type Stripe from 'stripe';
 import type { Route } from 'next';
 import { isStripeConfigured } from '@/lib/stripe';
+import { isTicketCheckoutEnabled } from '@/lib/payment-surfaces';
 import { getServerSupabase } from '@/lib/supabase';
 import { getEventPricing, attendeeChargeBreakdownAsync } from '@/lib/event-pricing';
 import { getEventPayoutAccount } from '@/lib/event-payout';
@@ -32,6 +33,10 @@ function backWithError(eventId: string, code: string, msg?: string): never {
  * deletes it on `checkout.session.expired` / payment_failed.
  */
 export async function startTicketCheckout(eventId: string): Promise<void> {
+  // Kill switch — ON by default. Ticket sales share the tip surface's platform
+  // chargeback liability, so if the fraud migrates here this is flipped with one
+  // env var (`TICKET_CHECKOUT_DISABLED=true`) instead of a code change.
+  if (!isTicketCheckoutEnabled()) backWithError(eventId, 'payments_off');
   if (!isStripeConfigured()) backWithError(eventId, 'payments_off');
 
   const supabase = await getServerSupabase();
@@ -232,6 +237,9 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
  * flow as authenticated users.
  */
 export async function startGuestTicketCheckout(eventId: string, formData: FormData): Promise<void> {
+  // See `startTicketCheckout` — guarded here too, before the anonymous-session
+  // mint further down.
+  if (!isTicketCheckoutEnabled()) backWithError(eventId, 'payments_off');
   if (!isStripeConfigured()) backWithError(eventId, 'payments_off');
 
   const displayName = field(formData, 'display_name');

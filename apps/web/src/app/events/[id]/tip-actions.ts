@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import type Stripe from 'stripe';
 import type { Route } from 'next';
 import { isStripeConfigured } from '@/lib/stripe';
+import { isTippingEnabled } from '@/lib/payment-surfaces';
 import { tipPlatformFeeCents } from '@/lib/event-pricing';
 import { getServerSupabase } from '@/lib/supabase';
 import { getEventPayoutAccount } from '@/lib/event-payout';
@@ -18,6 +19,13 @@ import { MIN_TIP_CENTS, MAX_TIP_CENTS } from './tip-constants';
 function backWithError(eventId: string, code: string, msg?: string): never {
   redirectEventNotice(eventId, 'tip', code, msg);
 }
+
+/**
+ * Shown when the tipping kill switch is off. Deliberately says nothing about
+ * *why* — the surface is disabled while a fraud pattern is investigated, and
+ * the abuser is as likely to read this string as a real user.
+ */
+const TIPPING_DISABLED_MESSAGE = 'Tipping is temporarily unavailable.';
 
 function parseAmountCents(raw: string): number | null {
   const n = Number(raw);
@@ -53,6 +61,10 @@ async function loadEvent(
  * anonymous Supabase session first via the guest flow if needed.
  */
 export async function startTipCheckout(eventId: string, formData: FormData): Promise<void> {
+  // Kill switch (default-off). `TipJar` already hides itself when tipping is
+  // disabled, so reaching here means a stale page or a hand-rolled POST —
+  // guard the action anyway, since the UI is not the security boundary.
+  if (!isTippingEnabled()) backWithError(eventId, 'error', TIPPING_DISABLED_MESSAGE);
   if (!isStripeConfigured()) backWithError(eventId, 'error', 'Payments are not configured.');
 
   const amountCents = parseAmountCents(field(formData, 'amount'));
@@ -182,6 +194,11 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
  * as guest ticket purchase), then delegates to startTipCheckout.
  */
 export async function startGuestTipCheckout(eventId: string, formData: FormData): Promise<void> {
+  // Guarded at its own entry, not just via the delegation to `startTipCheckout`
+  // below: this path mints an anonymous Supabase session as a side effect, and a
+  // disabled surface should not be creating accounts.
+  if (!isTippingEnabled()) backWithError(eventId, 'error', TIPPING_DISABLED_MESSAGE);
+
   const displayName = field(formData, 'display_name');
   const turnstileToken = field(formData, 'cf-turnstile-response');
 
